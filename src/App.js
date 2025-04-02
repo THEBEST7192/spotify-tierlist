@@ -1,23 +1,26 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect, useState } from "react";
+import Home from "./pages/Home";
+import "./App.css";
 
 function App() {
+  const [accessToken, setAccessToken] = useState(null);
+
+  useEffect(() => {
+    // Check the URL hash for the Spotify token
+    const hash = window.location.hash;
+    let token = null;
+    if (hash) {
+      token = new URLSearchParams(hash.substring(1)).get("access_token");
+      window.location.hash = ""; // Clean the URL
+    }
+    if (token) {
+      setAccessToken(token);
+    }
+  }, []);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <Home accessToken={accessToken} setAccessToken={setAccessToken} />
     </div>
   );
 }

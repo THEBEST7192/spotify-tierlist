@@ -1,0 +1,80 @@
+.app-container {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.playlist-title {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.export-button {
+  display: block;
+  margin: 0 auto 20px;
+  padding: 10px 20px;
+  background-color: #1db954;
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.tier-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+}
+
+.tier-column {
+  background-color: #f0f0f0;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  width: 200px;
+  padding: 10px;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tier-title {
+  text-align: center;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.song-item {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: grab;
+}
+
+.album-art {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.song-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.song-title {
+  font-size: 14px;
+  margin: 0;
+  font-weight: bold;
+}
+
+.song-artists {
+  font-size: 12px;
+  margin: 0;
+  color: #666;
+}
