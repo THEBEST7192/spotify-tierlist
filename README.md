@@ -1,70 +1,115 @@
-# Getting Started with Create React App
+# Spotify Tierlist Maker
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A web application that allows you to create tier lists from your Spotify playlists. Organize your favorite songs into tiers (S, A, B, C, D, E, F) using a drag-and-drop interface.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- Connect with your Spotify account
+- Browse and select from your playlists
+- Search playlists by name or description
+- Drag and drop songs into different tiers
+- Export your tier list as an image
+- View album covers for each song
+- Responsive design for desktop and mobile
 
-### `npm start`
+## Getting Started
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Prerequisites
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- Node.js (v14 or higher)
+- npm (comes with Node.js)
+- Spotify account
 
-### `npm test`
+### Installation
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/spotify-tierlist.git
+```
 
-### `npm run build`
+2. Install dependencies:
+```bash
+cd spotify-tierlist
+npm install
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+3. Create a `.env.local` file in the root directory and add your Spotify API credentials:
+```
+REACT_APP_SPOTIFY_CLIENT_ID=your_client_id
+REACT_APP_SPOTIFY_REDIRECT_URI=http://localhost:3000/callback
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+4. Start the development server:
+```bash
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+The app will open in your default browser at `http://localhost:3000`.
 
-### `npm run eject`
+## Usage
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. Click "Login with Spotify" to connect your account
+2. Select a playlist from your library
+3. Drag songs into different tiers (S, A, B, C, D, E, F, or Unranked)
+4. Click "Export as Image" to save your tier list
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Technologies Used
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- React
+- React Beautiful DND (for drag and drop functionality)
+- HTML2Canvas (for image export)
+- Axios (for API requests)
+- Create React App
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Contributing
 
-## Learn More
+Ask me to upload this to GitHub then you can contribute.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## License
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-### Code Splitting
+## Acknowledgments
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- Thanks to Spotify for providing the Web API
+- Inspired by tier list makers in gaming communities
+- Built with Create React App
 
-### Analyzing the Bundle Size
+## Anti Acknowledgments
+- Fuck npm run build
+- Fuck npm run serve
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Support
 
-### Making a Progressive Web App
+Just ask me irl I am not open sourcing this shit project.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Troubleshooting
 
-### Advanced Configuration
+If you encounter any issues:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+1. Ensure your Spotify API credentials are correct
+2. Check your internet connection
+3. Clear your browser cache
+4. Try running `npm install` again
 
-### Deployment
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+If you ran "npm run start" you will have to run "npm run build" to build the production version of the app. After that you can run "npm run serve" to serve the production version of the app.
+If not you will get various errors that are not really errors like:
 
-### `npm run build` fails to minify
+react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with id: (contentHere)👷‍ This is a development only message. It will be removed in production builds.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Additional Resources
+
+- [Spotify Web API Documentation](https://developer.spotify.com/documentation/web-api/)
+- [React Beautiful DND Documentation](https://react-beautiful-dnd.netlify.app/docs/getting-started)
+- [HTML2Canvas Documentation](https://html2canvas.hertzen.com/documentation)
+
+## Contact
+
+Your Name - [blundsbakken@gmail.com](mailto:blundsbakken@gmail.com)

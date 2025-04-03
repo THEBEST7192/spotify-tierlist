@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import "./PlaylistSelector.css";
 
 const PlaylistSelector = ({ accessToken, onSelect }) => {
   const [playlists, setPlaylists] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredPlaylists, setFilteredPlaylists] = useState([]);
 
   useEffect(() => {
     if (!accessToken) return;
-
-//    console.log("Using Access Token:", accessToken); // Debugging
 
     axios
       .get("https://api.spotify.com/v1/me/playlists", {
@@ -17,19 +18,55 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
         },
       })
       .then((res) => {
-        console.log("API Response:", res.data);
         setPlaylists(res.data.items);
+        setFilteredPlaylists(res.data.items);
       })
       .catch((err) => console.error("Error fetching playlists:", err));
   }, [accessToken]);
 
+  useEffect(() => {
+    if (!searchQuery) {
+      setFilteredPlaylists(playlists);
+      return;
+    }
+    
+    const filtered = playlists.filter(playlist => 
+      playlist.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (playlist.description && playlist.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+    setFilteredPlaylists(filtered);
+  }, [searchQuery, playlists]);
+
   return (
-    <div>
+    <div className="playlist-selector">
       <h2>Select a Playlist</h2>
-      {playlists.length > 0 ? (
-        playlists.map((playlist) => (
-          <button key={playlist.id} onClick={() => onSelect(playlist)}>
-            {playlist.name}
+      <input
+        type="text"
+        placeholder="Search playlists by name or description..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="search-input"
+      />
+      {filteredPlaylists.length > 0 ? (
+        filteredPlaylists.map((playlist) => (
+          <button 
+            key={playlist.id} 
+            onClick={() => onSelect(playlist)} 
+            className="playlist-button"
+          >
+            {playlist.images && playlist.images.length > 0 && (
+              <img 
+                src={playlist.images[0].url}
+                alt={playlist.name}
+                className="playlist-cover"
+              />
+            )}
+            <div className="playlist-info">
+              <div className="playlist-name">{playlist.name}</div>
+              {playlist.description && (
+                <div className="playlist-description">{playlist.description}</div>
+              )}
+            </div>
           </button>
         ))
       ) : (

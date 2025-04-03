@@ -106,11 +106,57 @@ const TierList = ({ songs }) => {
 
   // Export tier list as an image
   const exportImage = () => {
-    html2canvas(document.getElementById("tier-list")).then(canvas => {
-      const link = document.createElement("a");
-      link.href = canvas.toDataURL("image/png");
-      link.download = "spotify-tierlist.png";
-      link.click();
+    // Wait for images to load
+    const images = document.querySelectorAll('.album-cover');
+    const promises = Array.from(images).map(img => {
+      return new Promise((resolve) => {
+        if (img.complete) {
+          resolve();
+        } else {
+          img.onload = resolve;
+          img.onerror = resolve; // Resolve even if image fails to load
+        }
+      });
+    });
+
+    Promise.all(promises).then(() => {
+      // Create a temporary container for the tier list
+      const tempContainer = document.createElement('div');
+      const tierList = document.getElementById("tier-list").cloneNode(true);
+      
+      // Ensure all images have CORS support
+      const clonedImages = tierList.querySelectorAll('.album-cover');
+      clonedImages.forEach(img => {
+        img.crossOrigin = "Anonymous";
+        img.loading = "eager";
+        img.style.opacity = '1'; // Ensure images are visible
+      });
+
+      tempContainer.appendChild(tierList);
+      document.body.appendChild(tempContainer);
+
+      // Generate the image
+      html2canvas(tempContainer, {
+        useCORS: true,
+        logging: true,
+        scale: 2, // Higher quality image
+        onclone: (doc) => {
+          // Ensure images are loaded in the cloned document
+          const docImages = doc.querySelectorAll('.album-cover');
+          docImages.forEach(img => {
+            img.crossOrigin = "Anonymous";
+            img.loading = "eager";
+          });
+        }
+      }).then(canvas => {
+        // Clean up
+        tempContainer.remove();
+        
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "spotify-tierlist.png";
+        link.click();
+      });
     });
   };
 
