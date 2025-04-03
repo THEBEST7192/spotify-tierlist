@@ -1,232 +1,197 @@
 import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
+import "./TierList.css";
 
-const defaultTiers = {
-  S: [],
-  A: [],
-  B: [],
-  C: [],
-  D: [],
-  E: [],
-  F: [],
-  Unranked: [] // Added Unranked tier for initial songs
+// Define tiers and their colors
+const TIERS = {
+  S: { color: "#FF7F7F", label: "S" },
+  A: { color: "#FFBF7F", label: "A" },
+  B: { color: "#FFFF7F", label: "B" },
+  C: { color: "#7FFF7F", label: "C" },
+  D: { color: "#7FBFFF", label: "D" },
+  E: { color: "#BF7FFF", label: "E" },
+  F: { color: "#FF7FBF", label: "F" },
+  Unranked: { color: "#E0E0E0", label: "Unranked" }
 };
 
-const tierColors = {
-  S: "#FF7F7F", // Light Red
-  A: "#FFBF7F", // Light Orange
-  B: "#FFFF7F", // Light Yellow
-  C: "#7FFF7F", // Light Green
-  D: "#7FBFFF", // Light Blue
-  E: "#BF7FFF", // Light Purple
-  F: "#FF7FBF", // Light Pink
-  Unranked: "#E0E0E0" // Light Gray
-};
+// Define the order of tiers
+const TIER_ORDER = ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
+
+// IMPORTANT: This is the most reliable ID method
+const getItemStyle = (isDragging, draggableStyle) => ({
+  // some basic styles to make the items look nicer
+  userSelect: "none",
+  padding: 8,
+  margin: "0 8px 0 0",
+  
+  // change background colour if dragging
+  background: isDragging ? "lightgreen" : "white",
+  
+  // styles we need to apply on draggables
+  ...draggableStyle
+});
+
+const getListStyle = isDraggingOver => ({
+  background: isDraggingOver ? "lightblue" : "transparent",
+  display: "flex",
+  overflow: "auto",
+  minHeight: "80px"
+});
 
 const TierList = ({ songs }) => {
-  const [tiers, setTiers] = useState(defaultTiers);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Initialize songs into the Unranked tier when songs prop changes
+  const [state, setState] = useState(() => {
+    // Initialize state with all tiers from TIER_ORDER
+    return TIER_ORDER.reduce((acc, tier) => ({
+      ...acc,
+      [tier]: []
+    }), {});
+  });
+  
+  // Initialize with songs
   useEffect(() => {
     if (songs && songs.length > 0) {
-      setTiers(prevTiers => ({
-        ...prevTiers,
-        Unranked: [...songs]
+      setState(prev => ({
+        ...prev,
+        Unranked: songs.map(song => ({
+          id: song.dragId,
+          content: song
+        }))
       }));
-      setIsLoading(false);
     }
   }, [songs]);
 
-  const onDragEnd = (result) => {
-    if (!result.destination) return;
-
+  const onDragEnd = result => {
     const { source, destination } = result;
-    const sourceTier = source.droppableId;
-    const destTier = destination.droppableId;
-    
-    // Don't do anything if dropped in the same position
+
+    // dropped outside the list
+    if (!destination) {
+      return;
+    }
+
+    // If dropped in the same position
     if (
-      sourceTier === destTier &&
+      source.droppableId === destination.droppableId &&
       source.index === destination.index
     ) {
       return;
     }
 
-    // Get the song being dragged
-    const song = tiers[sourceTier][source.index];
+    // Moving within the same list
+    if (source.droppableId === destination.droppableId) {
+      const items = Array.from(state[source.droppableId]);
+      const [removed] = items.splice(source.index, 1);
+      items.splice(destination.index, 0, removed);
 
-    // Create a new tiers object to update state
-    const newTiers = { ...tiers };
-    
-    // Remove from source tier
-    newTiers[sourceTier].splice(source.index, 1);
-    
-    // Add to destination tier
-    newTiers[destTier].splice(destination.index, 0, song);
+      setState(prev => ({
+        ...prev,
+        [source.droppableId]: items
+      }));
+    } 
+    // Moving from one list to another
+    else {
+      const sourceItems = Array.from(state[source.droppableId]);
+      const destItems = Array.from(state[destination.droppableId]);
+      const [removed] = sourceItems.splice(source.index, 1);
 
-    setTiers(newTiers);
+      destItems.splice(destination.index, 0, removed);
+
+      setState(prev => ({
+        ...prev,
+        [source.droppableId]: sourceItems,
+        [destination.droppableId]: destItems
+      }));
+    }
   };
 
+  // Export tier list as an image
   const exportImage = () => {
-    html2canvas(document.getElementById("tier-list")).then((canvas) => {
+    html2canvas(document.getElementById("tier-list")).then(canvas => {
       const link = document.createElement("a");
       link.href = canvas.toDataURL("image/png");
-      link.download = "tierlist.png";
+      link.download = "spotify-tierlist.png";
       link.click();
     });
   };
-
-  if (isLoading) {
-    return <div>Loading songs...</div>;
-  }
 
   return (
     <div className="tier-list-container">
       <DragDropContext onDragEnd={onDragEnd}>
         <div id="tier-list" className="tier-list">
-          {Object.keys(tiers).map((tier) => (
-            <Droppable key={tier} droppableId={tier} direction="horizontal">
-              {(provided, snapshot) => (
-                <div 
-                  className={`tier ${tier.toLowerCase()}`} 
-                  style={{ backgroundColor: tierColors[tier] }}
-                >
-                  <div className="tier-label">
-                    <h3>{tier}</h3>
-                  </div>
-                  <div 
-                    className="tier-songs"
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                  >
-                    {tiers[tier].map((song, index) => (
-                      <Draggable 
-                        key={song.id} 
-                        draggableId={song.id} 
-                        index={index}
-                      >
-                        {(provided, snapshot) => (
-                          <div
-                            className={`song-card ${snapshot.isDragging ? 'dragging' : ''}`}
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
-                            {song.album && song.album.images && song.album.images.length > 0 && (
-                              <img 
-                                src={song.album.images[song.album.images.length > 2 ? 2 : 0].url} 
-                                alt={song.album.name}
-                                className="album-cover"
-                              />
-                            )}
-                            <div className="song-info">
-                              <div className="song-name">{song.name}</div>
-                              <div className="song-artist">
-                                {song.artists && song.artists.map(artist => artist.name).join(", ")}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
+          {TIER_ORDER.map(tierId => {
+            const { color, label } = TIERS[tierId];
+            
+            return (
+              <div 
+                key={tierId}
+                className="tier"
+                style={{ backgroundColor: color }}
+              >
+                <div className="tier-label">
+                  <h3>{label}</h3>
                 </div>
-              )}
-            </Droppable>
-          ))}
+                
+                <Droppable
+                  droppableId={tierId}
+                  direction="horizontal"
+                >
+                  {(provided, snapshot) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      style={getListStyle(snapshot.isDraggingOver)}
+                      className="tier-songs"
+                    >
+                      {state[tierId].map((item, index) => {
+                        const song = item.content;
+                        return (
+                          <Draggable
+                            key={item.id}
+                            draggableId={item.id}
+                            index={index}
+                          >
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                style={getItemStyle(
+                                  snapshot.isDragging,
+                                  provided.draggableProps.style
+                                )}
+                                className="song-card"
+                              >
+                                {song.album && song.album.images && song.album.images.length > 0 && (
+                                  <img 
+                                    src={song.album.images[song.album.images.length > 2 ? 2 : 0].url}
+                                    alt={song.album.name || "Album Cover"}
+                                    className="album-cover" 
+                                  />
+                                )}
+                                <div className="song-info">
+                                  <div className="song-name">{song.name}</div>
+                                  <div className="song-artist">
+                                    {song.artists && song.artists.map(artist => artist.name).join(", ")}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            );
+          })}
         </div>
       </DragDropContext>
-      <button className="export-button" onClick={exportImage}>Export as Image</button>
       
-      <style jsx>{`
-        .tier-list-container {
-          font-family: 'Arial', sans-serif;
-          max-width: 100%;
-          margin: 0 auto;
-        }
-        .tier-list {
-          display: flex;
-          flex-direction: column;
-          border: 1px solid #ddd;
-          border-radius: 5px;
-          overflow: hidden;
-        }
-        .tier {
-          display: flex;
-          margin-bottom: 2px;
-          min-height: 80px;
-        }
-        .tier-label {
-          width: 80px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          font-weight: bold;
-          border-right: 2px solid rgba(0,0,0,0.1);
-        }
-        .tier-songs {
-          flex-grow: 1;
-          display: flex;
-          flex-wrap: wrap;
-          padding: 10px;
-          min-height: 80px;
-        }
-        .song-card {
-          display: flex;
-          background: white;
-          padding: 5px;
-          margin: 5px;
-          border-radius: 4px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          max-width: 200px;
-          align-items: center;
-        }
-        .song-card.dragging {
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        .album-cover {
-          width: 50px;
-          height: 50px;
-          border-radius: 3px;
-          margin-right: 10px;
-        }
-        .song-info {
-          flex-grow: 1;
-          overflow: hidden;
-        }
-        .song-name {
-          font-weight: 500;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .song-artist {
-          font-size: 12px;
-          color: #777;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .export-button {
-          margin-top: 20px;
-          padding: 10px 15px;
-          background: #1DB954;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-weight: bold;
-        }
-        .export-button:hover {
-          background: #1ed760;
-        }
-        .unranked {
-          background-color: #f0f0f0;
-        }
-      `}</style>
+      <button className="export-button" onClick={exportImage}>
+        Export as Image
+      </button>
     </div>
   );
 };
