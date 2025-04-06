@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
 import "./TierList.css";
+import RecommendationGenerator from "./RecommendationGenerator";
 
 // Define tiers and their colors
 const TIERS = {
@@ -39,7 +40,7 @@ const getListStyle = isDraggingOver => ({
   minHeight: "80px"
 });
 
-const TierList = ({ songs }) => {
+const TierList = ({ songs, accessToken }) => {
   const [state, setState] = useState(() => {
     // Initialize state with all tiers from TIER_ORDER
     return TIER_ORDER.reduce((acc, tier) => ({
@@ -235,9 +236,13 @@ const TierList = ({ songs }) => {
         </div>
       </DragDropContext>
       
-      <button className="export-button" onClick={exportImage}>
-        Export as Image
-      </button>
+      <div className="tier-list-actions">
+        <button className="export-button" onClick={exportImage}>
+          Export as Image
+        </button>
+        
+        <RecommendationGenerator tierState={state} accessToken={accessToken} />
+      </div>
     </div>
   );
 };

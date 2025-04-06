@@ -68,7 +68,7 @@ const TierListPage = ({ playlist }) => {
 
   return (
     <div className="tierlist-page">
-      <TierList songs={songs} />
+      <TierList songs={songs} accessToken={playlist?.accessToken} />
     </div>
   );
 };

@@ -105,3 +105,14 @@
 .unranked {
   background-color: #f0f0f0;
 }
+
+.tier-list-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.tier-list-actions .export-button {
+  margin-top: 0;
+}

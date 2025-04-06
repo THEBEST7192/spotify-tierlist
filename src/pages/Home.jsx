@@ -81,7 +81,7 @@ const Home = ({ accessToken, setAccessToken }) => {
             ← Back to Playlists
           </button>
           <h2>Tierlist for: {selectedPlaylist.name}</h2>
-          <TierList songs={playlistTracks} />
+          <TierList songs={playlistTracks} accessToken={accessToken} />
         </div>
       ) : (
         <div className="playlist-selector-container">
