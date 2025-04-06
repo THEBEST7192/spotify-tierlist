@@ -87,10 +87,35 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
       const uniqueRecommendations = [];
       const trackMap = new Map();
       
+      // Create a set of song IDs that are already in the tier list to exclude them
+      const existingSongIds = new Set();
+      Object.values(tierState).forEach(songs => {
+        songs.forEach(song => {
+          if (song.content && song.content.id) {
+            existingSongIds.add(song.content.id);
+          }
+        });
+      });
+      
+      // Process recommendations, adding scores for duplicates
       recommendations.forEach(rec => {
         const key = `${rec.artist}-${rec.name}`;
-        if (!trackMap.has(key) || trackMap.get(key).score < rec.score) {
-          trackMap.set(key, rec);
+        if (trackMap.has(key)) {
+          // If we've seen this track before, add to its score and track multiple sources
+          const existing = trackMap.get(key);
+          existing.score += rec.score;
+          // Add the additional source if it's different
+          if (!existing.sources.some(s => 
+            s.artist === rec.source.artist && s.track === rec.source.track)) {
+            existing.sources.push(rec.source);
+          }
+          trackMap.set(key, existing);
+        } else {
+          // First time seeing this track
+          trackMap.set(key, {
+            ...rec,
+            sources: [rec.source]
+          });
         }
       });
       
@@ -100,7 +125,7 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
       
       // Find these tracks on Spotify
       const spotifyTracks = [];
-      for (const rec of uniqueRecommendations.slice(0, 20)) { // Limit to top 20
+      for (const rec of uniqueRecommendations.slice(0, 30)) { // Increased limit to ensure we get enough after filtering
         try {
           const response = await axios.get('https://api.spotify.com/v1/search', {
             params: {
@@ -114,9 +139,16 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
           });
           
           if (response.data.tracks.items.length > 0) {
+            const spotifyTrack = response.data.tracks.items[0];
+            
+            // Skip if this track is already in the user's tier list
+            if (existingSongIds.has(spotifyTrack.id)) {
+              continue;
+            }
+            
             spotifyTracks.push({
               ...rec,
-              spotifyData: response.data.tracks.items[0]
+              spotifyData: spotifyTrack
             });
           }
         } catch (error) {
@@ -176,7 +208,7 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
         onClick={generateRecommendations}
         disabled={isLoading}
       >
-        {isLoading ? 'Generating...' : 'Get Recommendations Based on Your Tiers'}
+        {isLoading ? 'Generating...' : 'Get Recommendations Based on Your Rankings'}
       </button>
       
       {error && <div className="error-message">{error}</div>}
@@ -202,10 +234,18 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
                   <div className="recommendation-artist-name">{track.artist}</div>
                   <div className="recommendation-source">
                     <span className="recommendation-source-label">Based on:</span> 
-                    {track.source.track} by {track.source.artist} (Tier: {
-                      Object.entries(TIER_WEIGHTS)
-                        .find(([tier, weight]) => weight === track.source.weight)?.[0]
-                    })
+                    {track.sources.length === 1 ? (
+                      <>
+                        {track.sources[0].track} by {track.sources[0].artist} (Tier: {
+                          Object.entries(TIER_WEIGHTS)
+                            .find(([tier, weight]) => weight === track.sources[0].weight)?.[0]
+                        })
+                      </>
+                    ) : (
+                      <>
+                        {track.sources.length} songs including {track.sources[0].track} by {track.sources[0].artist}
+                      </>
+                    )}
                   </div>
                 </div>
                 <a 
