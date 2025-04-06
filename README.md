@@ -83,22 +83,27 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Built with Create React App
 
 ## Anti Acknowledgments
+
 - Fuck npm run build
 - Fuck serve -s build
 
 ## Support
+
 ~~Just ask me irl I am not open sourcing this shit project~~ Send me a message at Discord (@thebest7192)
 
 ## Troubleshooting
+
 If you encounter any issues:
 
-Ensure your Spotify API credentials are correct
-Check your internet connection
-Clear your browser cache
-Try running npm install again
-If you ran "npm run start" you should instead run "npm run build" to build the production version of the app. After that you can run "npm run -s serve" to serve the production version of the app. If not you will get various errors that are not really errors, you will also not be able to move the songs around.
+1. Ensure your Spotify API credentials are correct
+2. Check your internet connection
+3. Clear your browser cache
+4. Try running npm install again
+5. If you ran "npm run start" you should instead run "npm run build" to build the production version of the app. After that you can run "npm run -s serve" to serve the production version of the app. If not you will get various errors that are not really errors, you will also not be able to move the songs around.
 One example of those errors is this one:
+```
 react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with id: (contentHere)👷‍ This is a development only message. It will be removed in production builds.
+```
 
 ## Additional Resources
 
