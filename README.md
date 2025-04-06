@@ -24,7 +24,7 @@ A web application that allows you to create tier lists from your Spotify playlis
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/spotify-tierlist.git
+git clone https://github.com/THEBEST7192/spotify-tierlist
 ```
 
 2. Install dependencies:
@@ -36,15 +36,17 @@ npm install
 3. Create a `.env.local` file in the root directory and add your Spotify API credentials:
 ```
 REACT_APP_SPOTIFY_CLIENT_ID=your_client_id
-REACT_APP_SPOTIFY_REDIRECT_URI=http://localhost:3000/callback
+REACT_APP_SPOTIFY_REDIRECT_URI=your_redirect_uri (I used: http://localhost:3000/callback)
 ```
 
-4. Start the development server:
+4. Start the production server:
+
 ```bash
-npm start
+npm run build
+serve -s build
 ```
 
-The app will open in your default browser at `http://localhost:3000`.
+The app will open in your default browser at `http://localhost:3000` or wherever you set as your redirect uri.
 
 ## Usage
 
@@ -60,15 +62,6 @@ The app will open in your default browser at `http://localhost:3000`.
 - HTML2Canvas (for image export)
 - Axios (for API requests)
 - Create React App
-
-## Contributing
-
-Ask me to upload this to GitHub then you can contribute.
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## License
 
@@ -86,7 +79,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-Just ask me irl I am not open sourcing this shit project.
+~~Just ask me irl I am not open sourcing this shit project~~
+Send me a message at Discord (@thebest7192)
+
 
 ## Troubleshooting
 
@@ -98,7 +93,7 @@ If you encounter any issues:
 4. Try running `npm install` again
 
 
-If you ran "npm run start" you will have to run "npm run build" to build the production version of the app. After that you can run "npm run serve" to serve the production version of the app.
+If you ran "npm run start" you will have to run "npm run build" to build the production version of the app. After that you can run "npm run -s serve" to serve the production version of the app.
 If not you will get various errors that are not really errors like:
 
 react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with id: (contentHere)👷‍ This is a development only message. It will be removed in production builds.
@@ -110,6 +105,6 @@ react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with i
 - [React Beautiful DND Documentation](https://react-beautiful-dnd.netlify.app/docs/getting-started)
 - [HTML2Canvas Documentation](https://html2canvas.hertzen.com/documentation)
 
-## Contact
 
-Your Name - [blundsbakken@gmail.com](mailto:blundsbakken@gmail.com)
+## Contact
+@thebest7192 on Discord
