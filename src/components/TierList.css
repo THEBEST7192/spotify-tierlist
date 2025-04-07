@@ -19,6 +19,8 @@
   margin-bottom: 2px;
   min-height: 80px;
   transition: background-color 0.2s ease;
+  flex-grow: 1;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .tier-label {
@@ -37,6 +39,31 @@
   padding: 10px;
   min-height: 80px;
   transition: background-color 0.2s ease;
+  overflow: auto;
+  padding-right: 20px;
+  padding-bottom: 20px;
+  scroll-behavior: smooth;
+  align-content: flex-start;
+  gap: 8px;
+}
+
+.tier-songs::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.tier-songs::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.tier-songs::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.tier-songs::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .tier-songs.dragging-over {
@@ -51,6 +78,12 @@
   margin: 4px;
   border-radius: 4px;
   transition: background-color 0.2s ease;
+  flex-shrink: 0;
+  min-width: 200px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 8px;
+  cursor: grab;
 }
 
 .song-card:hover {
@@ -59,6 +92,7 @@
 
 .song-card:active {
   background-color: transparent !important;
+  cursor: grabbing;
 }
 
 .song-card.dragging {

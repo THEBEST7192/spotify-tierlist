@@ -36,8 +36,10 @@ const getItemStyle = (isDragging, draggableStyle) => ({
 const getListStyle = isDraggingOver => ({
   background: isDraggingOver ? "lightblue" : "transparent",
   display: "flex",
+  flexWrap: "wrap",
   overflow: "auto",
-  minHeight: "80px"
+  minHeight: "80px",
+  alignContent: "flex-start"
 });
 
 const TierList = ({ songs, accessToken }) => {
@@ -180,7 +182,7 @@ const TierList = ({ songs, accessToken }) => {
                 
                 <Droppable
                   droppableId={tierId}
-                  direction="horizontal"
+                  direction="vertical"
                 >
                   {(provided, snapshot) => (
                     <div
