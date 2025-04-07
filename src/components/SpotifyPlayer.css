@@ -1,0 +1,62 @@
+.spotify-player {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 300px;
+  background-color: #191414;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.spotify-player.expanded {
+  width: 350px;
+}
+
+.player-controls {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background-color: #282828;
+}
+
+.close-button, .expand-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.close-button:hover, .expand-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.close-button:hover {
+  color: #ff4444;
+}
+
+.player-iframe-container {
+  width: 100%;
+  transition: height 0.3s ease;
+}
+
+/* Make the player more compact on mobile */
+@media (max-width: 768px) {
+  .spotify-player {
+    width: 250px;
+    bottom: 10px;
+    right: 10px;
+  }
+  
+  .spotify-player.expanded {
+    width: 300px;
+  }
+} 

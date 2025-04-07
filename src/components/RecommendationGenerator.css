@@ -104,6 +104,31 @@
   font-weight: bold;
 }
 
+.recommendation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.play-preview-button {
+  background: none;
+  border: none;
+  color: #1DB954;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.play-preview-button:hover {
+  background-color: rgba(29, 185, 84, 0.1);
+  transform: scale(1.1);
+}
+
 .listen-button {
   background-color: #191414;
   color: white;
@@ -114,7 +139,6 @@
   text-align: center;
   text-decoration: none;
   transition: background-color 0.3s;
-  align-self: center;
 }
 
 .listen-button:hover {

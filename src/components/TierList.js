@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
+import SpotifyPlayer from "./SpotifyPlayer";
 
 // Define tiers and their colors
 const TIERS = {
@@ -50,6 +51,9 @@ const TierList = ({ songs, accessToken }) => {
       [tier]: []
     }), {});
   });
+  
+  // State for the currently playing track
+  const [currentTrack, setCurrentTrack] = useState(null);
   
   // Initialize with songs
   useEffect(() => {
@@ -163,6 +167,16 @@ const TierList = ({ songs, accessToken }) => {
     });
   };
 
+  // Play a track
+  const playTrack = (trackId) => {
+    setCurrentTrack(trackId);
+  };
+
+  // Handle track end
+  const handleTrackEnd = () => {
+    setCurrentTrack(null);
+  };
+
   return (
     <div className="tier-list-container">
       <DragDropContext onDragEnd={onDragEnd}>
@@ -223,6 +237,18 @@ const TierList = ({ songs, accessToken }) => {
                                     {song.artists && song.artists.map(artist => artist.name).join(", ")}
                                   </div>
                                 </div>
+                                <button 
+                                  className="play-preview-button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    playTrack(song.id);
+                                  }}
+                                  aria-label="Play preview"
+                                >
+                                  <svg viewBox="0 0 24 24" width="20" height="20">
+                                    <path fill="currentColor" d="M8 5v14l11-7z" />
+                                  </svg>
+                                </button>
                               </div>
                             )}
                           </Draggable>
@@ -243,8 +269,18 @@ const TierList = ({ songs, accessToken }) => {
           Export as Image
         </button>
         
-        <RecommendationGenerator tierState={state} accessToken={accessToken} />
+        <RecommendationGenerator 
+          tierState={state} 
+          accessToken={accessToken} 
+          onPlayTrack={playTrack}
+        />
       </div>
+
+      {/* Spotify Player */}
+      <SpotifyPlayer 
+        trackId={currentTrack} 
+        onTrackEnd={handleTrackEnd} 
+      />
     </div>
   );
 };

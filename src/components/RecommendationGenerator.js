@@ -6,7 +6,7 @@ import './RecommendationGenerator.css';
 const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY;
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
-const RecommendationGenerator = ({ tierState, accessToken }) => {
+const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -201,6 +201,13 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
     }
   };
 
+  // Handle play button click
+  const handlePlayClick = (trackId) => {
+    if (onPlayTrack) {
+      onPlayTrack(trackId);
+    }
+  };
+
   return (
     <div className="recommendation-container">
       <button 
@@ -248,14 +255,25 @@ const RecommendationGenerator = ({ tierState, accessToken }) => {
                     )}
                   </div>
                 </div>
-                <a 
-                  href={track.spotifyData?.external_urls?.spotify} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="listen-button"
-                >
-                  Listen on Spotify
-                </a>
+                <div className="recommendation-actions">
+                  <button 
+                    className="play-preview-button"
+                    onClick={() => handlePlayClick(track.spotifyData.id)}
+                    aria-label="Play preview"
+                  >
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <path fill="currentColor" d="M8 5v14l11-7z" />
+                    </svg>
+                  </button>
+                  <a 
+                    href={track.spotifyData?.external_urls?.spotify} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="listen-button"
+                  >
+                    Listen on Spotify
+                  </a>
+                </div>
               </div>
             ))}
           </div>
