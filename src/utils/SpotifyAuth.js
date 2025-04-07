@@ -1,6 +1,8 @@
-const CLIENT_ID = "2ddccc85e3ac476695961adbc36aa012";
-const REDIRECT_URI = "http://localhost:3000";
-const SCOPES = ["playlist-read-private", "user-library-read", "user-read-private", "user-read-email"];
+const CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
+const REDIRECT_URI = process.env.REACT_APP_SPOTIFY_REDIRECT_URI;
+const SCOPES = process.env.REACT_APP_SPOTIFY_SCOPES ? 
+  process.env.REACT_APP_SPOTIFY_SCOPES.split(', ') : 
+  [];
 
 export const getSpotifyAuthURL = () => {
   const url = new URL("https://accounts.spotify.com/authorize");

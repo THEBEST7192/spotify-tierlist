@@ -37,9 +37,10 @@ npm install
 
 3. Create a `.env.local` file in the root directory and add your API credentials:
 ```
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_REDIRECT_URI=http://localhost:3000 or whichever redirect uri you set in your spotify dashboard
-REACT_APP_LASTFM_API_KEY=your_lastfm_api_key
+REACT_APP_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
+REACT_APP_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
+REACT_APP_LASTFM_API_KEY=YOUR_LASTFM_API_KEY
+REACT_APP_SPOTIFY_SCOPES=playlist-read-private,playlist-read-collaborative
 ```
 
 4. Build and start the production server:
@@ -48,7 +49,7 @@ npm run build
 serve -s build
 ```
 
-The app will open in your default browser at `http://localhost:3000` or wherever you set as your redirect uri.
+The app will open in your default browser at `http://localhost:3000`
 
 ## Usage
 
