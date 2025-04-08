@@ -13,6 +13,9 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
   const [newPlaylistIsPublic, setNewPlaylistIsPublic] = useState(true);
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [playlistToClone, setPlaylistToClone] = useState(null);
+  const [clonedPlaylistName, setClonedPlaylistName] = useState('');
 
   // Fetch user's playlists when component mounts
   useEffect(() => {
@@ -65,6 +68,17 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       setIsLoading(true);
       setError(null);
       
+      // Check if user owns or collaborates on the playlist
+      const playlist = playlists.find(p => p.id === selectedPlaylist);
+      if (!playlist.owner.id || playlist.owner.id !== 'spotify') {
+        // User doesn't own this playlist, offer to clone it
+        setPlaylistToClone(playlist);
+        setClonedPlaylistName(`${playlist.name} (Copy)`);
+        setShowCloneDialog(true);
+        setIsLoading(false);
+        return;
+      }
+      
       // Add track to the selected playlist
       await axios.post(
         `https://api.spotify.com/v1/playlists/${selectedPlaylist}/tracks`,
@@ -108,6 +122,17 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Check if user owns or collaborates on the playlist
+      const playlist = playlists.find(p => p.id === selectedPlaylist);
+      if (!playlist.owner.id || playlist.owner.id !== 'spotify') {
+        // User doesn't own this playlist, offer to clone it
+        setPlaylistToClone(playlist);
+        setClonedPlaylistName(`${playlist.name} (Copy)`);
+        setShowCloneDialog(true);
+        setIsLoading(false);
+        return;
+      }
       
       // Add all tracks to the selected playlist
       await axios.post(
@@ -225,6 +250,127 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
     }
   };
 
+  const handleClonePlaylist = async () => {
+    if (!playlistToClone) {
+      setError('No playlist selected for cloning');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get user ID first
+      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      const userId = userResponse.data.id;
+      
+      // Create new playlist
+      const createResponse = await axios.post(
+        `https://api.spotify.com/v1/users/${userId}/playlists`,
+        {
+          name: clonedPlaylistName,
+          description: `A copy of ${playlistToClone.name}`,
+          public: false // Default to private for cloned playlists
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      const newPlaylistId = createResponse.data.id;
+      
+      // Fetch all tracks from the original playlist
+      const originalTracksResponse = await axios.get(
+        `https://api.spotify.com/v1/playlists/${playlistToClone.id}/tracks`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          },
+          params: {
+            limit: 100 // Fetch up to 100 tracks
+          }
+        }
+      );
+      
+      // Extract track URIs from the original playlist
+      const originalTrackUris = originalTracksResponse.data.items.map(item => item.track.uri);
+      
+      // Add original tracks to the new playlist in batches of 100 (Spotify API limit)
+      if (originalTrackUris.length > 0) {
+        for (let i = 0; i < originalTrackUris.length; i += 100) {
+          const batch = originalTrackUris.slice(i, i + 100);
+          await axios.post(
+            `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
+            {
+              uris: batch
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+        }
+      }
+      
+      // Add the new recommended/selected tracks to the cloned playlist
+      if (isSingleTrack) {
+        await axios.post(
+          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
+          {
+            uris: [`spotify:track:${trackId}`]
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      } else {
+        await axios.post(
+          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
+          {
+            uris: trackId.map(id => `spotify:track:${id}`)
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+      
+      setIsSuccess(true);
+      setIsLoading(false);
+      setShowCloneDialog(false);
+      setShowPlaylistSelector(false);
+      
+      // Reset form fields
+      setPlaylistToClone(null);
+      setClonedPlaylistName('');
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => {
+        setIsSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Error cloning playlist:', err);
+      setError(`Failed to clone playlist: ${err.response?.data?.error?.message || err.message || 'Unknown error'}`);
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="add-to-playlist-container">
       {!showPlaylistSelector ? (
@@ -333,6 +479,43 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
               </div>
             )}
           </div>
+          
+          {/* Clone Playlist Dialog */}
+          {showCloneDialog && playlistToClone && (
+            <div className="clone-playlist-dialog">
+              <h4>Clone Playlist</h4>
+              <p>You don't have permission to add tracks to "{playlistToClone.name}". Would you like to create a copy of this playlist and add the tracks to it?</p>
+              
+              <input
+                type="text"
+                placeholder="New Playlist Name"
+                value={clonedPlaylistName}
+                onChange={(e) => setClonedPlaylistName(e.target.value)}
+                className="playlist-input"
+              />
+              
+              <div className="clone-playlist-actions">
+                <button 
+                  className="clone-button"
+                  onClick={handleClonePlaylist}
+                  disabled={isLoading || !clonedPlaylistName.trim()}
+                >
+                  {isLoading ? 'Cloning...' : 'Clone & Add Tracks'}
+                </button>
+                
+                <button 
+                  className="cancel-button"
+                  onClick={() => {
+                    setShowCloneDialog(false);
+                    setPlaylistToClone(null);
+                  }}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
