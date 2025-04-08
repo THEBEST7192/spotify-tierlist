@@ -1,14 +1,24 @@
 import React, { useState, useMemo } from "react";
 import AuthButton from "../components/AuthButton";
+import LogoutButton from "../components/LogoutButton";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
+import spotifyLogoOfficial from "../assets/spotify/spotify-logo-official.png";
 import axios from "axios";
+import "./Home.css";
 
 const Home = ({ accessToken, setAccessToken }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [playlistTracks, setPlaylistTracks] = useState([]);
+
+  // Handle logout
+  const handleLogout = () => {
+    setAccessToken(null);
+    setSelectedPlaylist(null);
+    setPlaylistTracks([]);
+  };
 
   // Handle playlist selection
   const handlePlaylistSelect = async (playlist) => {
@@ -68,12 +78,26 @@ const Home = ({ accessToken, setAccessToken }) => {
 
   return (
     <div className="home-container">
-      <h1>Spotify Tierlist Maker</h1>
+      <header className="app-header">
+        <h1>Tierlist Maker for Spotify</h1>
+        <div className="header-controls">
+          <img src={spotifyLogoOfficial} alt="Spotify" className="spotify-logo" />
+          {accessToken && <LogoutButton onLogout={handleLogout} />}
+        </div>
+      </header>
       
       {!accessToken ? (
         <div className="auth-container">
-          <p>Please log in with your Spotify account to create a tierlist.</p>
-          <AuthButton />
+          <div className="spotify-attribution">
+            <img src={spotifyLogoOfficial} alt="Spotify" className="spotify-full-logo" />
+            <p>Create a tier list from your favorite Spotify playlists.</p>
+            <p>This application uses content from Spotify. By using this app, you agree to Spotify's terms of service.</p>
+            <p>Please log in with your Spotify account to create a tierlist.</p>
+            <AuthButton />
+            <div className="made-with-spotify">
+              <p>Made with Spotify</p>
+            </div>
+          </div>
         </div>
       ) : selectedPlaylist ? (
         <div className="tierlist-container">
@@ -82,6 +106,9 @@ const Home = ({ accessToken, setAccessToken }) => {
           </button>
           <h2>Tierlist for: {selectedPlaylist.name}</h2>
           <TierList songs={playlistTracks} accessToken={accessToken} />
+          <div className="made-with-spotify">
+            <p>Made with Spotify</p>
+          </div>
         </div>
       ) : (
         <div className="playlist-selector-container">
@@ -90,6 +117,9 @@ const Home = ({ accessToken, setAccessToken }) => {
             accessToken={accessToken} 
             onSelect={handlePlaylistSelect} 
           />
+          <div className="made-with-spotify">
+            <p>Made with Spotify</p>
+          </div>
         </div>
       )}
     </div>

@@ -6,6 +6,9 @@ function App() {
   const [accessToken, setAccessToken] = useState(null);
 
   useEffect(() => {
+    // Set document title
+    document.title = "Tierlist Maker for Spotify";
+    
     // Check the URL hash for the Spotify token
     const hash = window.location.hash;
     let token = null;
@@ -18,9 +21,20 @@ function App() {
     }
   }, []);
 
+  // Handle setting or clearing the access token
+  const handleAccessTokenChange = (token) => {
+    setAccessToken(token);
+    
+    // If token is null (logout), clear any stored tokens
+    if (token === null) {
+      // Clear any stored tokens from localStorage if they exist
+      localStorage.removeItem('spotify_access_token');
+    }
+  };
+
   return (
     <div className="App">
-      <Home accessToken={accessToken} setAccessToken={setAccessToken} />
+      <Home accessToken={accessToken} setAccessToken={handleAccessTokenChange} />
     </div>
   );
 }

@@ -1,0 +1,23 @@
+.auth-button {
+  background-color: #1DB954; /* Spotify Green */
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 12px 32px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.auth-button:hover {
+  background-color: #1ed760; /* Lighter Spotify Green */
+  transform: scale(1.05);
+}
+
+.auth-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.3);
+} 

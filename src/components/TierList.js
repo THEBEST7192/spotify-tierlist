@@ -28,14 +28,15 @@ const getItemStyle = (isDragging, draggableStyle) => ({
   margin: "0 8px 0 0",
   
   // change background colour if dragging
-  background: isDragging ? "lightgreen" : "white",
+  background: isDragging ? "#333" : "#191414", // Spotify black
+  color: "white", // Text color for readability on black background
   
   // styles we need to apply on draggables
   ...draggableStyle
 });
 
 const getListStyle = isDraggingOver => ({
-  background: isDraggingOver ? "lightblue" : "transparent",
+  background: isDraggingOver ? "rgba(255, 255, 255, 0.1)" : "transparent",
   display: "flex",
   flexWrap: "wrap",
   overflow: "auto",

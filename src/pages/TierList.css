@@ -128,3 +128,12 @@
   border: 1px solid #f5c6cb;
   border-radius: 4px;
 }
+
+.tierlist-page {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  padding: 0;
+  margin: 0;
+}

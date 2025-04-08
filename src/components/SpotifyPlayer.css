@@ -18,8 +18,32 @@
 .player-controls {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 8px;
   background-color: #282828;
+}
+
+.spotify-attribution {
+  display: flex;
+  align-items: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.spotify-icon {
+  height: 20px;
+  width: 20px;
+  margin-right: 6px;
+  object-fit: contain;
+  background-color: transparent;
+  border-radius: 0; /* Override global image styles */
+}
+
+.player-buttons {
+  display: flex;
+  align-items: center;
 }
 
 .close-button, .expand-button {
@@ -48,6 +72,15 @@
   transition: height 0.3s ease;
 }
 
+/* Album artwork corner radius according to Spotify guidelines */
+.spotify-player iframe {
+  border-radius: 0;
+}
+
+.spotify-player .album-cover {
+  border-radius: 2px; /* Small/medium devices use 2px radius per Spotify guidelines */
+}
+
 /* Make the player more compact on mobile */
 @media (max-width: 768px) {
   .spotify-player {
@@ -58,5 +91,12 @@
   
   .spotify-player.expanded {
     width: 300px;
+  }
+}
+
+/* Larger devices use 4px corner radius per Spotify guidelines */
+@media (min-width: 1200px) {
+  .spotify-player .album-cover {
+    border-radius: 4px;
   }
 } 

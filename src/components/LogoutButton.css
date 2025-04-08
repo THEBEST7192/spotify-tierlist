@@ -1,0 +1,24 @@
+.logout-button {
+  background-color: #282828; /* Spotify dark gray */
+  color: white;
+  border: 1px solid #b3b3b3; /* Spotify light gray */
+  border-radius: 30px;
+  padding: 8px 20px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-left: 10px;
+}
+
+.logout-button:hover {
+  background-color: #404040; /* Slightly lighter gray on hover */
+  transform: scale(1.05);
+}
+
+.logout-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(179, 179, 179, 0.3);
+} 
