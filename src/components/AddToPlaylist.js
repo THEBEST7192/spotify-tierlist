@@ -9,6 +9,10 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState(null);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
+  const [showNewPlaylistForm, setShowNewPlaylistForm] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [newPlaylistIsPublic, setNewPlaylistIsPublic] = useState(true);
 
   // Fetch user's playlists when component mounts
   useEffect(() => {
@@ -134,6 +138,93 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
     }
   };
 
+  const handleCreateNewPlaylist = async () => {
+    if (!newPlaylistName.trim()) {
+      setError('Please enter a playlist name');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get user ID first
+      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      const userId = userResponse.data.id;
+      
+      // Create new playlist
+      const createResponse = await axios.post(
+        `https://api.spotify.com/v1/users/${userId}/playlists`,
+        {
+          name: newPlaylistName,
+          description: newPlaylistDescription,
+          public: newPlaylistIsPublic
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      const newPlaylistId = createResponse.data.id;
+      
+      // Add tracks to the new playlist
+      if (isSingleTrack) {
+        await axios.post(
+          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
+          {
+            uris: [`spotify:track:${trackId}`]
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      } else {
+        await axios.post(
+          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
+          {
+            uris: trackId.map(id => `spotify:track:${id}`)
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+      
+      setIsSuccess(true);
+      setIsLoading(false);
+      setShowNewPlaylistForm(false);
+      setShowPlaylistSelector(false);
+      
+      // Reset form fields
+      setNewPlaylistName('');
+      setNewPlaylistDescription('');
+      setNewPlaylistIsPublic(true);
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => {
+        setIsSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Error creating new playlist:', err);
+      setError(`Failed to create playlist: ${err.response?.data?.error?.message || err.message || 'Unknown error'}`);
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="add-to-playlist-container">
       {!showPlaylistSelector ? (
@@ -192,15 +283,56 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
           
           {!isLoading && playlists.length === 0 && (
             <div className="no-playlists">
-              <p>You don't have any playlists. Create one on Spotify first.</p>
-              <button 
-                className="cancel-button"
-                onClick={() => setShowPlaylistSelector(false)}
-              >
-                Cancel
-              </button>
+              You don't have any playlists yet.
             </div>
           )}
+          
+          <div className="new-playlist-section">
+            <button 
+              className="new-playlist-button"
+              onClick={() => setShowNewPlaylistForm(!showNewPlaylistForm)}
+            >
+              {showNewPlaylistForm ? 'Cancel' : 'Create New Playlist'}
+            </button>
+            
+            {showNewPlaylistForm && (
+              <div className="new-playlist-form">
+                <input
+                  type="text"
+                  placeholder="Playlist Name"
+                  value={newPlaylistName}
+                  onChange={(e) => setNewPlaylistName(e.target.value)}
+                  className="playlist-input"
+                />
+                
+                <textarea
+                  placeholder="Description (optional)"
+                  value={newPlaylistDescription}
+                  onChange={(e) => setNewPlaylistDescription(e.target.value)}
+                  className="playlist-textarea"
+                />
+                
+                <div className="playlist-privacy">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={newPlaylistIsPublic}
+                      onChange={(e) => setNewPlaylistIsPublic(e.target.checked)}
+                    />
+                    Public Playlist
+                  </label>
+                </div>
+                
+                <button 
+                  className="create-playlist-button"
+                  onClick={handleCreateNewPlaylist}
+                  disabled={isLoading || !newPlaylistName.trim()}
+                >
+                  {isLoading ? 'Creating...' : 'Create & Add Tracks'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

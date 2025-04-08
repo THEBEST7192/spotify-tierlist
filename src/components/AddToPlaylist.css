@@ -102,4 +102,90 @@
   color: #b3b3b3;
   font-size: 14px;
   margin-bottom: 10px;
+}
+
+/* New Playlist Form Styles */
+.new-playlist-section {
+  margin-top: 15px;
+  border-top: 1px solid #3e3e3e;
+  padding-top: 15px;
+}
+
+.new-playlist-button {
+  background-color: #535353;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  width: 100%;
+}
+
+.new-playlist-button:hover {
+  background-color: #666;
+}
+
+.new-playlist-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.playlist-input, .playlist-textarea {
+  padding: 8px 12px;
+  border-radius: 4px;
+  background-color: #3e3e3e;
+  color: white;
+  border: 1px solid #555;
+  font-size: 14px;
+  width: 100%;
+}
+
+.playlist-textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.playlist-privacy {
+  display: flex;
+  align-items: center;
+  color: #b3b3b3;
+  font-size: 14px;
+}
+
+.playlist-privacy label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.playlist-privacy input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #1DB954;
+}
+
+.create-playlist-button {
+  background-color: #1DB954;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  margin-top: 5px;
+}
+
+.create-playlist-button:hover {
+  background-color: #1ed760;
+}
+
+.create-playlist-button:disabled {
+  background-color: #535353;
+  cursor: not-allowed;
 } 
