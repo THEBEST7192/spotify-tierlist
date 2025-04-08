@@ -3,6 +3,7 @@ import AuthButton from "../components/AuthButton";
 import LogoutButton from "../components/LogoutButton";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
+import UserProfile from "../components/UserProfile";
 import spotifyLogoOfficial from "../assets/spotify/spotify-logo-official.png";
 import axios from "axios";
 import "./Home.css";
@@ -15,9 +16,31 @@ const Home = ({ accessToken, setAccessToken }) => {
 
   // Handle logout
   const handleLogout = () => {
+    // Clear all cookies
+    document.cookie.split(";").forEach(function(c) { 
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+    });
+    
+    // Clear localStorage
+    localStorage.clear();
+    
+    // Clear sessionStorage
+    sessionStorage.clear();
+    
+    // Reset state
     setAccessToken(null);
     setSelectedPlaylist(null);
     setPlaylistTracks([]);
+    
+    // Open Spotify logout in a new window/tab
+    const spotifyLogoutWindow = window.open('https://accounts.spotify.com/logout', '_blank');
+    
+    // Close the window after a short delay
+    setTimeout(() => {
+      if (spotifyLogoutWindow) {
+        spotifyLogoutWindow.close();
+      }
+    }, 1000);
   };
 
   // Handle playlist selection
@@ -82,7 +105,12 @@ const Home = ({ accessToken, setAccessToken }) => {
         <h1>Tierlist Maker for Spotify</h1>
         <div className="header-controls">
           <img src={spotifyLogoOfficial} alt="Spotify" className="spotify-logo" />
-          {accessToken && <LogoutButton onLogout={handleLogout} />}
+          {accessToken && (
+            <>
+              <UserProfile accessToken={accessToken} />
+              <LogoutButton onLogout={handleLogout} />
+            </>
+          )}
         </div>
       </header>
       

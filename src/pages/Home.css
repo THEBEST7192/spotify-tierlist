@@ -100,10 +100,12 @@
 .header-controls {
   display: flex;
   align-items: center;
+  gap: 10px;
 }
 
 .spotify-logo {
-  height: 40px;
+  height: 24px;
+  width: auto;
   margin-right: 10px;
 }
 

@@ -16,8 +16,17 @@ function App() {
       token = new URLSearchParams(hash.substring(1)).get("access_token");
       window.location.hash = ""; // Clean the URL
     }
+    
+    // Check if token exists in localStorage
+    const storedToken = localStorage.getItem('spotify_access_token');
+    
     if (token) {
+      // New token from URL hash
       setAccessToken(token);
+      localStorage.setItem('spotify_access_token', token);
+    } else if (storedToken) {
+      // Use stored token
+      setAccessToken(storedToken);
     }
   }, []);
 
@@ -29,6 +38,15 @@ function App() {
     if (token === null) {
       // Clear any stored tokens from localStorage if they exist
       localStorage.removeItem('spotify_access_token');
+      sessionStorage.removeItem('spotify_access_token');
+      
+      // Clear all cookies
+      document.cookie.split(";").forEach(function(c) { 
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+      });
+    } else {
+      // Store the new token
+      localStorage.setItem('spotify_access_token', token);
     }
   };
 
