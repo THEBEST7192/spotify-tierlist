@@ -83,6 +83,13 @@
   line-height: 1.4;
 }
 
+.playlist-creator {
+  font-size: 12px;
+  color: #ffffff;
+  margin: 4px 0;
+  font-weight: 500;
+}
+
 @media (max-width: 1024px) {
   .playlist-grid {
     grid-template-columns: repeat(2, 1fr);

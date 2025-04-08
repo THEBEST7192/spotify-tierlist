@@ -32,7 +32,8 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
     
     const filtered = playlists.filter(playlist => 
       playlist.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (playlist.description && playlist.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      (playlist.description && playlist.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (playlist.owner && playlist.owner.display_name && playlist.owner.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
     );
     setFilteredPlaylists(filtered);
   }, [searchQuery, playlists]);
@@ -61,6 +62,7 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
             />
             <div className="playlist-info">
               <h3 className="playlist-name">{playlist.name}</h3>
+              <p className="playlist-creator">Created by: {playlist.owner?.display_name || 'Unknown'}</p>
               <p className="playlist-description">{playlist.description || 'No description available'}</p>
             </div>
           </button>
