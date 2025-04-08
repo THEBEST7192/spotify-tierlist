@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import './RecommendationGenerator.css';
+import AddToPlaylist from './AddToPlaylist';
 
 // Use environment variable for Last.fm API key
 const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY;
@@ -222,7 +223,14 @@ const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
       
       {recommendations.length > 0 && (
         <div className="recommendations-list">
-          <h3>Recommended Songs</h3>
+          <div className="recommendations-header">
+            <h3>Recommended Songs</h3>
+            <AddToPlaylist 
+              trackId={recommendations.map(track => track.spotifyData.id)} 
+              accessToken={accessToken} 
+              isSingleTrack={false}
+            />
+          </div>
           <p className="recommendation-explanation">
             Based on songs in your S, A, B, and C tiers (higher tiers have more influence)
           </p>
@@ -273,6 +281,11 @@ const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
                   >
                     Listen on Spotify
                   </a>
+                  <AddToPlaylist 
+                    trackId={track.spotifyData.id} 
+                    accessToken={accessToken} 
+                    isSingleTrack={true}
+                  />
                 </div>
               </div>
             ))}
