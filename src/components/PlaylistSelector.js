@@ -38,40 +38,34 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
   }, [searchQuery, playlists]);
 
   return (
-    <div className="playlist-selector">
+    <div className="playlist-selector-container">
       <h2>Select a Playlist</h2>
       <input
         type="text"
-        placeholder="Search playlists by name or description..."
+        className="search-input"
+        placeholder="Search playlists..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        className="search-input"
       />
-      {filteredPlaylists.length > 0 ? (
-        filteredPlaylists.map((playlist) => (
-          <button 
-            key={playlist.id} 
-            onClick={() => onSelect(playlist)} 
+      <div className="playlist-grid">
+        {filteredPlaylists.map((playlist) => (
+          <button
+            key={playlist.id}
             className="playlist-button"
+            onClick={() => onSelect(playlist)}
           >
-            {playlist.images && playlist.images.length > 0 && (
-              <img 
-                src={playlist.images[0].url}
-                alt={playlist.name}
-                className="playlist-cover"
-              />
-            )}
+            <img
+              src={playlist.images[0]?.url || '/default-playlist-cover.png'}
+              alt={playlist.name}
+              className="playlist-cover"
+            />
             <div className="playlist-info">
-              <div className="playlist-name">{playlist.name}</div>
-              {playlist.description && (
-                <div className="playlist-description">{playlist.description}</div>
-              )}
+              <h3 className="playlist-name">{playlist.name}</h3>
+              <p className="playlist-description">{playlist.description || 'No description available'}</p>
             </div>
           </button>
-        ))
-      ) : (
-        <p>No playlists found. Make sure your Spotify account has playlists.</p>
-      )}
+        ))}
+      </div>
     </div>
   );
 };
