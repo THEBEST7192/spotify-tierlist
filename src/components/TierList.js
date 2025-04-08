@@ -4,6 +4,7 @@ import html2canvas from "html2canvas";
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
+import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 
 // Define tiers and their colors
 const TIERS = {
@@ -226,11 +227,19 @@ const TierList = ({ songs, accessToken }) => {
                                 className="song-card"
                               >
                                 {song.album && song.album.images && song.album.images.length > 0 && (
-                                  <img 
-                                    src={song.album.images[song.album.images.length > 2 ? 2 : 0].url}
-                                    alt={song.album.name || "Album Cover"}
-                                    className="album-cover" 
-                                  />
+                                  <a 
+                                    href={`https://open.spotify.com/track/${song.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="album-cover-link"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <img 
+                                      src={song.album.images[song.album.images.length > 2 ? 2 : 0].url}
+                                      alt={song.album.name || "Album Cover"}
+                                      className="album-cover" 
+                                    />
+                                  </a>
                                 )}
                                 <div className="song-info">
                                   <div className="song-name">{song.name}</div>
@@ -238,18 +247,33 @@ const TierList = ({ songs, accessToken }) => {
                                     {song.artists && song.artists.map(artist => artist.name).join(", ")}
                                   </div>
                                 </div>
-                                <button 
-                                  className="play-preview-button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    playTrack(song.id);
-                                  }}
-                                  aria-label="Play preview"
-                                >
-                                  <svg viewBox="0 0 24 24" width="20" height="20">
-                                    <path fill="currentColor" d="M8 5v14l11-7z" />
-                                  </svg>
-                                </button>
+                                <div className="song-actions">
+                                  <button 
+                                    className="play-preview-button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      playTrack(song.id);
+                                    }}
+                                    aria-label="Play preview"
+                                  >
+                                    <svg viewBox="0 0 24 24" width="20" height="20">
+                                      <path fill="currentColor" d="M8 5v14l11-7z" />
+                                    </svg>
+                                  </button>
+                                  <a 
+                                    href={`https://open.spotify.com/track/${song.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="spotify-icon-link"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <img 
+                                      src={spotifyIconOfficial} 
+                                      alt="Spotify" 
+                                      className="spotify-icon-small" 
+                                    />
+                                  </a>
+                                </div>
                               </div>
                             )}
                           </Draggable>

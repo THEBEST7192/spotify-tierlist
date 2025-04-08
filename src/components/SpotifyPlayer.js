@@ -41,21 +41,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd }) => {
   return (
     <div className={`spotify-player ${isExpanded ? 'expanded' : ''}`}>
       <div className="player-controls">
-        <div className="spotify-attribution">
-          <img src={spotifyIconOfficial} alt="Spotify" className="spotify-icon" />
-          <span>MADE WITH SPOTIFY</span>
-        </div>
         <div className="player-buttons">
-          <button 
-            className="close-button" 
-            onClick={closePlayer}
-            aria-label="Close player"
-          >
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-
           <button 
             className="expand-button" 
             onClick={toggleExpand}
@@ -70,6 +56,18 @@ const SpotifyPlayer = ({ trackId, onTrackEnd }) => {
                 <path fill="currentColor" d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z" />
               </svg>
             )}
+          </button>
+          
+          <div className="player-buttons-spacer"></div>
+          
+          <button 
+            className="close-button" 
+            onClick={closePlayer}
+            aria-label="Close player"
+          >
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
           </button>
         </div>
       </div>
