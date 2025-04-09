@@ -7,33 +7,48 @@ import AddToPlaylist from './AddToPlaylist';
 const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY;
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
-const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onPlayTrack }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Weight tiers - higher tiers have more weight
-  const TIER_WEIGHTS = {
-    S: 5,  // High influence
-    A: 3,  // Medium-high influence
-    B: 2,  // Medium influence
-    C: 1,  // Low-medium influence
-    D: 0.5, // Low influence
-    E: 0.3, // Very low influence
-    F: 0.1, // Minimal influence
-    Unranked: 0 // No influence
+  // Calculate tier weights based on position in tierOrder
+  const calculateTierWeights = () => {
+    const weights = {};
+    const unrankedIndex = tierOrder.indexOf("Unranked");
+    
+    // Exclude Unranked tier and the lowest tier from recommendations
+    const tiersToUse = tierOrder.slice(0, unrankedIndex - 1);
+    
+    // Calculate weights based on position (higher position = higher weight)
+    tiersToUse.forEach((tier, index) => {
+      // Reverse the index so higher tiers have higher weights
+      const weight = tiersToUse.length - index;
+      weights[tier] = weight;
+    });
+    
+    // Set Unranked and lowest tier to 0 weight
+    weights["Unranked"] = 0;
+    if (tierOrder.length > 1) {
+      weights[tierOrder[unrankedIndex - 1]] = 0; // Lowest ranked tier
+    }
+    
+    return weights;
   };
 
   const getWeightedSongs = () => {
-    // Get songs from tiers S, A, B, and C with their respective weights
+    // Get tier weights
+    const tierWeights = calculateTierWeights();
+    
+    // Get songs from tiers with weights > 0
     const weightedSongs = [];
     
     Object.entries(tierState).forEach(([tier, songs]) => {
-      if (TIER_WEIGHTS[tier] > 0 && songs.length > 0) {
+      if (tierWeights[tier] > 0 && songs.length > 0) {
         songs.forEach(song => {
           weightedSongs.push({
             ...song,
-            weight: TIER_WEIGHTS[tier]
+            weight: tierWeights[tier]
           });
         });
       }
@@ -172,7 +187,7 @@ const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
       const weightedSongs = getWeightedSongs();
       
       if (weightedSongs.length === 0) {
-        setError('Please rank some songs in tiers S, A, B, or C to get recommendations');
+        setError('Please rank some songs in your tiers to get recommendations');
         setIsLoading(false);
         return;
       }
@@ -209,6 +224,13 @@ const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
     }
   };
 
+  // Get the tier name for a weight
+  const getTierNameForWeight = (weight) => {
+    const tierWeights = calculateTierWeights();
+    const tier = Object.entries(tierWeights).find(([_, w]) => w === weight);
+    return tier ? tier[0] : 'Unknown';
+  };
+
   return (
     <div className="recommendation-container">
       <button 
@@ -232,7 +254,7 @@ const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
             />
           </div>
           <p className="recommendation-explanation">
-            Based on songs in your S, A, B, and C tiers (higher tiers have more influence)
+            Based on songs in your ranked tiers (higher tiers have more influence)
           </p>
           <div className="recommendation-tracks">
             {recommendations.map((track, index) => (
@@ -252,8 +274,7 @@ const RecommendationGenerator = ({ tierState, accessToken, onPlayTrack }) => {
                     {track.sources.length === 1 ? (
                       <>
                         {track.sources[0].track} by {track.sources[0].artist} (Tier: {
-                          Object.entries(TIER_WEIGHTS)
-                            .find(([tier, weight]) => weight === track.sources[0].weight)?.[0]
+                          getTierNameForWeight(track.sources[0].weight)
                         })
                       </>
                     ) : (

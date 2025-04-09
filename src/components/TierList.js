@@ -6,8 +6,8 @@ import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 
-// Define tiers and their colors
-const TIERS = {
+// Define default tiers and their colors
+const DEFAULT_TIERS = {
   S: { color: "#FF7F7F", label: "S" },
   A: { color: "#FFBF7F", label: "A" },
   B: { color: "#FFFF7F", label: "B" },
@@ -18,8 +18,8 @@ const TIERS = {
   Unranked: { color: "#E0E0E0", label: "Unranked" }
 };
 
-// Define the order of tiers
-const TIER_ORDER = ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
+// Define the default order of tiers
+const DEFAULT_TIER_ORDER = ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
 
 // IMPORTANT: This is the most reliable ID method
 const getItemStyle = (isDragging, draggableStyle) => ({
@@ -46,9 +46,20 @@ const getListStyle = isDraggingOver => ({
 });
 
 const TierList = ({ songs, accessToken }) => {
+  // State for custom tiers
+  const [tiers, setTiers] = useState(DEFAULT_TIERS);
+  const [tierOrder, setTierOrder] = useState(DEFAULT_TIER_ORDER);
+  const [newTierName, setNewTierName] = useState("");
+  const [newTierColor, setNewTierColor] = useState("#CCCCCC");
+  const [showAddTierForm, setShowAddTierForm] = useState(false);
+  const [showEditMode, setShowEditMode] = useState(false);
+  const [editingTier, setEditingTier] = useState(null);
+  const [editTierName, setEditTierName] = useState("");
+  
+  // State for the tier list
   const [state, setState] = useState(() => {
-    // Initialize state with all tiers from TIER_ORDER
-    return TIER_ORDER.reduce((acc, tier) => ({
+    // Initialize state with all tiers from tierOrder
+    return DEFAULT_TIER_ORDER.reduce((acc, tier) => ({
       ...acc,
       [tier]: []
     }), {});
@@ -69,6 +80,20 @@ const TierList = ({ songs, accessToken }) => {
       }));
     }
   }, [songs]);
+
+  // Update state when tierOrder changes
+  useEffect(() => {
+    setState(prev => {
+      const newState = {};
+      
+      // Initialize all tiers in the new order
+      tierOrder.forEach(tier => {
+        newState[tier] = prev[tier] || [];
+      });
+      
+      return newState;
+    });
+  }, [tierOrder]);
 
   const onDragEnd = result => {
     const { source, destination } = result;
@@ -111,6 +136,159 @@ const TierList = ({ songs, accessToken }) => {
         [destination.droppableId]: destItems
       }));
     }
+  };
+
+  // Add a new tier
+  const addTier = () => {
+    if (!newTierName.trim()) return;
+    
+    // Check if tier name already exists
+    if (tiers[newTierName]) {
+      alert("A tier with this name already exists!");
+      return;
+    }
+    
+    // Add the new tier
+    setTiers(prev => ({
+      ...prev,
+      [newTierName]: { color: newTierColor, label: newTierName }
+    }));
+    
+    // Add the new tier to the order (before Unranked)
+    setTierOrder(prev => {
+      const unrankedIndex = prev.indexOf("Unranked");
+      const newOrder = [...prev];
+      newOrder.splice(unrankedIndex, 0, newTierName);
+      return newOrder;
+    });
+    
+    // Initialize the new tier in the state
+    setState(prev => ({
+      ...prev,
+      [newTierName]: []
+    }));
+    
+    // Reset form
+    setNewTierName("");
+    setNewTierColor("#CCCCCC");
+    setShowAddTierForm(false);
+  };
+
+  // Delete a tier
+  const deleteTier = (tierId) => {
+    // Don't allow deleting the Unranked tier
+    if (tierId === "Unranked") {
+      alert("Cannot delete the Unranked tier!");
+      return;
+    }
+    
+    // Check if the tier has songs
+    if (state[tierId] && state[tierId].length > 0) {
+      if (window.confirm(`The tier "${tierId}" contains ${state[tierId].length} songs. Do you want to move them to the Unranked tier?`)) {
+        // Move songs to Unranked tier
+        setState(prev => ({
+          ...prev,
+          Unranked: [...prev.Unranked, ...prev[tierId]],
+          [tierId]: []
+        }));
+      } else {
+        return; // Cancel deletion
+      }
+    }
+    
+    // Remove the tier from the order
+    setTierOrder(prev => prev.filter(tier => tier !== tierId));
+    
+    // Remove the tier from the tiers object
+    setTiers(prev => {
+      const newTiers = { ...prev };
+      delete newTiers[tierId];
+      return newTiers;
+    });
+  };
+
+  // Move a tier up in the order
+  const moveTierUp = (tierId) => {
+    // Don't allow moving the Unranked tier
+    if (tierId === "Unranked") return;
+    
+    setTierOrder(prev => {
+      const index = prev.indexOf(tierId);
+      if (index <= 0) return prev;
+      
+      const newOrder = [...prev];
+      [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+      return newOrder;
+    });
+  };
+
+  // Move a tier down in the order
+  const moveTierDown = (tierId) => {
+    // Don't allow moving the Unranked tier
+    if (tierId === "Unranked") return;
+    
+    setTierOrder(prev => {
+      const index = prev.indexOf(tierId);
+      if (index === -1 || index === prev.length - 1) return prev;
+      
+      const newOrder = [...prev];
+      [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+      return newOrder;
+    });
+  };
+
+  // Start editing a tier
+  const startEditingTier = (tierId) => {
+    // Don't allow editing the Unranked tier
+    if (tierId === "Unranked") {
+      alert("Cannot rename the Unranked tier!");
+      return;
+    }
+    
+    setEditingTier(tierId);
+    setEditTierName(tierId);
+  };
+
+  // Save tier name changes
+  const saveTierName = () => {
+    if (!editTierName.trim() || editTierName === editingTier) {
+      setEditingTier(null);
+      return;
+    }
+    
+    // Check if the new name already exists
+    if (tiers[editTierName]) {
+      alert("A tier with this name already exists!");
+      return;
+    }
+    
+    // Update the tier name in the tiers object
+    setTiers(prev => {
+      const newTiers = { ...prev };
+      const tierData = newTiers[editingTier];
+      delete newTiers[editingTier];
+      newTiers[editTierName] = { ...tierData, label: editTierName };
+      return newTiers;
+    });
+    
+    // Update the tier name in the order
+    setTierOrder(prev => prev.map(tier => tier === editingTier ? editTierName : tier));
+    
+    // Update the state with the new tier name
+    setState(prev => {
+      const newState = { ...prev };
+      newState[editTierName] = prev[editingTier];
+      delete newState[editingTier];
+      return newState;
+    });
+    
+    // Reset editing state
+    setEditingTier(null);
+  };
+
+  // Cancel tier name editing
+  const cancelTierEdit = () => {
+    setEditingTier(null);
   };
 
   // Export tier list as an image
@@ -181,10 +359,57 @@ const TierList = ({ songs, accessToken }) => {
 
   return (
     <div className="tier-list-container">
+      <div className="tier-controls">
+        <div className="tier-controls-header">
+          <button 
+            className="edit-mode-toggle"
+            onClick={() => setShowEditMode(!showEditMode)}
+          >
+            {showEditMode ? "Hide Editing Tools" : "Show Editing Tools"}
+          </button>
+          
+          {showEditMode && (
+            <button 
+              className="add-tier-button"
+              onClick={() => setShowAddTierForm(!showAddTierForm)}
+            >
+              {showAddTierForm ? "Cancel" : "Add New Tier"}
+            </button>
+          )}
+        </div>
+        
+        {showAddTierForm && (
+          <div className="add-tier-form">
+            <input
+              type="text"
+              placeholder="Tier Name"
+              value={newTierName}
+              onChange={(e) => setNewTierName(e.target.value)}
+              className="tier-name-input"
+            />
+            <input
+              type="color"
+              value={newTierColor}
+              onChange={(e) => setNewTierColor(e.target.value)}
+              className="tier-color-input"
+            />
+            <button 
+              className="save-tier-button"
+              onClick={addTier}
+              disabled={!newTierName.trim()}
+            >
+              Add Tier
+            </button>
+          </div>
+        )}
+      </div>
+      
       <DragDropContext onDragEnd={onDragEnd}>
         <div id="tier-list" className="tier-list">
-          {TIER_ORDER.map(tierId => {
-            const { color, label } = TIERS[tierId];
+          {tierOrder.map(tierId => {
+            const { color, label } = tiers[tierId];
+            const isUnranked = tierId === "Unranked";
+            const isEditing = editingTier === tierId;
             
             return (
               <div 
@@ -192,8 +417,69 @@ const TierList = ({ songs, accessToken }) => {
                 className="tier"
                 style={{ backgroundColor: color }}
               >
-                <div className="tier-label">
-                  <h3>{label}</h3>
+                <div className="tier-header">
+                  <div className="tier-label">
+                    {isEditing ? (
+                      <div className="tier-edit-form">
+                        <input
+                          type="text"
+                          value={editTierName}
+                          onChange={(e) => setEditTierName(e.target.value)}
+                          className="tier-edit-input"
+                          autoFocus
+                        />
+                        <div className="edit-buttons">
+                          <button 
+                            className="save-edit-button"
+                            onClick={saveTierName}
+                          >
+                            Save
+                          </button>
+                          <button 
+                            className="cancel-edit-button"
+                            onClick={cancelTierEdit}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <h3>{label}</h3>
+                    )}
+                  </div>
+                  
+                  {showEditMode && !isUnranked && !isEditing && (
+                    <div className="tier-actions">
+                      <button 
+                        className="tier-action-button rename"
+                        onClick={() => startEditingTier(tierId)}
+                        title="Rename Tier"
+                      >
+                        ✎
+                      </button>
+                      <button 
+                        className="tier-action-button"
+                        onClick={() => moveTierUp(tierId)}
+                        title="Move Up"
+                      >
+                        ↑
+                      </button>
+                      <button 
+                        className="tier-action-button"
+                        onClick={() => moveTierDown(tierId)}
+                        title="Move Down"
+                      >
+                        ↓
+                      </button>
+                      <button 
+                        className="tier-action-button delete"
+                        onClick={() => deleteTier(tierId)}
+                        title="Delete Tier"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
                 <Droppable
@@ -296,6 +582,8 @@ const TierList = ({ songs, accessToken }) => {
         
         <RecommendationGenerator 
           tierState={state} 
+          tierOrder={tierOrder}
+          tiers={tiers}
           accessToken={accessToken} 
           onPlayTrack={playTrack}
         />

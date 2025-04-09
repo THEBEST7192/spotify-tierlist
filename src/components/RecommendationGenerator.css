@@ -10,11 +10,14 @@
   background-color: #1DB954;
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 20px;
-  cursor: pointer;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 16px;
   font-weight: bold;
-  transition: background-color 0.3s;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+  margin-bottom: 20px;
 }
 
 .recommendation-button:hover {
@@ -22,14 +25,14 @@
 }
 
 .recommendation-button:disabled {
-  background-color: #4a4a4a;
+  background-color: #666666;
   cursor: not-allowed;
 }
 
 .error-message {
-  color: #ff6b6b;
-  margin-top: 10px;
-  font-size: 14px;
+  color: #ff4444;
+  margin: 10px 0;
+  text-align: center;
 }
 
 .recommendations-list {
@@ -51,13 +54,13 @@
 .recommendation-explanation {
   color: #b3b3b3;
   font-size: 14px;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .recommendation-tracks {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 10px;
 }
 
 .recommendation-track {
@@ -67,11 +70,11 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  transition: background-color 0.3s;
+  transition: background-color 0.2s;
 }
 
 .recommendation-track:hover {
-  background-color: #1a1a1a;
+  background-color: #282828;
 }
 
 .recommendation-album-cover {
@@ -83,37 +86,41 @@
 
 .recommendation-info {
   flex: 1;
+  min-width: 0;
 }
 
 .recommendation-track-name {
   font-weight: bold;
   color: #ffffff;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .recommendation-artist-name {
   color: #b3b3b3;
   font-size: 14px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .recommendation-source {
   font-size: 12px;
-  color: #808080;
+  color: #666666;
 }
 
 .recommendation-source-label {
-  font-weight: bold;
-  margin-right: 5px;
+  color: #b3b3b3;
+  margin-right: 4px;
 }
 
 .recommendation-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  flex-wrap: nowrap;
-  margin-top: 10px;
 }
 
 .play-preview-button {
@@ -121,13 +128,12 @@
   border: none;
   color: #ffffff;
   cursor: pointer;
-  padding: 5px;
+  padding: 8px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.3s;
-  flex-shrink: 0;
+  transition: background-color 0.2s;
 }
 
 .play-preview-button:hover {
@@ -138,12 +144,11 @@
   background-color: #1DB954;
   color: white;
   text-decoration: none;
-  padding: 8px 15px;
+  padding: 8px 16px;
   border-radius: 20px;
   font-size: 14px;
-  transition: background-color 0.3s;
-  white-space: nowrap;
-  flex-shrink: 0;
+  font-weight: bold;
+  transition: background-color 0.2s;
 }
 
 .listen-button:hover {
