@@ -1,0 +1,162 @@
+.singing-detector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #1DB954;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+.singing-status {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.singing-status.singing {
+  color: #1DB954;
+}
+
+.singing-status.not-singing {
+  color: #ff4444;
+}
+
+.sensitivity-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.sensitivity-control label {
+  font-size: 0.9rem;
+  color: #ddd;
+}
+
+.sensitivity-control input[type="range"] {
+  width: 100px;
+  height: 5px;
+  -webkit-appearance: none;
+  background: #ddd;
+  outline: none;
+  border-radius: 3px;
+}
+
+.sensitivity-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #1DB954;
+  cursor: pointer;
+}
+
+.sensitivity-control input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #1DB954;
+  cursor: pointer;
+}
+
+.sensitivity-control span {
+  font-size: 0.9rem;
+  color: #333;
+  min-width: 40px;
+}
+
+.button-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.manual-toggle-button {
+  background-color: #333;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.manual-toggle-button:hover {
+  background-color: #444;
+}
+
+.force-off-button {
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.force-off-button:hover {
+  background-color: #ff6666;
+}
+
+.debug-info {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #666;
+  display: flex;
+  justify-content: space-between;
+} 

@@ -584,3 +584,27 @@
     max-width: 100%;
   }
 }
+
+.singing-detector {
+  margin: 10px 0;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.singing-status {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.singing-status.singing {
+  color: #1DB954;
+}
+
+.singing-status.not-singing {
+  color: #ff4444;
+}

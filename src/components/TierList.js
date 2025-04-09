@@ -4,6 +4,7 @@ import html2canvas from "html2canvas";
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
+import SingingDetector from "./SingingDetector";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 
 // Define default tiers and their colors
@@ -55,6 +56,8 @@ const TierList = ({ songs, accessToken }) => {
   const [showEditMode, setShowEditMode] = useState(false);
   const [editingTier, setEditingTier] = useState(null);
   const [editTierName, setEditTierName] = useState("");
+  const [isSinging, setIsSinging] = useState(false);
+  const [randomChangeInterval, setRandomChangeInterval] = useState(null);
   
   // State for the tier list
   const [state, setState] = useState(() => {
@@ -357,6 +360,70 @@ const TierList = ({ songs, accessToken }) => {
     setCurrentTrack(null);
   };
 
+  // Function to randomly change tiers of some songs
+  const randomlyChangeTiers = () => {
+    // Only run if singing detector is enabled and user is not singing
+    if (isSinging === false) {
+      setState(prev => {
+        const newState = { ...prev };
+        const allSongs = [];
+        
+        // Collect all songs from all tiers
+        Object.entries(newState).forEach(([tier, songs]) => {
+          songs.forEach(song => {
+            allSongs.push({ ...song, currentTier: tier });
+          });
+        });
+        
+        // Randomly select 3-5 songs to move
+        const numSongsToMove = Math.floor(Math.random() * 3) + 3;
+        const songsToMove = [];
+        const availableTiers = tierOrder.filter(tier => tier !== "Unranked");
+        
+        for (let i = 0; i < numSongsToMove && allSongs.length > 0; i++) {
+          const randomIndex = Math.floor(Math.random() * allSongs.length);
+          const song = allSongs.splice(randomIndex, 1)[0];
+          const randomTier = availableTiers[Math.floor(Math.random() * availableTiers.length)];
+          songsToMove.push({ song, newTier: randomTier });
+        }
+        
+        // Move the selected songs to their new tiers
+        songsToMove.forEach(({ song, newTier }) => {
+          // Remove from current tier
+          newState[song.currentTier] = newState[song.currentTier].filter(
+            s => s.id !== song.id
+          );
+          
+          // Add to new tier
+          newState[newTier] = [...newState[newTier], song];
+        });
+        
+        return newState;
+      });
+    }
+  };
+
+  // Start/stop random changes based on singing state
+  useEffect(() => {
+    // Only start the interval if isSinging is explicitly false (not null or undefined)
+    if (isSinging === false) {
+      const interval = setInterval(randomlyChangeTiers, 5000);
+      setRandomChangeInterval(interval);
+    } else {
+      if (randomChangeInterval) {
+        clearInterval(randomChangeInterval);
+        setRandomChangeInterval(null);
+      }
+    }
+    
+    return () => {
+      if (randomChangeInterval) {
+        clearInterval(randomChangeInterval);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSinging]);
+
   return (
     <div className="tier-list-container">
       <div className="tier-controls">
@@ -377,6 +444,8 @@ const TierList = ({ songs, accessToken }) => {
             </button>
           )}
         </div>
+        
+        <SingingDetector onSingingStateChange={setIsSinging} />
         
         {showAddTierForm && (
           <div className="add-tier-form">
