@@ -12,6 +12,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [addedTracks, setAddedTracks] = useState(new Set());
+  const [discoverNewArtists, setDiscoverNewArtists] = useState(false);
 
   // Calculate tier weights based on position in tierOrder
   const calculateTierWeights = () => {
@@ -109,6 +110,8 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
       const existingSongIds = new Set();
       // Also track artist+track name combinations to catch different versions of the same song
       const existingSongNames = new Set();
+      // Track existing artists for new artist discovery mode
+      const existingArtists = new Set();
       
       Object.values(tierState).forEach(songs => {
         songs.forEach(song => {
@@ -120,6 +123,9 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
               const artistName = song.content.artists[0].name.toLowerCase();
               const trackName = song.content.name.toLowerCase();
               existingSongNames.add(`${artistName}###${trackName}`);
+              
+              // Track artist for new artist discovery mode
+              existingArtists.add(artistName);
             }
           }
         });
@@ -164,7 +170,15 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
       
       // Find these tracks on Spotify
       const spotifyTracks = [];
-      for (const rec of uniqueRecommendations.slice(0, 50)) { // Increased limit to ensure we get enough after filtering
+      // Store tracks by artist for diversity filtering
+      const tracksByArtist = new Map();
+      
+      // Process more recommendations if we're in new artist discovery mode
+      const recommendationsToProcess = discoverNewArtists 
+        ? uniqueRecommendations.slice(0, 100) 
+        : uniqueRecommendations.slice(0, 50);
+      
+      for (const rec of recommendationsToProcess) {
         try {
           const response = await axios.get('https://api.spotify.com/v1/search', {
             params: {
@@ -195,19 +209,93 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
                 console.log(`Skipping duplicate song: ${artistName} - ${trackName}`);
                 continue;
               }
+              
+              // For discovery mode: check if artist is new
+              const isNewArtist = !existingArtists.has(artistName);
+              
+              // Store track grouped by artist for diversity filtering
+              if (!tracksByArtist.has(artistName)) {
+                tracksByArtist.set(artistName, []);
+              }
+              
+              // Add new artist flag and boost score for new artists in discovery mode
+              const finalRec = {
+                ...rec,
+                spotifyData: spotifyTrack,
+                isNewArtist: isNewArtist,
+                // Boost score for new artists in discovery mode
+                adjustedScore: discoverNewArtists && isNewArtist 
+                  ? rec.score * 1.5 // Boost new artists
+                  : rec.score
+              };
+              
+              tracksByArtist.get(artistName).push(finalRec);
+              
+              // Don't add it to final tracks yet, we'll do that after filtering
             }
-            
-            spotifyTracks.push({
-              ...rec,
-              spotifyData: spotifyTrack
-            });
           }
         } catch (error) {
           console.error(`Error finding track on Spotify: ${rec.name} - ${rec.artist}`, error);
         }
       }
       
-      return spotifyTracks;
+      // Process tracks with artist diversity in mind
+      if (discoverNewArtists) {
+        // First, add tracks from new artists (max 2 per artist)
+        tracksByArtist.forEach((tracks, artistName) => {
+          if (!existingArtists.has(artistName)) {
+            // Sort tracks by score
+            tracks.sort((a, b) => b.adjustedScore - a.adjustedScore);
+            // Only take top 2 from each new artist
+            const artistTopTracks = tracks.slice(0, 2);
+            spotifyTracks.push(...artistTopTracks);
+          }
+        });
+        
+        // Then, if we need more tracks, add from existing artists (max 1 per artist)
+        if (spotifyTracks.length < 20) {
+          tracksByArtist.forEach((tracks, artistName) => {
+            if (existingArtists.has(artistName) && spotifyTracks.length < 25) {
+              // Sort tracks by score
+              tracks.sort((a, b) => b.adjustedScore - a.adjustedScore);
+              // Only take top track from each existing artist
+              if (tracks.length > 0) {
+                spotifyTracks.push(tracks[0]);
+              }
+            }
+          });
+        }
+        
+        // Sort the final tracks by adjustedScore
+        spotifyTracks.sort((a, b) => {
+          // Prioritize new artists in discovery mode
+          if (a.isNewArtist !== b.isNewArtist) {
+            return a.isNewArtist ? -1 : 1;
+          }
+          // Then by number of sources
+          if (b.sources.length !== a.sources.length) {
+            return b.sources.length - a.sources.length;
+          }
+          // Finally by score
+          return b.adjustedScore - a.adjustedScore;
+        });
+      } else {
+        // Normal mode: just add all tracks 
+        tracksByArtist.forEach((tracks) => {
+          spotifyTracks.push(...tracks);
+        });
+        
+        // Sort by number of sources first, then by score
+        spotifyTracks.sort((a, b) => {
+          if (b.sources.length !== a.sources.length) {
+            return b.sources.length - a.sources.length;
+          }
+          return b.score - a.score;
+        });
+      }
+      
+      // Limit to max 25 recommendations
+      return spotifyTracks.slice(0, 25);
     } catch (error) {
       console.error('Error finding tracks on Spotify:', error);
       throw error;
@@ -261,15 +349,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
       // Find these tracks on Spotify to get album art and playback URLs
       const spotifyTracks = await findSpotifyTracks(allSimilarTracks);
       
-      // Sort tracks first by how many times they were recommended, then by score
-      spotifyTracks.sort((a, b) => {
-        // First sort by number of sources (times recommended)
-        if (b.sources.length !== a.sources.length) {
-          return b.sources.length - a.sources.length;
-        }
-        // Then by score
-        return b.score - a.score;
-      });
+      // Already sorted in findSpotifyTracks based on discovery mode
       
       setRecommendations(spotifyTracks);
       setIsLoading(false);
@@ -332,6 +412,17 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
 
   return (
     <div className="recommendation-container">
+      <div className="recommendation-options">
+        <label className="discover-toggle">
+          <input
+            type="checkbox"
+            checked={discoverNewArtists}
+            onChange={() => setDiscoverNewArtists(!discoverNewArtists)}
+          />
+          <span className="toggle-label">Discover New Artists</span>
+        </label>
+      </div>
+      
       <button 
         className="recommendation-button" 
         onClick={generateRecommendations}
@@ -362,11 +453,11 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
             </div>
           </div>
           <p className="recommendation-explanation">
-            Based on songs in your ranked tiers (higher tiers have more influence)
+            Based on songs in your ranked tiers {discoverNewArtists ? 'with emphasis on new artists' : '(higher tiers have more influence)'}
           </p>
           <div className="recommendation-tracks">
             {recommendations.map((track, index) => (
-              <div key={index} className="recommendation-track">
+              <div key={index} className={`recommendation-track ${track.isNewArtist ? 'new-artist' : ''}`}>
                 {track.spotifyData?.album?.images?.[0]?.url && (
                   <img 
                     src={track.spotifyData.album.images[0].url} 

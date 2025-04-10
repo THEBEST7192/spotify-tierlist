@@ -6,6 +6,67 @@
   color: #ffffff;
 }
 
+.recommendation-options {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.discover-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  background-color: #1A1A1A;
+  padding: 8px 12px;
+  border-radius: 20px;
+  transition: background-color 0.2s;
+}
+
+.discover-toggle:hover {
+  background-color: #2A2A2A;
+}
+
+.discover-toggle input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  height: 18px;
+  border-radius: 10px;
+  background-color: #444;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 0.3s;
+  margin-right: 10px;
+}
+
+.discover-toggle input:checked {
+  background-color: #1DB954;
+}
+
+.discover-toggle input:before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: white;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+}
+
+.discover-toggle input:checked:before {
+  transform: translateX(18px);
+}
+
+.toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .recommendation-button {
   background-color: #1DB954;
   color: white;
@@ -273,4 +334,25 @@
     width: 100%;
     text-align: center;
   }
+}
+
+.recommendation-track.new-artist {
+  position: relative;
+  border-left: 3px solid #1DB954;
+}
+
+.new-artist-badge {
+  position: absolute;
+  top: -8px;
+  right: 15px;
+  background-color: #1DB954;
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  z-index: 1;
 }
