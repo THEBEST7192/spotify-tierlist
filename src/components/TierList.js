@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
+import axios from 'axios';
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
@@ -45,6 +46,219 @@ const getListStyle = isDraggingOver => ({
   minHeight: "80px",
   alignContent: "flex-start"
 });
+
+// Create Playlist From Ranked Songs component
+const CreatePlaylistFromRanked = ({ tierState, tierOrder, accessToken }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [playlistName, setPlaylistName] = useState("");
+  const [playlistDescription, setPlaylistDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState(null);
+  const [includeTiers, setIncludeTiers] = useState({});
+
+  // Initialize tier selection - all tiers except "Unranked" are selected by default
+  useEffect(() => {
+    const initialTierSelection = {};
+    tierOrder.forEach(tier => {
+      initialTierSelection[tier] = tier !== "Unranked";
+    });
+    setIncludeTiers(initialTierSelection);
+  }, [tierOrder]);
+
+  const toggleTierSelection = (tier) => {
+    setIncludeTiers(prev => ({
+      ...prev,
+      [tier]: !prev[tier]
+    }));
+  };
+
+  const openModal = () => {
+    setIsModalOpen(true);
+    setPlaylistName(`My Tierlist ${new Date().toLocaleDateString()}`);
+    setPlaylistDescription("Created with Spotify Tierlist Maker");
+    setIsSuccess(false);
+    setError(null);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const createPlaylist = async () => {
+    if (!playlistName.trim()) {
+      setError("Please enter a playlist name");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Get all songs from selected tiers
+      const songsToAdd = [];
+      Object.entries(tierState).forEach(([tier, songs]) => {
+        if (includeTiers[tier] && tier !== "Unranked") {
+          songs.forEach(song => {
+            if (song.content && song.content.id) {
+              songsToAdd.push(song.content.id);
+            }
+          });
+        }
+      });
+
+      if (songsToAdd.length === 0) {
+        setError("No songs found in selected tiers");
+        setIsLoading(false);
+        return;
+      }
+
+      // Get user ID
+      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      const userId = userResponse.data.id;
+      
+      // Create new playlist
+      const createResponse = await axios.post(
+        `https://api.spotify.com/v1/users/${userId}/playlists`,
+        {
+          name: playlistName,
+          description: playlistDescription,
+          public: isPublic
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      const newPlaylistId = createResponse.data.id;
+      
+      // Add tracks to the new playlist (in batches of 100 to avoid API limits)
+      for (let i = 0; i < songsToAdd.length; i += 100) {
+        const batch = songsToAdd.slice(i, i + 100);
+        await axios.post(
+          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
+          {
+            uris: batch.map(id => `spotify:track:${id}`)
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+      
+      setIsSuccess(true);
+      setIsLoading(false);
+      
+      // Close modal after success
+      setTimeout(() => {
+        closeModal();
+      }, 3000);
+    } catch (err) {
+      console.error('Error creating playlist:', err);
+      setError(`Failed to create playlist: ${err.response?.data?.error?.message || err.message || 'Unknown error'}`);
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="create-playlist-container">
+      <button className="create-playlist-button" onClick={openModal}>
+        Create Playlist From Ranked Songs
+      </button>
+
+      {isModalOpen && (
+        <div className="playlist-modal-overlay">
+          <div className="playlist-modal">
+            <h3>Create New Playlist</h3>
+            
+            {isSuccess ? (
+              <div className="success-message">
+                <p>Playlist created successfully!</p>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  className="playlist-input"
+                  placeholder="Playlist name"
+                  value={playlistName}
+                  onChange={(e) => setPlaylistName(e.target.value)}
+                />
+                
+                <textarea
+                  className="playlist-input playlist-description"
+                  placeholder="Playlist description (optional)"
+                  value={playlistDescription}
+                  onChange={(e) => setPlaylistDescription(e.target.value)}
+                />
+                
+                <div className="playlist-privacy">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={() => setIsPublic(!isPublic)}
+                    />
+                    Make playlist public
+                  </label>
+                </div>
+                
+                <div className="tier-selection">
+                  <h4>Include songs from tiers:</h4>
+                  <div className="tier-checkboxes">
+                    {tierOrder.filter(tier => tier !== "Unranked").map(tier => (
+                      <div key={tier} className="tier-checkbox">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={includeTiers[tier] || false}
+                            onChange={() => toggleTierSelection(tier)}
+                          />
+                          {tier}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {error && <div className="error-message">{error}</div>}
+                
+                <div className="playlist-modal-actions">
+                  <button
+                    className="cancel-button"
+                    onClick={closeModal}
+                    disabled={isLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="create-button"
+                    onClick={createPlaylist}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Creating..." : "Create Playlist"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const TierList = ({ songs, accessToken }) => {
   // State for custom tiers
@@ -669,6 +883,12 @@ const TierList = ({ songs, accessToken }) => {
         <button className="export-button" onClick={exportImage}>
           Export as Image
         </button>
+        
+        <CreatePlaylistFromRanked
+          tierState={state}
+          tierOrder={tierOrder}
+          accessToken={accessToken}
+        />
         
         <RecommendationGenerator 
           tierState={state} 

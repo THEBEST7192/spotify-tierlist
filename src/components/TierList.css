@@ -337,8 +337,9 @@
 .tier-list-actions {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 15px;
   margin-top: 20px;
+  align-items: center;
 }
 
 .tier-list-actions .export-button {
@@ -607,4 +608,216 @@
 
 .singing-status.not-singing {
   color: #ff4444;
+}
+
+/* Create Playlist From Ranked Songs Styles */
+.create-playlist-container {
+  width: 100%;
+}
+
+.create-playlist-button {
+  background-color: #1DB954;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.create-playlist-button:hover {
+  background-color: #1ed760;
+  transform: translateY(-2px);
+}
+
+.playlist-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(3px);
+}
+
+.playlist-modal {
+  background-color: #121212;
+  border-radius: 8px;
+  padding: 25px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: white;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.playlist-modal h3 {
+  color: white;
+  margin: 0 0 10px 0;
+  text-align: center;
+  font-size: 24px;
+}
+
+.playlist-input {
+  width: 100%;
+  padding: 12px;
+  background-color: #333;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 16px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+.playlist-input:focus {
+  outline: 2px solid #1DB954;
+}
+
+.playlist-description {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.playlist-privacy {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+  color: #b3b3b3;
+}
+
+.playlist-privacy label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.playlist-privacy input {
+  margin-right: 10px;
+  accent-color: #1DB954;
+  width: 18px;
+  height: 18px;
+}
+
+.tier-selection {
+  margin: 10px 0;
+}
+
+.tier-selection h4 {
+  margin: 0 0 10px 0;
+  color: white;
+}
+
+.tier-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tier-checkbox {
+  background-color: #333;
+  padding: 8px 12px;
+  border-radius: 20px;
+}
+
+.tier-checkbox label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tier-checkbox input {
+  margin-right: 8px;
+  accent-color: #1DB954;
+}
+
+.playlist-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.cancel-button, .create-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 120px;
+  font-size: 16px;
+}
+
+.cancel-button {
+  background-color: #333;
+  color: white;
+}
+
+.cancel-button:hover {
+  background-color: #444;
+}
+
+.create-button {
+  background-color: #1DB954;
+  color: white;
+}
+
+.create-button:hover {
+  background-color: #1ed760;
+  transform: translateY(-2px);
+}
+
+.create-button:disabled, .cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error-message {
+  color: #ff4444;
+  text-align: center;
+  padding: 10px;
+  background-color: rgba(255, 68, 68, 0.1);
+  border-radius: 4px;
+}
+
+.success-message {
+  color: #4caf50;
+  text-align: center;
+  padding: 15px;
+  background-color: rgba(76, 175, 80, 0.1);
+  border-radius: 4px;
+  font-size: 18px;
+}
+
+@media (max-width: 768px) {
+  .playlist-modal {
+    width: 95%;
+    padding: 15px;
+  }
+  
+  .tier-checkbox {
+    font-size: 14px;
+  }
+  
+  .cancel-button, .create-button {
+    padding: 10px 16px;
+    font-size: 14px;
+    min-width: 100px;
+  }
 }
