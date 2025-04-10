@@ -70,8 +70,24 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       
       // Check if user owns or collaborates on the playlist
       const playlist = playlists.find(p => p.id === selectedPlaylist);
-      if (!playlist.owner.id || playlist.owner.id !== 'spotify') {
-        // User doesn't own this playlist, offer to clone it
+      
+      // Get user ID to properly check ownership
+      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      const userId = userResponse.data.id;
+      
+      // Check if the user is the owner of the playlist
+      const isOwner = playlist.owner.id === userId;
+      
+      // Get collaborative status for the playlist
+      const isCollaborative = playlist.collaborative === true;
+      
+      // Only offer to clone if the user isn't the owner and the playlist isn't collaborative
+      if (!isOwner && !isCollaborative) {
         setPlaylistToClone(playlist);
         setClonedPlaylistName(`${playlist.name} (Copy)`);
         setShowCloneDialog(true);
@@ -125,8 +141,24 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       
       // Check if user owns or collaborates on the playlist
       const playlist = playlists.find(p => p.id === selectedPlaylist);
-      if (!playlist.owner.id || playlist.owner.id !== 'spotify') {
-        // User doesn't own this playlist, offer to clone it
+      
+      // Get user ID to properly check ownership
+      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      const userId = userResponse.data.id;
+      
+      // Check if the user is the owner of the playlist
+      const isOwner = playlist.owner.id === userId;
+      
+      // Get collaborative status for the playlist
+      const isCollaborative = playlist.collaborative === true;
+      
+      // Only offer to clone if the user isn't the owner and the playlist isn't collaborative
+      if (!isOwner && !isCollaborative) {
         setPlaylistToClone(playlist);
         setClonedPlaylistName(`${playlist.name} (Copy)`);
         setShowCloneDialog(true);
