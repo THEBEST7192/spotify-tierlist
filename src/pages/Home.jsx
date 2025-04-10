@@ -8,7 +8,7 @@ import spotifyLogoOfficial from "../assets/spotify/spotify-logo-official.png";
 import axios from "axios";
 import "./Home.css";
 
-const Home = ({ accessToken, setAccessToken }) => {
+const Home = ({ accessToken, refreshToken, setAccessToken }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -52,7 +52,8 @@ const Home = ({ accessToken, setAccessToken }) => {
       // Add access token to the playlist object
       const playlistWithToken = {
         ...playlist,
-        accessToken
+        accessToken,
+        refreshToken
       };
       
       setSelectedPlaylist(playlistWithToken);
@@ -133,7 +134,11 @@ const Home = ({ accessToken, setAccessToken }) => {
             ← Back to Playlists
           </button>
           <h2>Tierlist for: {selectedPlaylist.name}</h2>
-          <TierList songs={playlistTracks} accessToken={accessToken} />
+          <TierList 
+            songs={playlistTracks} 
+            accessToken={accessToken} 
+            refreshToken={refreshToken}
+          />
           <div className="made-with-spotify">
             <p>Made with Spotify</p>
           </div>
@@ -143,6 +148,7 @@ const Home = ({ accessToken, setAccessToken }) => {
           <p>Select a playlist to create a tierlist:</p>
           <PlaylistSelector 
             accessToken={accessToken} 
+            refreshToken={refreshToken}
             onSelect={handlePlaylistSelect} 
           />
           <div className="made-with-spotify">
