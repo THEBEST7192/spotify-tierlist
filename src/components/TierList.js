@@ -355,6 +355,27 @@ const TierList = ({ songs, accessToken }) => {
     setCurrentTrack(trackId);
   };
 
+  // Function to add a recommended song to the tierlist
+  const addSongToTierlist = (trackData) => {
+    // Create a unique ID for the new song
+    const dragId = `track-rec-${trackData.id}-${Date.now()}`;
+    
+    // Create a song object in the format the tierlist expects
+    const newSong = {
+      id: dragId,
+      content: {
+        ...trackData,
+        dragId
+      }
+    };
+    
+    // Add the song to the Unranked tier
+    setState(prev => ({
+      ...prev,
+      Unranked: [...prev.Unranked, newSong]
+    }));
+  };
+
   // Handle track end
   const handleTrackEnd = () => {
     setCurrentTrack(null);
@@ -655,6 +676,7 @@ const TierList = ({ songs, accessToken }) => {
           tiers={tiers}
           accessToken={accessToken} 
           onPlayTrack={playTrack}
+          onAddToTierlist={addSongToTierlist}
         />
       </div>
 

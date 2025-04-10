@@ -7,10 +7,11 @@ import AddToPlaylist from './AddToPlaylist';
 const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY;
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
-const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onPlayTrack }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onPlayTrack, onAddToTierlist }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [addedTracks, setAddedTracks] = useState(new Set());
 
   // Calculate tier weights based on position in tierOrder
   const calculateTierWeights = () => {
@@ -231,6 +232,42 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
     return tier ? tier[0] : 'Unknown';
   };
 
+  // Handle add to tierlist button click
+  const handleAddToTierlist = (track) => {
+    if (onAddToTierlist) {
+      onAddToTierlist(track.spotifyData);
+      // Track which songs have been added
+      setAddedTracks(prev => new Set([...prev, track.spotifyData.id]));
+    }
+  };
+
+  // Handle add all to tierlist button click
+  const handleAddAllToTierlist = () => {
+    if (!onAddToTierlist || recommendations.length === 0) return;
+    
+    // Get tracks that haven't been added yet
+    const tracksToAdd = recommendations.filter(track => 
+      !addedTracks.has(track.spotifyData.id)
+    );
+    
+    // Add each track to the tierlist
+    tracksToAdd.forEach(track => {
+      onAddToTierlist(track.spotifyData);
+    });
+    
+    // Update the addedTracks state to include all tracks
+    const newAddedTracks = new Set(addedTracks);
+    tracksToAdd.forEach(track => {
+      newAddedTracks.add(track.spotifyData.id);
+    });
+    
+    setAddedTracks(newAddedTracks);
+  };
+
+  // Check if all tracks have been added
+  const areAllTracksAdded = recommendations.length > 0 && 
+    recommendations.every(track => addedTracks.has(track.spotifyData.id));
+
   return (
     <div className="recommendation-container">
       <button 
@@ -247,11 +284,20 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
         <div className="recommendations-list">
           <div className="recommendations-header">
             <h3>Recommended Songs</h3>
-            <AddToPlaylist 
-              trackId={recommendations.map(track => track.spotifyData.id)} 
-              accessToken={accessToken} 
-              isSingleTrack={false}
-            />
+            <div className="recommendations-actions">
+              <button
+                className={`add-all-to-tierlist-button ${areAllTracksAdded ? 'added' : ''}`}
+                onClick={handleAddAllToTierlist}
+                disabled={areAllTracksAdded || isLoading}
+              >
+                {areAllTracksAdded ? 'All Added to Tierlist' : 'Add All to Tierlist'}
+              </button>
+              <AddToPlaylist 
+                trackId={recommendations.map(track => track.spotifyData.id)} 
+                accessToken={accessToken} 
+                isSingleTrack={false}
+              />
+            </div>
           </div>
           <p className="recommendation-explanation">
             Based on songs in your ranked tiers (higher tiers have more influence)
@@ -302,6 +348,13 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
                   >
                     Listen on Spotify
                   </a>
+                  <button
+                    className={`add-to-tierlist-button ${addedTracks.has(track.spotifyData.id) ? 'added' : ''}`}
+                    onClick={() => handleAddToTierlist(track)}
+                    disabled={addedTracks.has(track.spotifyData.id)}
+                  >
+                    {addedTracks.has(track.spotifyData.id) ? 'Added to Tierlist' : 'Add to Tierlist'}
+                  </button>
                   <AddToPlaylist 
                     trackId={track.spotifyData.id} 
                     accessToken={accessToken} 

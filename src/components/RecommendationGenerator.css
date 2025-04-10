@@ -188,3 +188,89 @@
     border-radius: 4px;
   }
 }
+
+.add-to-tierlist-button {
+  background-color: #5C67DE;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.add-to-tierlist-button:hover {
+  background-color: #6C78F1;
+  transform: translateY(-1px);
+}
+
+.add-to-tierlist-button.added {
+  background-color: #43A047;
+  cursor: default;
+}
+
+.add-to-tierlist-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.recommendations-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.add-all-to-tierlist-button {
+  background-color: #5C67DE;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.add-all-to-tierlist-button:hover {
+  background-color: #6C78F1;
+  transform: translateY(-1px);
+}
+
+.add-all-to-tierlist-button.added {
+  background-color: #43A047;
+  cursor: default;
+}
+
+.add-all-to-tierlist-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .recommendations-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  
+  .add-all-to-tierlist-button {
+    width: 100%;
+  }
+  
+  .recommendation-actions {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  
+  .add-to-tierlist-button, 
+  .listen-button {
+    width: 100%;
+    text-align: center;
+  }
+}
