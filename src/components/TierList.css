@@ -176,6 +176,13 @@
   background-color: #333 !important;
 }
 
+.song-card.playing {
+  background-color: #2a2a2a !important;
+  border-left: 4px solid #1DB954;
+  padding-left: 4px;
+  box-shadow: 0 2px 10px rgba(29, 185, 84, 0.3);
+}
+
 .album-item {
   background: white;
   width: 80px;
@@ -278,10 +285,16 @@
   transform: scale(1.1);
 }
 
+.play-preview-button.playing {
+  background-color: #1DB954;
+}
+
 .album-cover-link {
   display: block;
   text-decoration: none;
   transition: transform 0.2s ease;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .album-cover-link:hover {

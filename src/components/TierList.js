@@ -284,6 +284,7 @@ const TierList = ({ songs, accessToken }) => {
   
   // State for the currently playing track
   const [currentTrack, setCurrentTrack] = useState(null);
+  const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
   
   // Initialize with songs
   useEffect(() => {
@@ -566,7 +567,14 @@ const TierList = ({ songs, accessToken }) => {
 
   // Play a track
   const playTrack = (trackId) => {
-    setCurrentTrack(trackId);
+    // If clicking the same track, toggle play/pause
+    if (trackId === currentTrack) {
+      setIsPlayerPlaying(!isPlayerPlaying);
+    } else {
+      // If selecting a new track, start playing it
+      setCurrentTrack(trackId);
+      setIsPlayerPlaying(true);
+    }
   };
 
   // Function to add a recommended song to the tierlist
@@ -593,6 +601,12 @@ const TierList = ({ songs, accessToken }) => {
   // Handle track end
   const handleTrackEnd = () => {
     setCurrentTrack(null);
+    setIsPlayerPlaying(false);
+  };
+
+  // Handle player state changes
+  const handlePlayerStateChange = (isPlaying) => {
+    setIsPlayerPlaying(isPlaying);
   };
 
   // Function to randomly change tiers of some songs
@@ -799,6 +813,8 @@ const TierList = ({ songs, accessToken }) => {
                     >
                       {state[tierId].map((item, index) => {
                         const song = item.content;
+                        const isPlaying = currentTrack === song.id && isPlayerPlaying;
+                        
                         return (
                           <Draggable
                             key={item.id}
@@ -814,7 +830,7 @@ const TierList = ({ songs, accessToken }) => {
                                   snapshot.isDragging,
                                   provided.draggableProps.style
                                 )}
-                                className="song-card"
+                                className={`song-card ${isPlaying ? 'playing' : ''}`}
                               >
                                 {song.album && song.album.images && song.album.images.length > 0 && (
                                   <a 
@@ -839,16 +855,22 @@ const TierList = ({ songs, accessToken }) => {
                                 </div>
                                 <div className="song-actions">
                                   <button 
-                                    className="play-preview-button"
+                                    className={`play-preview-button ${isPlaying ? 'playing' : ''}`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       playTrack(song.id);
                                     }}
-                                    aria-label="Play preview"
+                                    aria-label={isPlaying ? "Pause preview" : "Play preview"}
                                   >
-                                    <svg viewBox="0 0 24 24" width="20" height="20">
-                                      <path fill="currentColor" d="M8 5v14l11-7z" />
-                                    </svg>
+                                    {isPlaying ? (
+                                      <svg viewBox="0 0 24 24" width="20" height="20">
+                                        <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                                      </svg>
+                                    ) : (
+                                      <svg viewBox="0 0 24 24" width="20" height="20">
+                                        <path fill="currentColor" d="M8 5v14l11-7z" />
+                                      </svg>
+                                    )}
                                   </button>
                                   <a 
                                     href={`https://open.spotify.com/track/${song.id}`}
@@ -903,7 +925,9 @@ const TierList = ({ songs, accessToken }) => {
       {/* Spotify Player */}
       <SpotifyPlayer 
         trackId={currentTrack} 
-        onTrackEnd={handleTrackEnd} 
+        onTrackEnd={handleTrackEnd}
+        onPlayerStateChange={handlePlayerStateChange} 
+        isPlaying={isPlayerPlaying}
       />
     </div>
   );

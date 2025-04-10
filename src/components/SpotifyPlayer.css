@@ -41,6 +41,24 @@
   border-radius: 0; /* Override global image styles */
 }
 
+.spotify-icon.spinning {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spotify-player-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+  background-color: #121212;
+  width: 100%;
+}
+
 .player-buttons {
   display: flex;
   align-items: center;
@@ -52,7 +70,7 @@
   flex-grow: 1;
 }
 
-.close-button, .expand-button {
+.close-button, .expand-button, .play-button {
   background: none;
   border: none;
   color: white;
@@ -63,6 +81,24 @@
   padding: 4px;
   border-radius: 50%;
   transition: background-color 0.2s;
+}
+
+.play-button {
+  width: 32px;
+  height: 32px;
+  background-color: #1db954;
+  margin: 0 8px;
+}
+
+.play-button:hover {
+  background-color: #1ed760;
+  transform: scale(1.05);
+}
+
+.play-button:disabled {
+  background-color: #535353;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .close-button:hover, .expand-button:hover {
@@ -76,6 +112,11 @@
 .player-iframe-container {
   width: 100%;
   transition: height 0.3s ease;
+  position: relative;
+}
+
+.hidden {
+  display: none;
 }
 
 /* Album artwork corner radius according to Spotify guidelines */

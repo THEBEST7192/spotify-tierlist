@@ -1,43 +1,168 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './SpotifyPlayer.css';
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 
-const SpotifyPlayer = ({ trackId, onTrackEnd }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+// Using Spotify's iframe API as documented at:
+// https://developer.spotify.com/documentation/embeds/tutorials/using-the-iframe-api
+const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // Reset player state when track changes
+  const [playerPlayState, setPlayerPlayState] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const iframeContainerRef = useRef(null);
+  const controllerRef = useRef(null);
+  const previousTrackRef = useRef(null);
+  
+  // Load the Spotify Iframe API script
   useEffect(() => {
-    setIsPlaying(false);
-  }, [trackId]);
-
-  // Handle track end
-  useEffect(() => {
-    if (onTrackEnd && isPlaying) {
-      const timer = setTimeout(() => {
-        setIsPlaying(false);
-        onTrackEnd();
-      }, 30000); // 30 seconds is the typical preview length
+    // Only load the script once
+    if (!window.SpotifyIframeApi && !document.getElementById('spotify-iframe-api')) {
+      setIsLoading(true);
       
-      return () => clearTimeout(timer);
+      // Define the callback for when the API is ready
+      window.onSpotifyIframeApiReady = (IFrameAPI) => {
+        window.SpotifyIframeApi = IFrameAPI;
+        if (trackId && iframeContainerRef.current) {
+          initializeController(IFrameAPI);
+        }
+      };
+      
+      // Create and add the script element
+      const script = document.createElement('script');
+      script.id = 'spotify-iframe-api';
+      script.src = 'https://open.spotify.com/embed/iframe-api/v1';
+      script.async = true;
+      
+      document.body.appendChild(script);
+      
+      return () => {
+        // Optional: Clean up global handlers when component unmounts
+        window.onSpotifyIframeApiReady = null;
+      };
+    } else if (window.SpotifyIframeApi && trackId && iframeContainerRef.current) {
+      // If API already loaded, initialize controller
+      initializeController(window.SpotifyIframeApi);
     }
-  }, [isPlaying, onTrackEnd]);
-
-  if (!trackId) return null;
-
-  const togglePlay = () => {
-    setIsPlaying(!isPlaying);
+  }, []);
+  
+  // Initialize or update controller when trackId changes
+  useEffect(() => {
+    if (!trackId) return;
+    
+    if (window.SpotifyIframeApi && iframeContainerRef.current) {
+      if (previousTrackRef.current !== trackId) {
+        previousTrackRef.current = trackId;
+        
+        if (controllerRef.current) {
+          // If we already have a controller, load the new URI
+          controllerRef.current.loadUri(`spotify:track:${trackId}`);
+          
+          // Start playing the new track if player should be in playing state
+          if (isPlaying || playerPlayState) {
+            setTimeout(() => {
+              controllerRef.current.play();
+            }, 300);
+          }
+        } else {
+          // Initialize a new controller if needed
+          initializeController(window.SpotifyIframeApi);
+        }
+      }
+    }
+  }, [trackId, isPlaying, playerPlayState]);
+  
+  // Sync with external play state changes
+  useEffect(() => {
+    if (!controllerRef.current || isPlaying === undefined) return;
+    
+    // Only update if the states are different
+    if (isPlaying !== playerPlayState) {
+      if (isPlaying) {
+        controllerRef.current.play();
+      } else {
+        controllerRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+  
+  // Initialize the controller with the Spotify Iframe API
+  const initializeController = (IFrameAPI) => {
+    // Clear any existing content
+    if (iframeContainerRef.current) {
+      iframeContainerRef.current.innerHTML = '';
+    }
+    
+    // Create options for the controller
+    const options = {
+      uri: `spotify:track:${trackId}`,
+      width: '100%',
+      height: isExpanded ? '152' : '80',
+      theme: 'black'
+    };
+    
+    // Create the controller
+    IFrameAPI.createController(
+      iframeContainerRef.current,
+      options,
+      (controller) => {
+        // Store controller reference
+        controllerRef.current = controller;
+        setIsLoading(false);
+        setIsReady(true);
+        
+        // Add event listeners
+        controller.addListener('playback_update', (data) => {
+          const newPlayState = !data.data.isPaused;
+          
+          // Update our local state and notify parent
+          setPlayerPlayState(newPlayState);
+          if (onPlayerStateChange) {
+            onPlayerStateChange(newPlayState);
+          }
+          
+          // Check for track end
+          if (data.data.position >= data.data.duration - 1 && onTrackEnd) {
+            onTrackEnd();
+          }
+        });
+        
+        // Handle ready state
+        controller.addListener('ready', () => {
+          setIsReady(true);
+          // Auto-play the track if needed
+          if (isPlaying) {
+            setTimeout(() => controller.play(), 300);
+          }
+        });
+      }
+    );
   };
-
+  
   const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
+    const newExpandedState = !isExpanded;
+    setIsExpanded(newExpandedState);
+    
+    // Update iframe height if controller exists
+    if (controllerRef.current) {
+      controllerRef.current.setHeight(newExpandedState ? '152' : '80');
+    }
   };
-
+  
   const closePlayer = () => {
-    setIsPlaying(false);
-    onTrackEnd();
+    // Pause playback
+    if (controllerRef.current) {
+      controllerRef.current.pause();
+    }
+    
+    setPlayerPlayState(false);
+    if (onPlayerStateChange) onPlayerStateChange(false);
+    if (onTrackEnd) {
+      onTrackEnd();
+    }
   };
-
+  
+  if (!trackId) return null;
+  
   return (
     <div className={`spotify-player ${isExpanded ? 'expanded' : ''}`}>
       <div className="player-controls">
@@ -73,16 +198,15 @@ const SpotifyPlayer = ({ trackId, onTrackEnd }) => {
       </div>
       
       <div className="player-iframe-container">
-        <iframe
-          src={`https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0&autoplay=${isPlaying ? 1 : 0}`}
-          width="100%"
-          height={isExpanded ? "152" : "80"}
-          frameBorder="0"
-          allowFullScreen=""
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy"
-          title="Spotify Player"
-        ></iframe>
+        {isLoading && (
+          <div className="spotify-player-loading">
+            <img src={spotifyIconOfficial} alt="Spotify" className="spotify-icon spinning" />
+          </div>
+        )}
+        <div 
+          ref={iframeContainerRef}
+          className="spotify-iframe-element"
+        />
       </div>
     </div>
   );
