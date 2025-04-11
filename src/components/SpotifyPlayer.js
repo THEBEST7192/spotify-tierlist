@@ -12,6 +12,10 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
   const iframeContainerRef = useRef(null);
   const controllerRef = useRef(null);
   const previousTrackRef = useRef(null);
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const isSeeking = useRef(false);
+  const hasStartedPlaying = useRef(false);
+  const lastPlaybackPosition = useRef(0);
   
   // Load the Spotify Iframe API script
   useEffect(() => {
@@ -52,6 +56,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
     if (window.SpotifyIframeApi && iframeContainerRef.current) {
       if (previousTrackRef.current !== trackId) {
         previousTrackRef.current = trackId;
+        setCurrentPosition(0);
+        lastPlaybackPosition.current = 0;
         
         if (controllerRef.current) {
           // If we already have a controller, load the new URI
@@ -60,7 +66,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
           // Start playing the new track if player should be in playing state
           if (isPlaying || playerPlayState) {
             setTimeout(() => {
-              controllerRef.current.play();
+              controllerRef.current.togglePlay();
             }, 300);
           }
         } else {
@@ -73,17 +79,41 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
   
   // Sync with external play state changes
   useEffect(() => {
-    if (!controllerRef.current || isPlaying === undefined) return;
+    if (!controllerRef.current || isPlaying === undefined || !isReady) return;
     
     // Only update if the states are different
     if (isPlaying !== playerPlayState) {
       if (isPlaying) {
-        controllerRef.current.play();
+        // If resuming playback and we have a saved position, seek first
+        if (lastPlaybackPosition.current > 0) {
+          try {
+            // First seek to the position
+            isSeeking.current = true;
+            controllerRef.current.seekTo(lastPlaybackPosition.current);
+            
+            // Small delay after seeking before playing
+            setTimeout(() => {
+              controllerRef.current.togglePlay();
+              isSeeking.current = false;
+            }, 100);
+          } catch (error) {
+            console.error("Error resuming playback:", error);
+            controllerRef.current.togglePlay(); // Fallback
+            isSeeking.current = false;
+          }
+        } else {
+          // Just toggle play for first time
+          controllerRef.current.togglePlay();
+        }
       } else {
-        controllerRef.current.pause();
+        // Save current position before pausing
+        if (currentPosition > 0) {
+          lastPlaybackPosition.current = currentPosition;
+        }
+        controllerRef.current.togglePlay();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, playerPlayState, isReady]);
   
   // Initialize the controller with the Spotify Iframe API
   const initializeController = (IFrameAPI) => {
@@ -114,6 +144,16 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
         controller.addListener('playback_update', (data) => {
           const newPlayState = !data.data.isPaused;
           
+          // Store current position only when playing
+          if (!isSeeking.current && newPlayState) {
+            setCurrentPosition(data.data.position);
+          }
+          
+          // When pausing, store the position
+          if (data.data.isPaused && currentPosition > 0) {
+            lastPlaybackPosition.current = currentPosition;
+          }
+          
           // Update our local state and notify parent
           setPlayerPlayState(newPlayState);
           if (onPlayerStateChange) {
@@ -122,6 +162,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
           
           // Check for track end
           if (data.data.position >= data.data.duration - 1 && onTrackEnd) {
+            setCurrentPosition(0);
+            lastPlaybackPosition.current = 0;
             onTrackEnd();
           }
         });
@@ -131,7 +173,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
           setIsReady(true);
           // Auto-play the track if needed
           if (isPlaying) {
-            setTimeout(() => controller.play(), 300);
+            hasStartedPlaying.current = true; // Mark as started
+            setTimeout(() => controller.togglePlay(), 300);
           }
         });
       }
@@ -149,14 +192,17 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
   };
   
   const closePlayer = () => {
-    // Pause playback
-    if (controllerRef.current) {
-      controllerRef.current.pause();
+    // Save position before closing
+    if (controllerRef.current && playerPlayState) {
+      lastPlaybackPosition.current = currentPosition;
+      controllerRef.current.togglePlay();
     }
     
     setPlayerPlayState(false);
     if (onPlayerStateChange) onPlayerStateChange(false);
     if (onTrackEnd) {
+      setCurrentPosition(0);
+      lastPlaybackPosition.current = 0;
       onTrackEnd();
     }
   };
@@ -212,4 +258,4 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange }) 
   );
 };
 
-export default SpotifyPlayer; 
+export default SpotifyPlayer;
