@@ -834,3 +834,26 @@
     min-width: 100px;
   }
 }
+
+.detection-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cinema-control {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.control-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #ddd;
+}

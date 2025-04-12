@@ -7,6 +7,7 @@ import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
 import SingingDetector from "./SingingDetector";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
+import CinemaPoseDetector from './CinemaPoseDetector';
 
 // Define default tiers and their colors
 const DEFAULT_TIERS = {
@@ -272,6 +273,7 @@ const TierList = ({ songs, accessToken }) => {
   const [editTierName, setEditTierName] = useState("");
   const [isSinging, setIsSinging] = useState(false);
   const [randomChangeInterval, setRandomChangeInterval] = useState(null);
+  const [isCinemaEnabled, setIsCinemaEnabled] = useState(false);
   
   // State for the tier list
   const [state, setState] = useState(() => {
@@ -673,6 +675,43 @@ const TierList = ({ songs, accessToken }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSinging]);
 
+  // Add event listener for cinema pose song movement
+  useEffect(() => {
+    const handleMoveSongToTier = (event) => {
+      const { songId, targetTier } = event.detail;
+      
+      // Find the song's current tier
+      let currentTier = null;
+      let songToMove = null;
+      
+      Object.entries(state).forEach(([tier, songs]) => {
+        const found = songs.find(song => song.id === songId);
+        if (found) {
+          currentTier = tier;
+          songToMove = found;
+        }
+      });
+
+      if (currentTier && songToMove) {
+        setState(prev => {
+          // Remove from current tier
+          const sourceItems = prev[currentTier].filter(s => s.id !== songId);
+          // Add to target tier
+          const destItems = [...prev[targetTier], songToMove];
+          
+          return {
+            ...prev,
+            [currentTier]: sourceItems,
+            [targetTier]: destItems
+          };
+        });
+      }
+    };
+
+    document.addEventListener('moveSongToTier', handleMoveSongToTier);
+    return () => document.removeEventListener('moveSongToTier', handleMoveSongToTier);
+  }, [state]);
+
   return (
     <div className="tier-list-container">
       <div className="tier-controls">
@@ -693,33 +732,23 @@ const TierList = ({ songs, accessToken }) => {
             </button>
           )}
         </div>
-        
-        <SingingDetector onSingingStateChange={setIsSinging} />
-        
-        {showAddTierForm && (
-          <div className="add-tier-form">
-            <input
-              type="text"
-              placeholder="Tier Name"
-              value={newTierName}
-              onChange={(e) => setNewTierName(e.target.value)}
-              className="tier-name-input"
-            />
-            <input
-              type="color"
-              value={newTierColor}
-              onChange={(e) => setNewTierColor(e.target.value)}
-              className="tier-color-input"
-            />
-            <button 
-              className="save-tier-button"
-              onClick={addTier}
-              disabled={!newTierName.trim()}
-            >
-              Add Tier
-            </button>
+        <div className="detection-controls">
+          <SingingDetector onSingingStateChange={setIsSinging} />
+          <div className="cinema-control">
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={isCinemaEnabled}
+                onChange={(e) => setIsCinemaEnabled(e.target.checked)}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+            <span className="control-label">
+              {isCinemaEnabled ? '🎬 Absolute cinema on' : '🎬 Absolute cinema off'}
+            </span>
           </div>
-        )}
+          <CinemaPoseDetector isEnabled={isCinemaEnabled} />
+        </div>
       </div>
       
       <DragDropContext onDragEnd={onDragEnd}>
