@@ -8,6 +8,7 @@ A web application that allows you to create tier lists from your Spotify playlis
 - Browse and select from your playlists
 - Search playlists by name or description
 - Drag and drop songs into different tiers
+- Create custom tiers for your tierlist
 - Export your tier list as an image
 - View album covers for each song
 - Get personalized song recommendations based on your tier rankings
@@ -19,8 +20,8 @@ A web application that allows you to create tier lists from your Spotify playlis
 
 - Node.js (v14 or higher)
 - npm (comes with Node.js)
-- Spotify account
-- Last.fm account (for recommendations)
+- Spotify API account (for song metadata, acquisition of playlitsts and search)
+- Last.fm API account (for recommendations)
 
 ### Installation
 
@@ -49,7 +50,7 @@ npm run build
 serve -s build
 ```
 
-The app will open in your default browser at `http://localhost:3000`
+The app will open in your default browser at `http://localhost:3000`, or whatever you set your redirect URI to
 
 ## Usage
 
