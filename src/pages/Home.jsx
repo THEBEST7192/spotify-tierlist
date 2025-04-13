@@ -5,10 +5,10 @@ import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
 import UserProfile from "../components/UserProfile";
 import spotifyLogoOfficial from "../assets/spotify/spotify-logo-official.png";
-import axios from "axios";
+import { getPlaylistTracks } from "../utils/spotifyApi";
 import "./Home.css";
 
-const Home = ({ accessToken, refreshToken, setAccessToken }) => {
+const Home = ({ accessToken, setAccessToken }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -49,24 +49,10 @@ const Home = ({ accessToken, refreshToken, setAccessToken }) => {
       setIsLoading(true);
       setError(null);
       
-      // Add access token to the playlist object
-      const playlistWithToken = {
-        ...playlist,
-        accessToken,
-        refreshToken
-      };
-      
-      setSelectedPlaylist(playlistWithToken);
+      setSelectedPlaylist(playlist);
       
       // Fetch the tracks for the selected playlist
-      const response = await axios.get(
-        `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        }
-      );
+      const response = await getPlaylistTracks(playlist.id);
       
       // Extract track data and add stable IDs
       const tracks = response.data.items
@@ -137,7 +123,6 @@ const Home = ({ accessToken, refreshToken, setAccessToken }) => {
           <TierList 
             songs={playlistTracks} 
             accessToken={accessToken} 
-            refreshToken={refreshToken}
           />
           <div className="made-with-spotify">
             <p>Made with Spotify</p>
@@ -148,7 +133,6 @@ const Home = ({ accessToken, refreshToken, setAccessToken }) => {
           <p>Select a playlist to create a tierlist:</p>
           <PlaylistSelector 
             accessToken={accessToken} 
-            refreshToken={refreshToken}
             onSelect={handlePlaylistSelect} 
           />
           <div className="made-with-spotify">

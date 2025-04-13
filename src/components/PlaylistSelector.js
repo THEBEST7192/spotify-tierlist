@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import { getUserPlaylists, searchPlaylists } from "../utils/spotifyApi";
 import "./PlaylistSelector.css";
 
-const PlaylistSelector = ({ accessToken, onSelect }) => {
+const PlaylistSelector = ({ onSelect }) => {
   const [playlists, setPlaylists] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
@@ -13,21 +13,18 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!accessToken) return;
+    const fetchUserPlaylists = async () => {
+      try {
+        const response = await getUserPlaylists();
+        setPlaylists(response.data.items);
+        setFilteredPlaylists(response.data.items);
+      } catch (err) {
+        console.error("Error fetching playlists:", err);
+      }
+    };
 
-    axios
-      .get("https://api.spotify.com/v1/me/playlists", {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      })
-      .then((res) => {
-        setPlaylists(res.data.items);
-        setFilteredPlaylists(res.data.items);
-      })
-      .catch((err) => console.error("Error fetching playlists:", err));
-  }, [accessToken]);
+    fetchUserPlaylists();
+  }, []);
 
   useEffect(() => {
     if (searchMode === "user") {
@@ -45,22 +42,12 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
     }
   }, [searchQuery, playlists, searchMode]);
 
-  const searchPublicPlaylists = async () => {
-    if (!publicSearchQuery.trim() || !accessToken) return;
+  const handlePublicSearch = async () => {
+    if (!publicSearchQuery.trim()) return;
     
     setIsLoading(true);
     try {
-      const response = await axios.get(`https://api.spotify.com/v1/search`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        params: {
-          q: publicSearchQuery,
-          type: "playlist",
-          limit: 50
-        }
-      });
+      const response = await searchPlaylists(publicSearchQuery);
       
       // Make sure we have valid playlist items before setting them
       const items = response.data.playlists?.items || [];
@@ -84,7 +71,7 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && searchMode === "public") {
-      searchPublicPlaylists();
+      handlePublicSearch();
     }
   };
 
@@ -129,7 +116,7 @@ const PlaylistSelector = ({ accessToken, onSelect }) => {
           />
           <button 
             className="search-button" 
-            onClick={searchPublicPlaylists}
+            onClick={handlePublicSearch}
             disabled={isLoading}
           >
             {isLoading ? "Searching..." : "Search"}

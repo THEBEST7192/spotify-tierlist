@@ -1,19 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { getCurrentUser } from '../utils/spotifyApi';
 import './UserProfile.css';
 
-const UserProfile = ({ accessToken }) => {
+const UserProfile = () => {
   const [userData, setUserData] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const response = await axios.get('https://api.spotify.com/v1/me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        });
+        const response = await getCurrentUser();
         setUserData(response.data);
       } catch (err) {
         console.error('Error fetching user data:', err);
@@ -21,10 +17,8 @@ const UserProfile = ({ accessToken }) => {
       }
     };
 
-    if (accessToken) {
-      fetchUserData();
-    }
-  }, [accessToken]);
+    fetchUserData();
+  }, []);
 
   if (error) return null;
   if (!userData) return null;
@@ -49,4 +43,4 @@ const UserProfile = ({ accessToken }) => {
   );
 };
 
-export default UserProfile; 
+export default UserProfile;

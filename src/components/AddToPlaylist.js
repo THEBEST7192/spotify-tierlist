@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { getUserPlaylists, getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
 import './AddToPlaylist.css';
 
-const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
+const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
   const [playlists, setPlaylists] = useState([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,25 +19,17 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
 
   // Fetch user's playlists when component mounts
   useEffect(() => {
-    if (accessToken && showPlaylistSelector) {
+    if (showPlaylistSelector) {
       fetchPlaylists();
     }
-  }, [accessToken, showPlaylistSelector]);
+  }, [showPlaylistSelector]);
 
   const fetchPlaylists = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await axios.get('https://api.spotify.com/v1/me/playlists', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        },
-        params: {
-          limit: 50 // Fetch up to 50 playlists
-        }
-      });
-      
+      const response = await getUserPlaylists();
       setPlaylists(response.data.items);
       
       // Set the first playlist as default if available
@@ -72,12 +64,7 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       const playlist = playlists.find(p => p.id === selectedPlaylist);
       
       // Get user ID to properly check ownership
-      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      
+      const userResponse = await getCurrentUser();
       const userId = userResponse.data.id;
       
       // Check if the user is the owner of the playlist
@@ -96,18 +83,7 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       }
       
       // Add track to the selected playlist
-      await axios.post(
-        `https://api.spotify.com/v1/playlists/${selectedPlaylist}/tracks`,
-        {
-          uris: [`spotify:track:${trackId}`]
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      await addTracksToPlaylist(selectedPlaylist, [`spotify:track:${trackId}`]);
       
       setIsSuccess(true);
       setIsLoading(false);
@@ -143,12 +119,7 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       const playlist = playlists.find(p => p.id === selectedPlaylist);
       
       // Get user ID to properly check ownership
-      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      
+      const userResponse = await getCurrentUser();
       const userId = userResponse.data.id;
       
       // Check if the user is the owner of the playlist
@@ -167,18 +138,7 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       }
       
       // Add all tracks to the selected playlist
-      await axios.post(
-        `https://api.spotify.com/v1/playlists/${selectedPlaylist}/tracks`,
-        {
-          uris: trackId.map(id => `spotify:track:${id}`)
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      await addTracksToPlaylist(selectedPlaylist, trackId.map(id => `spotify:track:${id}`));
       
       setIsSuccess(true);
       setIsLoading(false);
@@ -206,60 +166,24 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       setError(null);
       
       // Get user ID first
-      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      
+      const userResponse = await getCurrentUser();
       const userId = userResponse.data.id;
       
       // Create new playlist
-      const createResponse = await axios.post(
-        `https://api.spotify.com/v1/users/${userId}/playlists`,
-        {
-          name: newPlaylistName,
-          description: newPlaylistDescription,
-          public: newPlaylistIsPublic
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const createResponse = await createPlaylist(userId, {
+        name: newPlaylistName,
+        description: newPlaylistDescription,
+        isPublic: newPlaylistIsPublic
+      });
       
       const newPlaylistId = createResponse.data.id;
       
       // Add tracks to the new playlist
-      if (isSingleTrack) {
-        await axios.post(
-          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
-          {
-            uris: [`spotify:track:${trackId}`]
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-      } else {
-        await axios.post(
-          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
-          {
-            uris: trackId.map(id => `spotify:track:${id}`)
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-      }
+      const uris = isSingleTrack ? 
+        [`spotify:track:${trackId}`] : 
+        trackId.map(id => `spotify:track:${id}`);
+      
+      await addTracksToPlaylist(newPlaylistId, uris);
       
       setIsSuccess(true);
       setIsLoading(false);
@@ -293,95 +217,24 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
       setError(null);
       
       // Get user ID first
-      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      
+      const userResponse = await getCurrentUser();
       const userId = userResponse.data.id;
       
       // Create new playlist
-      const createResponse = await axios.post(
-        `https://api.spotify.com/v1/users/${userId}/playlists`,
-        {
-          name: clonedPlaylistName,
-          description: `A copy of ${playlistToClone.name}`,
-          public: false // Default to private for cloned playlists
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const createResponse = await createPlaylist(userId, {
+        name: clonedPlaylistName,
+        description: `A copy of ${playlistToClone.name}`,
+        isPublic: false // Default to private for cloned playlists
+      });
       
       const newPlaylistId = createResponse.data.id;
       
-      // Fetch all tracks from the original playlist
-      const originalTracksResponse = await axios.get(
-        `https://api.spotify.com/v1/playlists/${playlistToClone.id}/tracks`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          },
-          params: {
-            limit: 100 // Fetch up to 100 tracks
-          }
-        }
-      );
+      // Add tracks to the new playlist
+      const uris = isSingleTrack ? 
+        [`spotify:track:${trackId}`] : 
+        trackId.map(id => `spotify:track:${id}`);
       
-      // Extract track URIs from the original playlist
-      const originalTrackUris = originalTracksResponse.data.items.map(item => item.track.uri);
-      
-      // Add original tracks to the new playlist in batches of 100 (Spotify API limit)
-      if (originalTrackUris.length > 0) {
-        for (let i = 0; i < originalTrackUris.length; i += 100) {
-          const batch = originalTrackUris.slice(i, i + 100);
-          await axios.post(
-            `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
-            {
-              uris: batch
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-        }
-      }
-      
-      // Add the new recommended/selected tracks to the cloned playlist
-      if (isSingleTrack) {
-        await axios.post(
-          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
-          {
-            uris: [`spotify:track:${trackId}`]
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-      } else {
-        await axios.post(
-          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
-          {
-            uris: trackId.map(id => `spotify:track:${id}`)
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-      }
+      await addTracksToPlaylist(newPlaylistId, uris);
       
       setIsSuccess(true);
       setIsLoading(false);
@@ -554,4 +407,4 @@ const AddToPlaylist = ({ trackId, accessToken, isSingleTrack = false }) => {
   );
 };
 
-export default AddToPlaylist; 
+export default AddToPlaylist;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { searchTracks } from '../utils/spotifyApi';
 import './RecommendationGenerator.css';
 import AddToPlaylist from './AddToPlaylist';
 
@@ -11,7 +12,7 @@ const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 const MAX_SONGS_TO_USE = 20;  // Maximum songs used for generating recommendations
 const MAX_RECOMMENDATIONS = 25; // Maximum recommendations to display
 
-const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onPlayTrack, onAddToTierlist }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onAddToTierlist }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -257,16 +258,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
     for (const rec of uniqueRecommendations.slice(0, maxRecsToProcess)) {
       try {
         // Search Spotify for this track
-        const response = await axios.get('https://api.spotify.com/v1/search', {
-          params: {
-            q: `artist:${rec.artist} track:${rec.name}`,
-            type: 'track',
-            limit: 1
-          },
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        });
+        const response = await searchTracks(`artist:${rec.artist} track:${rec.name}`);
         
         if (response.data.tracks.items.length > 0) {
           const spotifyTrack = response.data.tracks.items[0];
@@ -455,8 +447,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
                 {areAllTracksAdded ? 'All Added to Tierlist' : 'Add All to Tierlist'}
               </button>
               <AddToPlaylist 
-                trackId={recommendations.map(track => track.spotifyData.id)} 
-                accessToken={accessToken} 
+                trackId={recommendations.map(track => track.spotifyData.id)}
                 isSingleTrack={false}
               />
             </div>
@@ -516,8 +507,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, accessToken, onP
                     {addedTracks.has(track.spotifyData.id) ? 'Added to Tierlist' : 'Add to Tierlist'}
                   </button>
                   <AddToPlaylist 
-                    trackId={track.spotifyData.id} 
-                    accessToken={accessToken} 
+                    trackId={track.spotifyData.id}
                     isSingleTrack={true}
                   />
                 </div>

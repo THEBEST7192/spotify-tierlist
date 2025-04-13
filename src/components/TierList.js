@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
-import axios from 'axios';
+import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
@@ -49,7 +49,7 @@ const getListStyle = isDraggingOver => ({
 });
 
 // Create Playlist From Ranked Songs component
-const CreatePlaylistFromRanked = ({ tierState, tierOrder, accessToken }) => {
+const CreatePlaylistFromRanked = ({ tierState, tierOrder }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [playlistName, setPlaylistName] = useState("");
   const [playlistDescription, setPlaylistDescription] = useState("");
@@ -87,7 +87,7 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder, accessToken }) => {
     setIsModalOpen(false);
   };
 
-  const createPlaylist = async () => {
+  const createPlaylistFromTiers = async () => {
     if (!playlistName.trim()) {
       setError("Please enter a playlist name");
       return;
@@ -116,47 +116,22 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder, accessToken }) => {
       }
 
       // Get user ID
-      const userResponse = await axios.get('https://api.spotify.com/v1/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      
+      const userResponse = await getCurrentUser();
       const userId = userResponse.data.id;
       
       // Create new playlist
-      const createResponse = await axios.post(
-        `https://api.spotify.com/v1/users/${userId}/playlists`,
-        {
-          name: playlistName,
-          description: playlistDescription,
-          public: isPublic
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const createResponse = await createPlaylist(userId, {
+        name: playlistName,
+        description: playlistDescription,
+        isPublic
+      });
       
       const newPlaylistId = createResponse.data.id;
-      
+
       // Add tracks to the new playlist (in batches of 100 to avoid API limits)
       for (let i = 0; i < songsToAdd.length; i += 100) {
         const batch = songsToAdd.slice(i, i + 100);
-        await axios.post(
-          `https://api.spotify.com/v1/playlists/${newPlaylistId}/tracks`,
-          {
-            uris: batch.map(id => `spotify:track:${id}`)
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
+        await addTracksToPlaylist(newPlaylistId, batch.map(id => `spotify:track:${id}`));
       }
       
       setIsSuccess(true);
@@ -246,7 +221,7 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder, accessToken }) => {
                   </button>
                   <button
                     className="create-button"
-                    onClick={createPlaylist}
+                    onClick={createPlaylistFromTiers}
                     disabled={isLoading}
                   >
                     {isLoading ? "Creating..." : "Create Playlist"}
@@ -938,7 +913,6 @@ const TierList = ({ songs, accessToken }) => {
         <CreatePlaylistFromRanked
           tierState={state}
           tierOrder={tierOrder}
-          accessToken={accessToken}
         />
         
         <RecommendationGenerator 
