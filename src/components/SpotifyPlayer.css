@@ -12,7 +12,17 @@
 }
 
 .spotify-player.expanded {
-  width: 350px;
+  width: 450px;
+}
+
+.spotify-iframe-element {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.spotify-player.expanded .spotify-iframe-element {
+  height: 250px;
 }
 
 .player-controls {
@@ -55,7 +65,7 @@
   justify-content: center;
   align-items: center;
   min-height: 80px;
-  background-color: #121212;
+  background-color: #191414;
   width: 100%;
 }
 
@@ -111,12 +121,41 @@
 
 .player-iframe-container {
   width: 100%;
-  transition: height 0.3s ease;
+  height: 80px;
   position: relative;
+  background-color: transparent !important;
 }
 
-.hidden {
-  display: none;
+.spotify-player.expanded .player-iframe-container {
+  height: 152px;
+}
+
+.spotify-iframe-crop {
+  height: 80px;
+  overflow: hidden;
+  transition: height 0.3s;
+  background: transparent !important;
+}
+
+.spotify-player.expanded .spotify-iframe-crop {
+  height: 152px;
+}
+
+.player-iframe-container iframe {
+  width: 100%;
+  height: 80px; /* default, overridden by JS when expanded */
+  border: none;
+  display: block;
+  background: transparent !important;
+}
+
+.spotify-player.expanded .player-iframe-container iframe {
+  height: 152px;
+}
+
+.spotify-iframe-wrapper {
+  width: 100%;
+  height: 100%;
 }
 
 /* Album artwork corner radius according to Spotify guidelines */
@@ -126,6 +165,10 @@
 
 .spotify-player .album-cover {
   border-radius: 2px; /* Small/medium devices use 2px radius per Spotify guidelines */
+}
+
+.hidden {
+  display: none;
 }
 
 /* Make the player more compact on mobile */
@@ -146,4 +189,4 @@
   .spotify-player .album-cover {
     border-radius: 4px;
   }
-} 
+}

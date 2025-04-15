@@ -262,6 +262,7 @@ const TierList = ({ songs, accessToken }) => {
   // State for the currently playing track
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
+  const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   
   // Initialize with songs
   useEffect(() => {
@@ -544,11 +545,16 @@ const TierList = ({ songs, accessToken }) => {
 
   // Play a track
   const playTrack = (trackId) => {
-    // If clicking the same track, toggle play/pause
-    if (trackId === currentTrack) {
+    if (!isPlayerVisible) {
+      // If player is not visible, show it and start playing the new track
+      setIsPlayerVisible(true);
+      setCurrentTrack(trackId);
+      setIsPlayerPlaying(true);
+    } else if (trackId === currentTrack) {
+      // If clicking the same track that's currently loaded, just toggle play/pause
       setIsPlayerPlaying(!isPlayerPlaying);
     } else {
-      // If selecting a new track, start playing it
+      // If clicking a different track while player is visible, switch to the new track
       setCurrentTrack(trackId);
       setIsPlayerPlaying(true);
     }
@@ -579,11 +585,19 @@ const TierList = ({ songs, accessToken }) => {
   const handleTrackEnd = () => {
     setCurrentTrack(null);
     setIsPlayerPlaying(false);
+    // Don't hide player here, let user close it manually
   };
 
   // Handle player state changes
   const handlePlayerStateChange = (isPlaying) => {
     setIsPlayerPlaying(isPlaying);
+  };
+
+  // Handle player close
+  const handlePlayerClose = () => {
+    setIsPlayerVisible(false);
+    setIsPlayerPlaying(false);
+    setCurrentTrack(null); // Clear the current track when closing
   };
 
   // Function to randomly change tiers of some songs
@@ -922,16 +936,21 @@ const TierList = ({ songs, accessToken }) => {
           accessToken={accessToken} 
           onPlayTrack={playTrack}
           onAddToTierlist={addSongToTierlist}
+          currentTrackId={currentTrack}
+          isPlayerPlaying={isPlayerPlaying}
         />
       </div>
 
       {/* Spotify Player */}
-      <SpotifyPlayer 
-        trackId={currentTrack} 
-        onTrackEnd={handleTrackEnd}
-        onPlayerStateChange={handlePlayerStateChange} 
-        isPlaying={isPlayerPlaying}
-      />
+      {isPlayerVisible && (
+        <SpotifyPlayer 
+          trackId={currentTrack} 
+          onTrackEnd={handleTrackEnd}
+          onPlayerStateChange={handlePlayerStateChange} 
+          isPlaying={isPlayerPlaying}
+          onClose={handlePlayerClose}
+        />
+      )}
     </div>
   );
 };

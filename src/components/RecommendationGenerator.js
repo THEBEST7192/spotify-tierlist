@@ -12,7 +12,7 @@ const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 const MAX_SONGS_TO_USE = 20;  // Maximum songs used for generating recommendations
 const MAX_RECOMMENDATIONS = 25; // Maximum recommendations to display
 
-const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onAddToTierlist }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -483,13 +483,19 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
                 </div>
                 <div className="recommendation-actions">
                   <button 
-                    className="play-preview-button"
+                    className={`play-preview-button${currentTrackId === track.spotifyData.id && isPlayerPlaying ? ' playing' : ''}`}
                     onClick={() => handlePlayClick(track.spotifyData.id)}
-                    aria-label="Play preview"
+                    aria-label={currentTrackId === track.spotifyData.id && isPlayerPlaying ? 'Pause preview' : 'Play preview'}
                   >
-                    <svg viewBox="0 0 24 24" width="20" height="20">
-                      <path fill="currentColor" d="M8 5v14l11-7z" />
-                    </svg>
+                    {currentTrackId === track.spotifyData.id && isPlayerPlaying ? (
+                      <svg viewBox="0 0 24 24" width="20" height="20">
+                        <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="20" height="20">
+                        <path fill="currentColor" d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
                   </button>
                   <a 
                     href={track.spotifyData?.external_urls?.spotify} 
