@@ -4,7 +4,7 @@ import LogoutButton from "../components/LogoutButton";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
 import UserProfile from "../components/UserProfile";
-import spotifyLogoOfficial from "../assets/spotify/spotify-logo-official.png";
+import SongGroupModal from "../components/SongGroupModal";
 import { getPlaylistTracks } from "../utils/spotifyApi";
 import "./Home.css";
 
@@ -13,6 +13,16 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [playlistTracks, setPlaylistTracks] = useState([]);
+  const [showSongGroupModal, setShowSongGroupModal] = useState(false);
+  const [pendingPlaylist, setPendingPlaylist] = useState(null);
+  const [totalSongs, setTotalSongs] = useState(0);
+  const [songGroupParams, setSongGroupParams] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [publicSearchQuery, setPublicSearchQuery] = useState("");
+  const [searchMode, setSearchMode] = useState("user");
+  const [publicPlaylists, setPublicPlaylists] = useState([]);
+  const [isSearchingPublic, setIsSearchingPublic] = useState(false);
+  const [publicSearchCache, setPublicSearchCache] = useState({});
 
   // Handle logout
   const handleLogout = () => {
@@ -48,27 +58,138 @@ const Home = ({ accessToken, setAccessToken }) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      setSelectedPlaylist(playlist);
-      
-      // Fetch the tracks for the selected playlist
+      setPendingPlaylist(playlist);
+      // Fetch only the playlist metadata to get the total tracks count
+      const metaResponse = await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const meta = await metaResponse.json();
+      const tracksCount = meta.tracks?.total || 0;
+      setTotalSongs(tracksCount);
+      if (tracksCount > 100) {
+        setShowSongGroupModal(true);
+        setIsLoading(false);
+        return;
+      }
+      // Fetch all tracks if 100 or less
       const response = await getPlaylistTracks(playlist.id);
-      
-      // Extract track data and add stable IDs
       const tracks = response.data.items
         .filter(item => item.track)
         .map((item, index) => ({
           ...item.track,
-          // Create a stable ID using playlist ID and index
           dragId: `track-${playlist.id}-${index}`
         }));
-      
+      setSelectedPlaylist(playlist);
       setPlaylistTracks(tracks);
       setIsLoading(false);
     } catch (err) {
       console.error("Error fetching playlist tracks:", err);
       setError("Failed to load tracks from this playlist");
       setIsLoading(false);
+    }
+  };
+
+  const handleSongGroupSelect = async (option) => {
+    if (!pendingPlaylist) return;
+    setShowSongGroupModal(false);
+    setIsLoading(true);
+    let offset = 0;
+    if (option.type === "first") {
+      offset = 0;
+      try {
+        const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
+        const tracks = response.data.items
+          .filter(item => item.track)
+          .map((item, index) => ({
+            ...item.track,
+            dragId: `track-${pendingPlaylist.id}-${index}`
+          }));
+        setSelectedPlaylist(pendingPlaylist);
+        setPlaylistTracks(tracks);
+        setIsLoading(false);
+      } catch (err) {
+        setError("Failed to load tracks from this playlist");
+        setIsLoading(false);
+      }
+      return;
+    } else if (option.type === "middle") {
+      offset = Math.floor((totalSongs - 100) / 2);
+      try {
+        const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
+        const tracks = response.data.items
+          .filter(item => item.track)
+          .map((item, index) => ({
+            ...item.track,
+            dragId: `track-${pendingPlaylist.id}-${index}`
+          }));
+        setSelectedPlaylist(pendingPlaylist);
+        setPlaylistTracks(tracks);
+        setIsLoading(false);
+      } catch (err) {
+        setError("Failed to load tracks from this playlist");
+        setIsLoading(false);
+      }
+      return;
+    } else if (option.type === "last") {
+      offset = totalSongs - 100;
+      try {
+        const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
+        const tracks = response.data.items
+          .filter(item => item.track)
+          .map((item, index) => ({
+            ...item.track,
+            dragId: `track-${pendingPlaylist.id}-${index}`
+          }));
+        setSelectedPlaylist(pendingPlaylist);
+        setPlaylistTracks(tracks);
+        setIsLoading(false);
+      } catch (err) {
+        setError("Failed to load tracks from this playlist");
+        setIsLoading(false);
+      }
+      return;
+    } else if (option.type === "random") {
+      // Fetch all tracks from playlist (up to totalSongs)
+      try {
+        // Collect all track IDs (Spotify API max limit per call is 100, so may need batching)
+        let allTracks = [];
+        let fetched = 0;
+        while (fetched < totalSongs) {
+          const batchSize = Math.min(100, totalSongs - fetched);
+          const resp = await getPlaylistTracks(pendingPlaylist.id, fetched, batchSize);
+          const batchTracks = resp.data.items.filter(item => item.track).map(item => item.track);
+          allTracks = allTracks.concat(batchTracks);
+          fetched += batchSize;
+        }
+        // Randomly shuffle allTracks
+        for (let i = allTracks.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [allTracks[i], allTracks[j]] = [allTracks[j], allTracks[i]];
+        }
+        // Split into option.groups groups
+        const groupCount = option.groups;
+        const base = Math.floor(100 / groupCount);
+        const remainder = 100 % groupCount;
+        let sizes = Array.from({ length: groupCount }, (_, i) => base + (i < remainder ? 1 : 0));
+        let selectedTracks = [];
+        let start = 0;
+        for (let size of sizes) {
+          selectedTracks = selectedTracks.concat(allTracks.slice(start, start + size));
+          start += size;
+        }
+        // Add dragId for each track
+        selectedTracks = selectedTracks.slice(0, 100).map((track, index) => ({
+          ...track,
+          dragId: `track-${pendingPlaylist.id}-${index}`
+        }));
+        setSelectedPlaylist(pendingPlaylist);
+        setPlaylistTracks(selectedTracks);
+        setIsLoading(false);
+      } catch (err) {
+        setError("Failed to load tracks from this playlist");
+        setIsLoading(false);
+      }
+      return;
     }
   };
 
@@ -79,7 +200,11 @@ const Home = ({ accessToken, setAccessToken }) => {
   };
 
   if (isLoading) {
-    return <div className="loading">Loading...</div>;
+    return (
+      <div className="loading">
+        <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Loading..." className="loading-spinner" />
+      </div>
+    );
   }
 
   if (error) {
@@ -91,7 +216,7 @@ const Home = ({ accessToken, setAccessToken }) => {
       <header className="app-header">
         <h1>Tierlist Maker for Spotify</h1>
         <div className="header-controls">
-          <img src={spotifyLogoOfficial} alt="Spotify" className="spotify-logo" />
+          <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify" className="spotify-logo" />
           {accessToken && (
             <>
               <UserProfile accessToken={accessToken} />
@@ -104,7 +229,7 @@ const Home = ({ accessToken, setAccessToken }) => {
       {!accessToken ? (
         <div className="auth-container">
           <div className="spotify-attribution">
-            <img src={spotifyLogoOfficial} alt="Spotify" className="spotify-full-logo" />
+            <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify" className="spotify-full-logo" />
             <p>Create a tier list from your favorite Spotify playlists.</p>
             <p>This application uses content from Spotify. By using this app, you agree to Spotify's terms of service.</p>
             <p>Please log in with your Spotify account to create a tierlist.</p>
@@ -134,11 +259,30 @@ const Home = ({ accessToken, setAccessToken }) => {
           <PlaylistSelector 
             accessToken={accessToken} 
             onSelect={handlePlaylistSelect} 
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            publicSearchQuery={publicSearchQuery}
+            setPublicSearchQuery={setPublicSearchQuery}
+            searchMode={searchMode}
+            setSearchMode={setSearchMode}
+            publicPlaylists={publicPlaylists}
+            setPublicPlaylists={setPublicPlaylists}
+            isSearchingPublic={isSearchingPublic}
+            setIsSearchingPublic={setIsSearchingPublic}
+            publicSearchCache={publicSearchCache}
+            setPublicSearchCache={setPublicSearchCache}
           />
           <div className="made-with-spotify">
             <p>Made with Spotify</p>
           </div>
         </div>
+      )}
+      {showSongGroupModal && (
+        <SongGroupModal
+          totalSongs={totalSongs}
+          onSelect={handleSongGroupSelect}
+          onClose={() => setShowSongGroupModal(false)}
+        />
       )}
     </div>
   );

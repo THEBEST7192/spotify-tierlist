@@ -2,14 +2,9 @@ import React, { useEffect, useState } from "react";
 import { getUserPlaylists, searchPlaylists } from "../utils/spotifyApi";
 import "./PlaylistSelector.css";
 
-const PlaylistSelector = ({ onSelect }) => {
+const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQuery, setPublicSearchQuery, searchMode, setSearchMode, publicPlaylists, setPublicPlaylists, isSearchingPublic, setIsSearchingPublic, publicSearchCache, setPublicSearchCache }) => {
   const [playlists, setPlaylists] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
-  const [publicSearchQuery, setPublicSearchQuery] = useState("");
-  const [publicPlaylists, setPublicPlaylists] = useState([]);
-  const [isSearchingPublic, setIsSearchingPublic] = useState(false);
-  const [searchMode, setSearchMode] = useState("user"); // "user" or "public"
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -44,8 +39,14 @@ const PlaylistSelector = ({ onSelect }) => {
 
   const handlePublicSearch = async () => {
     if (!publicSearchQuery.trim()) return;
-    
     setIsLoading(true);
+    // Check cache first
+    if (publicSearchCache[publicSearchQuery]) {
+      setPublicPlaylists(publicSearchCache[publicSearchQuery]);
+      setIsSearchingPublic(true);
+      setIsLoading(false);
+      return;
+    }
     try {
       const response = await searchPlaylists(publicSearchQuery);
       
@@ -54,6 +55,7 @@ const PlaylistSelector = ({ onSelect }) => {
       const validPlaylists = items.filter(item => item != null);
       
       setPublicPlaylists(validPlaylists);
+      setPublicSearchCache({ ...publicSearchCache, [publicSearchQuery]: validPlaylists });
       setIsSearchingPublic(true);
     } catch (error) {
       console.error("Error searching public playlists:", error);

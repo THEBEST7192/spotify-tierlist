@@ -38,8 +38,10 @@ spotifyApi.interceptors.response.use(
   }
 );
 
-export const getPlaylistTracks = (playlistId) => {
-  return spotifyApi.get(`/playlists/${playlistId}/tracks`);
+export const getPlaylistTracks = (playlistId, offset = 0, limit = 100) => {
+  return spotifyApi.get(`/playlists/${playlistId}/tracks`, {
+    params: { offset, limit },
+  });
 };
 
 export const getCurrentUser = () => {
