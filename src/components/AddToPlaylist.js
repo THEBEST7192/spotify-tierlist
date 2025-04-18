@@ -137,8 +137,13 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
         return;
       }
       
-      // Add all tracks to the selected playlist
-      await addTracksToPlaylist(selectedPlaylist, trackId.map(id => `spotify:track:${id}`));
+      // Batch addition: Spotify API allows max 100 tracks per request
+      const BATCH_SIZE = 100;
+      const uris = trackId.map(id => `spotify:track:${id}`);
+      for (let i = 0; i < uris.length; i += BATCH_SIZE) {
+        const batch = uris.slice(i, i + BATCH_SIZE);
+        await addTracksToPlaylist(selectedPlaylist, batch);
+      }
       
       setIsSuccess(true);
       setIsLoading(false);

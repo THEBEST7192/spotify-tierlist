@@ -629,11 +629,14 @@ const TierList = ({ songs, accessToken }) => {
         
         // Move the selected songs to their new tiers
         songsToMove.forEach(({ song, newTier }) => {
-          // Remove from current tier
+          // Ensure song, source, and target tiers exist and song has an id
+          if (!song || !song.id || !newState[song.currentTier] || !newState[newTier]) {
+            return;
+          }
+          // Remove from current tier (skip undefined/malformed entries)
           newState[song.currentTier] = newState[song.currentTier].filter(
-            s => s.id !== song.id
+            s => s && s.id && s.id !== song.id
           );
-          
           // Add to new tier
           newState[newTier] = [...newState[newTier], song];
         });
@@ -683,6 +686,12 @@ const TierList = ({ songs, accessToken }) => {
 
       if (currentTier && songToMove) {
         setState(prev => {
+          // Ensure both source and target tiers exist
+          if (!prev[currentTier] || !prev[targetTier]) {
+            // Optionally log a warning for debugging
+            // console.warn('Tier missing during move:', currentTier, targetTier);
+            return prev; // Skip this move
+          }
           // Remove from current tier
           const sourceItems = prev[currentTier].filter(s => s.id !== songId);
           // Add to target tier
@@ -830,6 +839,7 @@ const TierList = ({ songs, accessToken }) => {
                       className="tier-songs"
                     >
                       {state[tierId].map((item, index) => {
+                        if (!item || !item.content) return null;
                         const song = item.content;
                         const isPlaying = currentTrack === song.id && isPlayerPlaying;
                         
