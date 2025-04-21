@@ -10,7 +10,7 @@ const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 // Constants for recommendation configuration
 const MAX_SONGS_TO_USE = 20;  // Maximum songs used for generating recommendations
-const MAX_RECOMMENDATIONS = 25; // Maximum recommendations to display
+const MAX_RECOMMENDATIONS = 200; // Maximum recommendations to display
 
 const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying }) => {
   const [recommendations, setRecommendations] = useState([]);
@@ -23,27 +23,19 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
   // Calculate the weight of each tier based on position in tierOrder
   // Higher tiers get higher weights
   const calculateTierWeights = () => {
-    // Initialize weights object
     const weights = {};
-    
-    // Find Unranked tier position 
-    const unrankedIndex = tierOrder.indexOf("Unranked");
-    
-    // Calculate usable tiers (all except Unranked and lowest tier)
-    const tiersToUse = tierOrder.slice(0, unrankedIndex - 1);
-    
-    // Assign weights in reverse order (higher position = higher weight)
-    // Example: If there are 5 usable tiers, S=5, A=4, B=3, C=2, D=1
-    tiersToUse.forEach((tier, index) => {
-      weights[tier] = tiersToUse.length - index; // Higher tiers get higher weights
+    // Exclude "Unranked" then drop the final tier
+    const tiersWithoutUnranked = tierOrder.filter(tier => tier !== 'Unranked');
+    const filteredTiers = tiersWithoutUnranked.slice(0, -1);
+    // Assign weights: highest = 5, next = 4, ...
+    const maxWeight = 5;
+    filteredTiers.forEach((tier, idx) => {
+      weights[tier] = Math.max(maxWeight - idx, 1);
     });
-    
-    // Unranked and lowest tier get 0 weight (not used for recommendations)
-    weights["Unranked"] = 0;
-    if (tierOrder.length > 1) {
-      weights[tierOrder[unrankedIndex - 1]] = 0; // Lowest tier gets 0 weight
-    }
-    
+    // All others get 0
+    tierOrder.forEach(tier => {
+      if (!weights[tier]) weights[tier] = 0;
+    });
     return weights;
   };
 
@@ -88,8 +80,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
           artist: artist,
           track: track,
           api_key: LASTFM_API_KEY,
-          format: 'json',
-          limit: Math.ceil(song.weight * 3) // Higher tier songs get more recommendations
+          format: 'json'
         }
       });
       
@@ -120,53 +111,83 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
   const generateRecommendations = async () => {
     setIsLoading(true);
     setError(null);
-    
     try {
       // Get weighted songs from tiers
       const weightedSongs = getWeightedSongs();
-      
       if (weightedSongs.length === 0) {
         setError('Please rank some songs in your tiers to get recommendations');
         setIsLoading(false);
         return;
       }
-      
-      // ----- Song selection for recommendations -----
-      // 1. Get all songs from the highest tier
-      const topTierSongs = weightedSongs.filter(
-        song => song.weight === weightedSongs[0].weight
-      );
-      
-      // 2. Select songs to use for recommendations
-      let songsToUse = [...topTierSongs];
-      
-      // 3. If not enough top tier songs, add from other tiers
-      if (songsToUse.length < 5) {
-        const otherTierSongs = weightedSongs.filter(
-          song => song.weight !== weightedSongs[0].weight
-        );
-        
-        songsToUse = [...songsToUse, ...otherTierSongs];
+      // Only use songs with weight > 0
+      const songsToUse = weightedSongs.filter(song => song.weight > 0);
+      if (songsToUse.length === 0) {
+        setError('No ranked songs available for recommendations.');
+        setIsLoading(false);
+        return;
       }
-      
-      // 4. Limit to maximum number of songs
-      if (songsToUse.length > MAX_SONGS_TO_USE) {
-        songsToUse = songsToUse.slice(0, MAX_SONGS_TO_USE);
-      }
-      
-      console.log(`Using ${songsToUse.length} songs for recommendations (${songsToUse.map(s => s.tier).join(', ')})`);
-      
+      // Collect existing song IDs and artist-track keys from tierlist
+      const existingSongIds = new Set();
+      const existingSongKeys = new Set();
+      Object.values(tierState).forEach(songs => {
+        songs.forEach(song => {
+          if (song.content && song.content.id) {
+            existingSongIds.add(song.content.id);
+            const artistName = song.content.artists[0].name.toLowerCase();
+            const trackName = song.content.name.toLowerCase();
+            existingSongKeys.add(`${artistName}###${trackName}`);
+          }
+        });
+      });
       // ----- Generate recommendations -----
-      // 1. Get similar tracks for each song
-      const similarTrackPromises = songsToUse.map(song => getSimilarTracks(song));
-      const similarTrackResults = await Promise.all(similarTrackPromises);
-      
-      // 2. Flatten results into a single array
-      const allSimilarTracks = similarTrackResults.flat();
-      
-      // 3. Process recommendations and filter out duplicates
-      const recommendations = await processRecommendations(allSimilarTracks);
-      
+      // For each song, get N recommendations where N = song.weight (max 5)
+      // Fetch all getSimilarTracks in parallel for each song
+      const similarTracksResults = await Promise.all(
+        songsToUse.map(song => getSimilarTracks(song))
+      );
+      // Build a map to track recommended artist-track keys for diversity and sources
+      const recommendedTrackMap = new Map(); // key: songKey, value: track object with sources and count
+      let allSimilarTracks = [];
+      songsToUse.forEach((song, idx) => {
+        const tracks = similarTracksResults[idx] || [];
+        let added = 0;
+        let tried = 0;
+        for (let i = 0; i < tracks.length && added < song.weight; i++) {
+          const t = tracks[i];
+          const artistKey = t.artist.toLowerCase();
+          const trackKey = t.name.toLowerCase();
+          const songKey = `${artistKey}###${trackKey}`;
+          // If already in tierlist or already recommended, increment count and add source, then try next
+          if (existingSongKeys.has(songKey) || recommendedTrackMap.has(songKey)) {
+            // If already recommended, update sources and count
+            if (recommendedTrackMap.has(songKey)) {
+              const existing = recommendedTrackMap.get(songKey);
+              // Only add if this source is new
+              const isNewSource = !existing.sources.some(s => s.artist === t.source.artist && s.track === t.source.track);
+              if (isNewSource) {
+                existing.sources.push(t.source);
+              }
+              existing.recommendationCount = (existing.recommendationCount || 1) + 1;
+              recommendedTrackMap.set(songKey, existing);
+            }
+            // If in tierlist, just skip but increment tried
+            tried++;
+            continue;
+          }
+          // New recommendation
+          // Attach sources array and recommendationCount
+          const trackWithSources = { ...t, sources: [t.source], recommendationCount: 1 };
+          recommendedTrackMap.set(songKey, trackWithSources);
+          allSimilarTracks.push(trackWithSources);
+          added++;
+          tried++;
+        }
+      });
+      // Remove undefined/null
+      allSimilarTracks = allSimilarTracks.filter(Boolean);
+      // 3. Use aggregated recommendations from recommendedTrackMap
+      const aggregatedTracks = Array.from(recommendedTrackMap.values());
+      const recommendations = await processRecommendations(aggregatedTracks);
       setRecommendations(recommendations);
       setIsLoading(false);
     } catch (error) {
@@ -217,19 +238,27 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         existing.score += rec.score;
         existing.recommendationCount = (existing.recommendationCount || 1) + 1;
         
-        // Add source if it's new
-        if (!existing.sources.some(s => 
-          s.artist === rec.source.artist && s.track === rec.source.track)) {
-          existing.sources.push(rec.source);
+        // Merge sources arrays (not just rec.source)
+        if (rec.sources && Array.isArray(rec.sources)) {
+          rec.sources.forEach(src => {
+            if (!existing.sources.some(s => s.artist === src.artist && s.track === src.track)) {
+              existing.sources.push(src);
+            }
+          });
+        } else if (rec.source) {
+          if (!existing.sources.some(s => s.artist === rec.source.artist && s.track === rec.source.track)) {
+            existing.sources.push(rec.source);
+          }
         }
         
         uniqueTracksMap.set(key, existing);
       } else {
         // First time seeing this track
+        // Ensure sources is always an array
         uniqueTracksMap.set(key, {
           ...rec,
-          sources: [rec.source],
-          recommendationCount: 1
+          sources: rec.sources && Array.isArray(rec.sources) ? [...rec.sources] : [rec.source],
+          recommendationCount: rec.recommendationCount || 1
         });
       }
     });
@@ -241,21 +270,10 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     const spotifyTracks = [];
     const tracksByArtist = new Map();
     
-    // Process more recommendations in discovery mode
-    const maxRecsToProcess = discoverNewArtists ? 100 : 50;
-    
-    // Sort recommendations by count and score before processing
-    uniqueRecommendations.sort((a, b) => {
-      // First by number of sources
-      if (b.recommendationCount !== a.recommendationCount) {
-        return b.recommendationCount - a.recommendationCount;
-      }
-      // Then by score
-      return b.score - a.score;
-    });
+    // Initial sorting of unique recommendations removed; final spotifyTracks sort handles full ordering
     
     // Process recommendations up to the limit
-    for (const rec of uniqueRecommendations.slice(0, maxRecsToProcess)) {
+    for (const rec of uniqueRecommendations.slice(0, MAX_RECOMMENDATIONS)) {
       try {
         // Search Spotify for this track
         const response = await searchTracks(`artist:${rec.artist} track:${rec.name}`);
@@ -305,65 +323,29 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
       }
     }
     
-    // ----- Apply diversity filtering based on mode -----
-    if (discoverNewArtists) {
-      // Discovery mode: prioritize new artists
-      
-      // 1. First add tracks from new artists (max 2 per artist)
-      tracksByArtist.forEach((tracks, artistName) => {
-        if (!existingArtists.has(artistName)) {
-          // Sort new artist tracks by score
-          tracks.sort((a, b) => b.adjustedScore - a.adjustedScore);
-          // Take top 2 from each new artist
-          spotifyTracks.push(...tracks.slice(0, 2));
-        }
-      });
-      
-      // 2. If we need more tracks, add from existing artists (max 1 per artist)
-      if (spotifyTracks.length < MAX_RECOMMENDATIONS) {
-        tracksByArtist.forEach((tracks, artistName) => {
-          if (existingArtists.has(artistName)) {
-            // Only take top track from each existing artist
-            if (tracks.length > 0) {
-              tracks.sort((a, b) => b.adjustedScore - a.adjustedScore);
-              spotifyTracks.push(tracks[0]);
-            }
-          }
-        });
+    // Collect all tracks into spotifyTracks
+    tracksByArtist.forEach(tracks => spotifyTracks.push(...tracks));
+    // ----- Final sorting of recommendations -----
+    // Use recommendationCount, then best source tier, then adjustedScore
+    const tierPriority = { S: 1, A: 2, B: 3, C: 4, D: 5, E: 6, F: 7, Unranked: 8 };
+    const getBestTierPriority = (rec) => rec.sources.reduce(
+      (min, s) => Math.min(min, tierPriority[s.tier] || 99),
+      Infinity
+    );
+    spotifyTracks.sort((a, b) => {
+      // 1. By recommendation count (desc)
+      if (b.recommendationCount !== a.recommendationCount) {
+        return b.recommendationCount - a.recommendationCount;
       }
-      
-      // 3. Sort by new artist first, then by number of recommendations, then score
-      spotifyTracks.sort((a, b) => {
-        // First by new artist status
-        if (a.isNewArtist !== b.isNewArtist) {
-          return a.isNewArtist ? -1 : 1;
-        }
-        // Then by number of sources
-        if (b.sources.length !== a.sources.length) {
-          return b.sources.length - a.sources.length;
-        }
-        // Finally by score
-        return b.adjustedScore - a.adjustedScore;
-      });
-    } else {
-      // Normal mode: maximize quality regardless of artist
-      
-      // Add all tracks
-      tracksByArtist.forEach(tracks => {
-        spotifyTracks.push(...tracks);
-      });
-      
-      // Sort by number of recommendations first, then by score
-      spotifyTracks.sort((a, b) => {
-        // First by number of sources
-        if (b.sources.length !== a.sources.length) {
-          return b.sources.length - a.sources.length;
-        }
-        // Then by score
-        return b.score - a.score;
-      });
-    }
-    
+      // 2. By best source tier
+      const aTier = getBestTierPriority(a);
+      const bTier = getBestTierPriority(b);
+      if (aTier !== bTier) {
+        return aTier - bTier;
+      }
+      // 3. By adjustedScore (desc)
+      return b.adjustedScore - a.adjustedScore;
+    });
     // Return limited number of recommendations
     return spotifyTracks.slice(0, MAX_RECOMMENDATIONS);
   };

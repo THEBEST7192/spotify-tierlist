@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getUserPlaylists, getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
+import { getUserPlaylists, getCurrentUser, createPlaylist, addTracksToPlaylist, getPlaylistTracks } from '../utils/spotifyApi';
 import './AddToPlaylist.css';
 
 const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
@@ -16,6 +16,7 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [playlistToClone, setPlaylistToClone] = useState(null);
   const [clonedPlaylistName, setClonedPlaylistName] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Fetch user's playlists when component mounts
   useEffect(() => {
@@ -45,31 +46,33 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
     }
   };
 
+  // Handle add to playlist (single or batch)
+  // This function calls the batching logic if multiple tracks are provided
   const handleAddToPlaylist = async () => {
     if (!selectedPlaylist) {
       setError('Please select a playlist');
       return;
     }
 
-    if (!trackId) {
-      setError('No track selected');
+    if (!trackId || (Array.isArray(trackId) && trackId.length === 0)) {
+      setError('No track(s) selected');
       return;
     }
 
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // Check if user owns or collaborates on the playlist
       const playlist = playlists.find(p => p.id === selectedPlaylist);
-      
+
       // Get user ID to properly check ownership
       const userResponse = await getCurrentUser();
       const userId = userResponse.data.id;
-      
+
       // Check if the user is the owner of the playlist
       const isOwner = playlist.owner.id === userId;
-      
+
       // Get collaborative status for the playlist
       const isCollaborative = playlist.collaborative === true;
       
@@ -81,21 +84,28 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
         setIsLoading(false);
         return;
       }
-      
-      // Add track to the selected playlist
-      await addTracksToPlaylist(selectedPlaylist, [`spotify:track:${trackId}`]);
-      
+      // If trackId is an array, use batching (calls batching logic for recommendations)
+      if (Array.isArray(trackId)) {
+        const BATCH_SIZE = 100;
+        const uris = trackId.map(id => `spotify:track:${id}`);
+        for (let i = 0; i < uris.length; i += BATCH_SIZE) {
+          const batch = uris.slice(i, i + BATCH_SIZE);
+          await addTracksToPlaylist(selectedPlaylist, batch);
+        }
+      } else {
+        // Single track addition
+        await addTracksToPlaylist(selectedPlaylist, [`spotify:track:${trackId}`]);
+      }
       setIsSuccess(true);
       setIsLoading(false);
-      
       // Reset success message after 3 seconds
       setTimeout(() => {
         setIsSuccess(false);
         setShowPlaylistSelector(false);
       }, 3000);
     } catch (err) {
-      console.error('Error adding track to playlist:', err);
-      setError(`Failed to add track to playlist: ${err.response?.data?.error?.message || err.message || 'Unknown error'}`);
+      console.error('Error adding track(s) to playlist:', err);
+      setError(`Failed to add track(s) to playlist: ${err.response?.data?.error?.message || err.message || 'Unknown error'}`);
       setIsLoading(false);
     }
   };
@@ -183,26 +193,30 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
       
       const newPlaylistId = createResponse.data.id;
       
-      // Add tracks to the new playlist
-      const uris = isSingleTrack ? 
-        [`spotify:track:${trackId}`] : 
-        trackId.map(id => `spotify:track:${id}`);
-      
-      await addTracksToPlaylist(newPlaylistId, uris);
+      // --- BATCH ADDITION LOGIC FOR NEW PLAYLIST ---
+      if (Array.isArray(trackId)) {
+        const BATCH_SIZE = 100;
+        const uris = trackId.map(id => `spotify:track:${id}`);
+        for (let i = 0; i < uris.length; i += BATCH_SIZE) {
+          const batch = uris.slice(i, i + BATCH_SIZE);
+          await addTracksToPlaylist(newPlaylistId, batch);
+        }
+      } else if (trackId) {
+        await addTracksToPlaylist(newPlaylistId, [`spotify:track:${trackId}`]);
+      }
       
       setIsSuccess(true);
       setIsLoading(false);
       setShowNewPlaylistForm(false);
-      setShowPlaylistSelector(false);
-      
-      // Reset form fields
+      // Keep selector open to display success message, then close after delay
       setNewPlaylistName('');
       setNewPlaylistDescription('');
       setNewPlaylistIsPublic(true);
-      
-      // Reset success message after 3 seconds
+      setSuccessMessage('Created new playlist!');
       setTimeout(() => {
         setIsSuccess(false);
+        setSuccessMessage('');
+        setShowPlaylistSelector(false);
       }, 3000);
     } catch (err) {
       console.error('Error creating new playlist:', err);
@@ -234,13 +248,31 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
       
       const newPlaylistId = createResponse.data.id;
       
-      // Add tracks to the new playlist
+      // Clone original playlist tracks first
+      const BATCH_SIZE = 100;
+      let offset = 0;
+      const existingUris = [];
+      let tracksRes;
+      do {
+        tracksRes = await getPlaylistTracks(playlistToClone.id, offset, BATCH_SIZE);
+        const items = tracksRes.data.items || [];
+        existingUris.push(...items.map(item => item.track.uri));
+        offset += items.length;
+      } while (tracksRes.data.next);
+      for (let i = 0; i < existingUris.length; i += BATCH_SIZE) {
+        const batch = existingUris.slice(i, i + BATCH_SIZE);
+        await addTracksToPlaylist(newPlaylistId, batch);
+      }
+      
+      // Add recommended tracks
       const uris = isSingleTrack ? 
         [`spotify:track:${trackId}`] : 
         trackId.map(id => `spotify:track:${id}`);
-      
-      await addTracksToPlaylist(newPlaylistId, uris);
-      
+      for (let i = 0; i < uris.length; i += BATCH_SIZE) {
+        const batch = uris.slice(i, i + BATCH_SIZE);
+        await addTracksToPlaylist(newPlaylistId, batch);
+      }
+
       setIsSuccess(true);
       setIsLoading(false);
       setShowCloneDialog(false);
@@ -282,6 +314,8 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
               {isSingleTrack ? 'Track added to playlist!' : 'Tracks added to playlist!'}
             </div>
           )}
+          
+          {successMessage && <div className="success-message">{successMessage}</div>}
           
           {!isLoading && playlists.length > 0 && (
             <>

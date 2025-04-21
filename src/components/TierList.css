@@ -404,49 +404,42 @@
 
 .add-tier-form {
   display: flex;
-  gap: 10px;
   align-items: center;
-  background-color: #333;
-  padding: 15px;
-  border-radius: 8px;
-  margin-top: 10px;
-}
-
-.tier-name-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 4px;
-  background-color: #444;
-  color: white;
-}
-
-.tier-color-input {
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.save-tier-button {
-  background-color: #1DB954;
-  color: white;
-  border: none;
-  padding: 8px 16px;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #121212;
+  border: 1px solid #333;
   border-radius: 20px;
-  cursor: pointer;
+  margin: 1rem 0;
+}
+
+.new-tier-name-input,
+.new-tier-color-input {
+  padding: 0.5rem 0.75rem;
+  background-color: #191414;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.new-tier-name-input {
+  flex-grow: 1;
+}
+
+.confirm-add-tier-button {
+  background-color: #1DB954;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
   font-weight: bold;
-  transition: background-color 0.2s;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
-.save-tier-button:hover {
+.confirm-add-tier-button:hover {
   background-color: #1ed760;
-}
-
-.save-tier-button:disabled {
-  background-color: #666;
-  cursor: not-allowed;
 }
 
 .tier-edit-form {

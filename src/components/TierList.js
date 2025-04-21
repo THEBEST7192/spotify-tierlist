@@ -669,46 +669,34 @@ const TierList = ({ songs, accessToken }) => {
 
   // Add event listener for cinema pose song movement
   useEffect(() => {
+    // Listen for cinema pose move events only once
     const handleMoveSongToTier = (event) => {
       const { songId, targetTier } = event.detail;
-      
-      // Find the song's current tier
-      let currentTier = null;
-      let songToMove = null;
-      
-      Object.entries(state).forEach(([tier, songs]) => {
-        const found = songs.find(song => song.id === songId);
-        if (found) {
-          currentTier = tier;
-          songToMove = found;
-        }
-      });
-
-      if (currentTier && songToMove) {
-        setState(prev => {
-          // Ensure both source and target tiers exist
-          if (!prev[currentTier] || !prev[targetTier]) {
-            // Optionally log a warning for debugging
-            // console.warn('Tier missing during move:', currentTier, targetTier);
-            return prev; // Skip this move
+      setState(prevState => {
+        let currentTier = null;
+        let songToMove = null;
+        // Locate song in prevState
+        Object.entries(prevState).forEach(([tier, songs]) => {
+          const found = songs.find(song => song.id === songId);
+          if (found) {
+            currentTier = tier;
+            songToMove = found;
           }
-          // Remove from current tier
-          const sourceItems = prev[currentTier].filter(s => s.id !== songId);
-          // Add to target tier
-          const destItems = [...prev[targetTier], songToMove];
-          
-          return {
-            ...prev,
-            [currentTier]: sourceItems,
-            [targetTier]: destItems
-          };
         });
-      }
+        // Validate tiers and song
+        if (!currentTier || !songToMove || !prevState[targetTier] || currentTier === targetTier || prevState[targetTier].some(s => s.id === songId)) {
+          return prevState;
+        }
+        return {
+          ...prevState,
+          [currentTier]: prevState[currentTier].filter(s => s.id !== songId),
+          [targetTier]: [...prevState[targetTier], songToMove]
+        };
+      });
     };
-
     document.addEventListener('moveSongToTier', handleMoveSongToTier);
     return () => document.removeEventListener('moveSongToTier', handleMoveSongToTier);
-  }, [state]);
+  }, []);
 
   return (
     <div className="tier-list-container">
@@ -730,6 +718,29 @@ const TierList = ({ songs, accessToken }) => {
             </button>
           )}
         </div>
+        {showAddTierForm && (
+          <div className="add-tier-form">
+            <input
+              type="text"
+              placeholder="Tier Name"
+              value={newTierName}
+              onChange={(e) => setNewTierName(e.target.value)}
+              className="new-tier-name-input"
+            />
+            <input
+              type="color"
+              value={newTierColor}
+              onChange={(e) => setNewTierColor(e.target.value)}
+              className="new-tier-color-input"
+            />
+            <button
+              className="confirm-add-tier-button"
+              onClick={addTier}
+            >
+              Add Tier
+            </button>
+          </div>
+        )}
         <div className="detection-controls">
           <SingingDetector onSingingStateChange={setIsSinging} />
           <div className="cinema-control">
