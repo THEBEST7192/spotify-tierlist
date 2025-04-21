@@ -5,7 +5,7 @@ This document explains how song recommendations are generated and processed in t
 ## 1. Weighted Input Songs
 - Each song in the user's tierlist is assigned a **weight** based on its tier:
   - S: 5, A: 4, B: 3, C: 2, Others: 1, F and Unranked: 0
-  - Highest: 5, Second highest: 4, Third highest: 3, Fourth highest: 2, Fifth highest and everything else: 1, Second lowest and lowest: 0
+  - Highest: 5, Second highest: 4, Third highest: 3, Fourth highest: 2, Fifth highest and everything else: 1, Lowest and Unranked: 0
 - Only songs with weight > 0 participate in recommendation. (This means that you will not be able to rank if you remove all tiers except one as that will now count as the lowest while being the highest, this is not really a issue as it not likely to be encountered and a user has to go out of their way to do it)
 
 ## 2. Fetch Similar Tracks
