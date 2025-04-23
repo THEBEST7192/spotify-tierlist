@@ -9,7 +9,7 @@ import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 let spotifyIframeScriptLoaded = false;
 let spotifyIframeApiCallbackSet = false;
 
-const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, onClose }) => {
+const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, onClose, accessToken }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [playerPlayState, setPlayerPlayState] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -158,6 +158,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
     }
     const options = {
       uri: `spotify:track:${trackId}`,
+      token: accessToken,
       width: '100%',
       height: customHeight || (isExpanded ? '152' : '80'),
       theme: 'black'
