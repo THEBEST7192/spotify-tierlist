@@ -18,6 +18,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
   const [error, setError] = useState(null);
   const [addedTracks, setAddedTracks] = useState(new Set());
   const [discoverNewArtists, setDiscoverNewArtists] = useState(false);
+  const [explorationDepth, setExplorationDepth] = useState(0); // 0-20 slider affecting recommendation offset
 
   // ===== TIER WEIGHT SYSTEM ===== 
   // Calculate the weight of each tier based on position in tierOrder
@@ -55,7 +56,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         songs.forEach(song => {
           weightedSongs.push({
             ...song,
-            weight: tierWeights[tier],
+            AMOUNT_OF_SONGS: tierWeights[tier],
             tier: tier // Store tier name for reference
           });
         });
@@ -63,7 +64,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     });
     
     // Sort by weight (highest tier songs first)
-    return weightedSongs.sort((a, b) => b.weight - a.weight);
+    return weightedSongs.sort((a, b) => b.AMOUNT_OF_SONGS - a.AMOUNT_OF_SONGS);
   };
 
   // Get similar tracks from Last.fm API based on a song
@@ -90,14 +91,14 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
           source: { 
             artist: artist, 
             track: song.content.name,
-            weight: song.weight,
+            AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
             tier: song.tier
           },
           name: track.name,
           artist: track.artist.name,
           url: track.url,
           // Score = source weight × matching value from Last.fm
-          score: song.weight * parseFloat(track.match)
+          score: song.AMOUNT_OF_SONGS * parseFloat(track.match)
         }));
       }
       return [];
@@ -120,7 +121,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         return;
       }
       // Only use songs with weight > 0
-      const songsToUse = weightedSongs.filter(song => song.weight > 0);
+      const songsToUse = weightedSongs.filter(song => song.AMOUNT_OF_SONGS > 0);
       if (songsToUse.length === 0) {
         setError('No ranked songs available for recommendations.');
         setIsLoading(false);
@@ -139,56 +140,64 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
           }
         });
       });
-      // ----- Generate recommendations -----
-      // For each song, get N recommendations where N = song.weight (max 5)
-      // Fetch all getSimilarTracks in parallel for each song
-      const similarTracksResults = await Promise.all(
-        songsToUse.map(song => getSimilarTracks(song))
-      );
+      // ----- Generate recommendations with temperature fallback -----
+      let tempExplorationDepth = explorationDepth;
+      let finalRecs = [];
+      while (true) {
+        // Get similar tracks for each song
+        const similarTracksResults = await Promise.all(
+          songsToUse.map(song => getSimilarTracks(song))
+        );
       // Build a map to track recommended artist-track keys for diversity and sources
       const recommendedTrackMap = new Map(); // key: songKey, value: track object with sources and count
-      let allSimilarTracks = [];
-      songsToUse.forEach((song, idx) => {
-        const tracks = similarTracksResults[idx] || [];
-        let added = 0;
-        let tried = 0;
-        for (let i = 0; i < tracks.length && added < song.weight; i++) {
-          const t = tracks[i];
-          const artistKey = t.artist.toLowerCase();
-          const trackKey = t.name.toLowerCase();
-          const songKey = `${artistKey}###${trackKey}`;
+        let allSimilarTracks = [];
+        songsToUse.forEach((song, idx) => {
+          let added = 0;
+          let tried = 0;
+          const tracks = similarTracksResults[idx] || [];
+          const offset = tempExplorationDepth * song.AMOUNT_OF_SONGS;
+          for (let i = offset; i < tracks.length && added < song.AMOUNT_OF_SONGS; i++) {
+            const t = tracks[i];
+            const artistKey = t.artist.toLowerCase();
+            const trackKey = t.name.toLowerCase();
+            const songKey = `${artistKey}###${trackKey}`;
           // If already in tierlist or already recommended, increment count and add source, then try next
-          if (existingSongKeys.has(songKey) || recommendedTrackMap.has(songKey)) {
+            if (existingSongKeys.has(songKey) || recommendedTrackMap.has(songKey)) {
             // If already recommended, update sources and count
-            if (recommendedTrackMap.has(songKey)) {
-              const existing = recommendedTrackMap.get(songKey);
-              // Only add if this source is new
-              const isNewSource = !existing.sources.some(s => s.artist === t.source.artist && s.track === t.source.track);
-              if (isNewSource) {
-                existing.sources.push(t.source);
+              if (recommendedTrackMap.has(songKey)) {
+                const existing = recommendedTrackMap.get(songKey);
+                // Only add if this source is new
+                if (!existing.sources.some(s => s.artist === t.source.artist && s.track === t.source.track)) {
+                  existing.sources.push(t.source);
+                }
+                existing.recommendationCount = (existing.recommendationCount || 1) + 1;
+                recommendedTrackMap.set(songKey, existing);
               }
-              existing.recommendationCount = (existing.recommendationCount || 1) + 1;
-              recommendedTrackMap.set(songKey, existing);
-            }
             // If in tierlist, just skip but increment tried
-            tried++;
-            continue;
-          }
+              tried++;
+              continue;
+            }
           // New recommendation
           // Attach sources array and recommendationCount
-          const trackWithSources = { ...t, sources: [t.source], recommendationCount: 1 };
-          recommendedTrackMap.set(songKey, trackWithSources);
-          allSimilarTracks.push(trackWithSources);
-          added++;
-          tried++;
+            const trackWithSources = { ...t, sources: [t.source], recommendationCount: 1 };
+            recommendedTrackMap.set(songKey, trackWithSources);
+            allSimilarTracks.push(trackWithSources);
+            added++;
+            tried++;
+          }
+        });
+        // Remove undefined/null
+        allSimilarTracks = allSimilarTracks.filter(Boolean);
+        // Use aggregated recommendations from recommendedTrackMap
+        const aggregatedTracks = Array.from(recommendedTrackMap.values());
+        finalRecs = await processRecommendations(aggregatedTracks);
+        if (finalRecs.length === 0 && tempExplorationDepth > 0) {
+          tempExplorationDepth = Math.floor(tempExplorationDepth * 0.75);
+          continue;
         }
-      });
-      // Remove undefined/null
-      allSimilarTracks = allSimilarTracks.filter(Boolean);
-      // 3. Use aggregated recommendations from recommendedTrackMap
-      const aggregatedTracks = Array.from(recommendedTrackMap.values());
-      const recommendations = await processRecommendations(aggregatedTracks);
-      setRecommendations(recommendations);
+        break;
+      }
+      setRecommendations(finalRecs);
       setIsLoading(false);
     } catch (error) {
       console.error('Error generating recommendations:', error);
@@ -404,6 +413,16 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
           />
           <span className="toggle-label">Discover New Artists</span>
         </label>
+        <label className="exploration-depth-slider">
+          <input
+            type="range"
+            min="0"
+            max="20"
+            value={explorationDepth}
+            onChange={(e) => setExplorationDepth(parseInt(e.target.value))}
+          />
+          <span className="slider-label">Exploration Depth: {explorationDepth}</span>
+        </label>
       </div>
       
       <button 
@@ -424,7 +443,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
               <button
                 className={`add-all-to-tierlist-button ${areAllTracksAdded ? 'added' : ''}`}
                 onClick={handleAddAllToTierlist}
-                disabled={areAllTracksAdded || isLoading}
+                disabled={areAllTracksAdded}
               >
                 {areAllTracksAdded ? 'All Added to Tierlist' : 'Add All to Tierlist'}
               </button>

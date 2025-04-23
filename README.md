@@ -12,6 +12,7 @@ A web application that allows you to create tier lists from your Spotify playlis
 - Export your tier list as an image
 - View album covers for each song
 - Get personalized song recommendations based on your tier rankings
+- Control recommendation variety with the Exploration Depth slider
 - Responsive design for desktop and mobile
 
 ## Getting Started
@@ -59,7 +60,8 @@ The app will open in your default browser at `http://localhost:3000`, or whateve
 3. Drag songs into different tiers (S, A, B, C, D, E, F, or Unranked)
 4. Click "Export as Image" to save your tier list
 5. Click "Get Recommendations Based on Your Tiers" to generate personalized song recommendations
-   - Songs in S and A tiers have the highest influence on recommendations
+   - Songs in S and A tiers have the highest **AMOUNT_OF_SONGS**, thus the greatest influence on recommendations
+   - Adjust **Exploration Depth** (0–20) to start further down Last.fm’s list for more variety
    - Recommendations are based on similar artists and tracks from Last.fm
    - Each recommendation shows which song and tier influenced it
 
@@ -70,7 +72,7 @@ The app will open in your default browser at `http://localhost:3000`, or whateve
 - HTML2Canvas (for image export)
 - Axios (for API requests)
 - Create React App
-- Spotify Web API (for song data)
+- Spotify Web API (for song data and music playback)
 - Last.fm API (for music recommendations)
 
 ## License
@@ -81,17 +83,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Thanks to Spotify for providing the Web API
 - Thanks to Last.fm for their music recommendation API
-- Inspired by tier list makers in gaming communities
+- Inspired by tier list makers in gaming communities and the digital influencer DougDoug
 - Built with Create React App
-
-## Anti Acknowledgments
-
-- Fuck npm run build
-- Fuck serve -s build
 
 ## Support
 
-~~Just ask me irl I am not open sourcing this shit project~~ Send me a message at Discord (@thebest7192)
+Send me a message on Discord (@thebest7192)
 
 ## Troubleshooting
 
@@ -111,6 +108,8 @@ react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with i
 
 - [Spotify Web API Documentation](https://developer.spotify.com/documentation/web-api/)
 - [Last.fm API Documentation](https://www.last.fm/api)
+- [Unoffical Last.fm API Documentation](https://lastfm-docs.github.io/api-docs/)
+- [Create React App Documentation](https://create-react-app.dev/docs)
 - [React Beautiful DND Documentation](https://react-beautiful-dnd.netlify.app/docs/getting-started)
 - [HTML2Canvas Documentation](https://html2canvas.hertzen.com/documentation)
 
