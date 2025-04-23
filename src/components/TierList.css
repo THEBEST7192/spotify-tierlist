@@ -343,6 +343,20 @@
   background: #1ed760;
 }
 
+/* JSON Export/Import button overrides */
+.export-json-button {
+  background: #2aa79e !important;
+}
+.export-json-button:hover {
+  background: #3bbba9 !important;
+}
+.import-json-button {
+  background: #3498db !important;
+}
+.import-json-button:hover {
+  background: #5aaee5 !important;
+}
+
 .unranked {
   background-color: #f0f0f0;
 }
@@ -357,6 +371,11 @@
 
 .tier-list-actions .export-button {
   margin-top: 0;
+}
+
+.tier-list-actions .export-group {
+  display: flex;
+  gap: 8px;
 }
 
 .tier-controls {
@@ -696,7 +715,7 @@
 
 .playlist-description {
   min-height: 80px;
-  resize: vertical;
+  resize: none;
 }
 
 .playlist-privacy {

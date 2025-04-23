@@ -8,6 +8,7 @@ import SpotifyPlayer from "./SpotifyPlayer";
 import SingingDetector from "./SingingDetector";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 import CinemaPoseDetector from './CinemaPoseDetector';
+import TierListJSONExportImport from "./TierListJSONExportImport";
 
 // Define default tiers and their colors
 const DEFAULT_TIERS = {
@@ -543,6 +544,17 @@ const TierList = ({ songs, accessToken }) => {
     });
   };
 
+  // Handler for importing tierlist JSON
+  const handleImport = (imported) => {
+    if (imported.tiers && imported.tierOrder && imported.state) {
+      setTiers(imported.tiers);
+      setTierOrder(imported.tierOrder);
+      setState(imported.state);
+    } else {
+      console.error('Invalid import JSON format');
+    }
+  };
+
   // Play a track
   const playTrack = (trackId) => {
     if (!isPlayerVisible) {
@@ -941,10 +953,17 @@ const TierList = ({ songs, accessToken }) => {
       </DragDropContext>
       
       <div className="tier-list-actions">
-        <button className="export-button" onClick={exportImage}>
-          Export as Image
-        </button>
-        
+        <div className="export-group">
+          <button className="export-button" onClick={exportImage}>
+            Export as Image
+          </button>
+          <TierListJSONExportImport
+            tiers={tiers}
+            tierOrder={tierOrder}
+            state={state}
+            onImport={handleImport}
+          />
+        </div>
         <CreatePlaylistFromRanked
           tierState={state}
           tierOrder={tierOrder}
