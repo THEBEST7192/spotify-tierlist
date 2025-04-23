@@ -336,12 +336,21 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     tracksByArtist.forEach(tracks => spotifyTracks.push(...tracks));
     // ----- Final sorting of recommendations -----
     // Use recommendationCount, then best source tier, then adjustedScore
-    const tierPriority = { S: 1, A: 2, B: 3, C: 4, D: 5, E: 6, F: 7, Unranked: 8 };
+    const tierPriority = tierOrder.reduce((acc, tierName, idx) => {
+      acc[tierName] = idx;
+      return acc;
+    }, {});
     const getBestTierPriority = (rec) => rec.sources.reduce(
-      (min, s) => Math.min(min, tierPriority[s.tier] || 99),
+      (min, s) => {
+        const pr = tierPriority[s.tier];
+        return Math.min(min, pr !== undefined ? pr : Infinity);
+      },
       Infinity
     );
     spotifyTracks.sort((a, b) => {
+      // 0. Bring currently held track to the top
+      if (a.spotifyData.id === currentTrackId && b.spotifyData.id !== currentTrackId) return -1;
+      if (b.spotifyData.id === currentTrackId && a.spotifyData.id !== currentTrackId) return 1;
       // 1. By recommendation count (desc)
       if (b.recommendationCount !== a.recommendationCount) {
         return b.recommendationCount - a.recommendationCount;
