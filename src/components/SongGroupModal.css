@@ -45,6 +45,11 @@
   align-items: center;
   gap: 0.5rem;
 }
+.random-group-section .group-count {
+  display: inline-block;
+  width: 2ch;
+  text-align: center;
+}
 .modal-box select {
   margin-left: 0.5rem;
   padding: 0.25rem;
@@ -175,13 +180,6 @@
 .modal-box input[type="number"]::-ms-clear,
 .modal-box input[type="number"]::-ms-expand {
   display: none !important;
-}
-
-/* Prevent button shifting by fixing group-count width, before it would change size.
-Do not change this it will destroy the layout, please remember this you retard */
-.random-group-section .group-count {
-  min-width: 10rem;
-  text-align: center;
 }
 
 /* Error message styling */

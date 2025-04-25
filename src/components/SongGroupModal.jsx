@@ -30,7 +30,7 @@ const SongGroupModal = ({ totalSongs, onSelect, onClose }) => {
         <button onClick={() => onSelect({ type: "last" })}>Last 100 songs</button>
         <div className="random-group-section">
           <label>
-            Random groups:
+            Random groups: <span className="group-count">{sliderValue}</span>
             <input
               type="range"
               min="1"
@@ -39,7 +39,6 @@ const SongGroupModal = ({ totalSongs, onSelect, onClose }) => {
               onChange={e => setSliderValue(Number(e.target.value))}
             />
           </label>
-          <div className="group-count">Number of groups: {sliderValue}</div>
           <button onClick={() => onSelect({ type: "random", groups: sliderValue })}>
             Select Random Groups
           </button>
