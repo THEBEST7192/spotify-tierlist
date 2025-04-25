@@ -148,6 +148,26 @@ const Home = ({ accessToken, setAccessToken }) => {
         setIsLoading(false);
       }
       return;
+    } else if (option.type === "range") {
+      // Fetch a specific range of songs
+      const startIndex = option.start - 1;
+      const count = option.end - option.start + 1;
+      try {
+        const response = await getPlaylistTracks(pendingPlaylist.id, startIndex, count);
+        const tracks = response.data.items
+          .filter(item => item.track)
+          .map((item, index) => ({
+            ...item.track,
+            dragId: `track-${pendingPlaylist.id}-${index}`
+          }));
+        setSelectedPlaylist(pendingPlaylist);
+        setPlaylistTracks(tracks);
+        setIsLoading(false);
+      } catch (err) {
+        setError("Failed to load tracks from this playlist");
+        setIsLoading(false);
+      }
+      return;
     } else if (option.type === "random") {
       // Fetch all tracks from playlist (up to totalSongs)
       try {

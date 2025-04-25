@@ -1,6 +1,6 @@
 # Spotify Tierlist Maker
 
-A web application that allows you to create tier lists from your Spotify playlists. Organize your favorite songs into tiers (S, A, B, C, D, E, F) using a drag-and-drop interface, and get personalized song recommendations based on your tier rankings.
+A web application that allows you to create tier lists from your Spotify playlists. Organize your favorite songs into tiers (S, A, B, C, D, E, F or your own) using a drag-and-drop interface, and get personalized song recommendations based on your tier rankings.
 
 ## Features
 
@@ -13,7 +13,7 @@ A web application that allows you to create tier lists from your Spotify playlis
 - View album covers for each song
 - Get personalized song recommendations based on your tier rankings
 - Control recommendation variety with the Exploration Depth slider
-- Responsive design for desktop and mobile
+- Responsive design for desktop and mobile (Except for a Nokia 8110, I checked)
 
 ## Getting Started
 
@@ -62,7 +62,7 @@ The app will open in your default browser at `http://localhost:3000`, or whateve
 5. Click "Get Recommendations Based on Your Tiers" to generate personalized song recommendations
    - Songs in S and A tiers have the highest **AMOUNT_OF_SONGS**, thus the greatest influence on recommendations
    - Adjust **Exploration Depth** (0–20) to start further down Last.fm’s list for more variety
-   - Recommendations are based on similar artists and tracks from Last.fm
+   - Recommendations are based on similar tracks from Last.fm
    - Each recommendation shows which song and tier influenced it
 
 ## Technologies Used
