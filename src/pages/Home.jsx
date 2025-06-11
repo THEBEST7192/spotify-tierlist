@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import AuthButton from "../components/AuthButton";
 import LogoutButton from "../components/LogoutButton";
 import PlaylistSelector from "../components/PlaylistSelector";
@@ -24,6 +24,10 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [isSearchingPublic, setIsSearchingPublic] = useState(false);
   const [publicSearchCache, setPublicSearchCache] = useState({});
   const [importedPlaylistName, setImportedPlaylistName] = useState('');
+  const [konamiActive, setKonamiActive] = useState(false);
+  const [showKonamiMessage, setShowKonamiMessage] = useState(false);
+  const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  let konamiIndex = 0;
 
   // Handle logout
   const handleLogout = () => {
@@ -54,6 +58,52 @@ const Home = ({ accessToken, setAccessToken }) => {
     }, 1000);
   };
 
+  // Function to toggle Konami code
+  const toggleKonamiCode = useCallback(() => {
+    const newState = !konamiActive;
+    setKonamiActive(newState);
+    setShowKonamiMessage(true);
+    
+    // Play different sound based on new state
+    const soundFile = newState ? '/assets/sounds/konami.wav' : '/assets/sounds/konami-off.wav';
+    const audio = new Audio(soundFile);
+    audio.volume = 0.5; // Slightly reduce volume for better UX
+    audio.play().catch(e => console.log('Audio play failed:', e));
+    
+    // Hide message after 5 seconds
+    setTimeout(() => setShowKonamiMessage(false), 5000);
+  }, [konamiActive]);
+
+  // Konami code detection - arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === konamiCode[konamiIndex]) {
+        konamiIndex++;
+        if (konamiIndex === konamiCode.length) {
+          toggleKonamiCode();
+          konamiIndex = 0;
+        }
+      } else {
+        konamiIndex = 0;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleKonamiCode]);
+
+  // Listen for Konami code activation from search bar
+  useEffect(() => {
+    const handleKonamiActivation = () => {
+      toggleKonamiCode();
+    };
+
+    window.addEventListener('konamiCodeActivated', handleKonamiActivation);
+    return () => {
+      window.removeEventListener('konamiCodeActivated', handleKonamiActivation);
+    };
+  }, [toggleKonamiCode]);
+
   // Handle playlist selection
   const handlePlaylistSelect = async (playlist) => {
     try {
@@ -67,21 +117,33 @@ const Home = ({ accessToken, setAccessToken }) => {
       const meta = await metaResponse.json();
       const tracksCount = meta.tracks?.total || 0;
       setTotalSongs(tracksCount);
-      if (tracksCount > 100) {
+      
+      // Only show song group modal if not in konami mode and tracks > 100
+      if (tracksCount > 100 && !konamiActive) {
         setShowSongGroupModal(true);
         setIsLoading(false);
         return;
       }
-      // Fetch all tracks if 100 or less
-      const response = await getPlaylistTracks(playlist.id);
-      const tracks = response.data.items
-        .filter(item => item.track)
-        .map((item, index) => ({
-          ...item.track,
-          dragId: `track-${playlist.id}-${index}`
-        }));
+      
+      // In konami mode or tracks <= 100, fetch all tracks at once
+      const allTracks = [];
+      let offset = 0;
+      const limit = konamiActive ? 50 : 100; // Smaller batches in konami mode to avoid rate limiting
+      
+      while (offset < tracksCount) {
+        const response = await getPlaylistTracks(playlist.id, offset, limit);
+        const tracks = response.data.items
+          .filter(item => item.track)
+          .map((item, index) => ({
+            ...item.track,
+            dragId: `track-${playlist.id}-${offset + index}`
+          }));
+        allTracks.push(...tracks);
+        offset += limit;
+      }
+      
       setSelectedPlaylist(playlist);
-      setPlaylistTracks(tracks);
+      setPlaylistTracks(allTracks);
       setIsLoading(false);
     } catch (err) {
       console.error("Error fetching playlist tracks:", err);
@@ -218,6 +280,7 @@ const Home = ({ accessToken, setAccessToken }) => {
   const handleBackToPlaylists = () => {
     setSelectedPlaylist(null);
     setPlaylistTracks([]);
+    setImportedPlaylistName('');
   };
 
   if (isLoading) {
@@ -247,6 +310,11 @@ const Home = ({ accessToken, setAccessToken }) => {
         </div>
       </header>
       
+      {showKonamiMessage && (
+        <div className={`konami-message ${konamiActive ? 'active' : 'inactive'}`}>
+          Konami code {konamiActive ? 'activated' : 'deactivated'}! Song limits {konamiActive ? 'removed' : 'restored'}.
+        </div>
+      )}
       {!accessToken ? (
         <div className="auth-container">
           <div className="spotify-attribution">

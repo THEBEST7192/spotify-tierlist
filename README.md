@@ -64,6 +64,12 @@ The app will open in your default browser at `http://localhost:3000`, or whateve
    - Adjust **Exploration Depth** (0–20) to start further down Last.fm’s list for more variety
    - Recommendations are based on similar tracks from Last.fm
    - Each recommendation shows which song and tier influenced it
+   - See [RECOMMENDATION_ALGORITHM.md](DOCS_AND_OTHER_INFO\RECOMMENDATION_ALGORITHM.md) for more information
+
+6. Konami Code
+   - Type the Konami Code (Up, Up, Down, Down, Left, Right, Left, Right, B, A) or search for `wwssadadab` to activate the Konami Code
+   - All song limits are removed (This does not change how the Spotify/LastFM API works*)
+   - You can deactivate the Konami Code effects by activating it again
 
 ## Technologies Used
 
@@ -85,6 +91,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Thanks to Last.fm for their music recommendation API
 - Inspired by tier list makers in gaming communities and the digital influencer DougDoug
 - Built with Create React App
+- [JFXR](https://jfxr.frozenfractal.com) for the Konami Code sounds
 
 ## Support
 

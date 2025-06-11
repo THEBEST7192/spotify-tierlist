@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { getUserPlaylists, searchPlaylists } from "../utils/spotifyApi";
 import "./PlaylistSelector.css";
 
@@ -6,6 +6,23 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
   const [playlists, setPlaylists] = useState([]);
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
+  const konamiIndex = useRef(0);
+  const searchInputRef = useRef(null);
+  const publicSearchInputRef = useRef(null);
+
+  const checkKonamiCode = useCallback((key) => {
+    if (key === konamiCode[konamiIndex.current]) {
+      konamiIndex.current++;
+      if (konamiIndex.current === konamiCode.length) {
+        // Dispatch a custom event that the Home component can listen for
+        window.dispatchEvent(new CustomEvent('konamiCodeActivated'));
+        konamiIndex.current = 0;
+      }
+    } else {
+      konamiIndex.current = 0;
+    }
+  }, []);
 
   useEffect(() => {
     const fetchUserPlaylists = async () => {
@@ -104,6 +121,13 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
           className="search-input"
           placeholder="Search your playlists..."
           value={searchQuery}
+          ref={searchInputRef}
+          onKeyDown={(e) => {
+            // Only process letter keys for Konami code
+            if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+              checkKonamiCode(e.key.toLowerCase());
+            }
+          }}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       ) : (
@@ -113,6 +137,13 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
             className="search-input"
             placeholder="Search for public playlists..."
             value={publicSearchQuery}
+            ref={publicSearchInputRef}
+            onKeyDown={(e) => {
+              // Only process letter keys for Konami code
+              if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                checkKonamiCode(e.key.toLowerCase());
+              }
+            }}
             onChange={(e) => setPublicSearchQuery(e.target.value)}
             onKeyPress={handleKeyPress}
           />

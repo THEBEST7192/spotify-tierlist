@@ -1,4 +1,4 @@
-# Recommendation Algorithm for Spotify Tierlist App
+# [Recommendation Algorithm for Spotify Tierlist App](../README.md) 
 
 This document explains how song recommendations are generated and processed in the `RecommendationGenerator` component.
 
