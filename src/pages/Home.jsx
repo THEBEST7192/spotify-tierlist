@@ -23,6 +23,7 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [publicPlaylists, setPublicPlaylists] = useState([]);
   const [isSearchingPublic, setIsSearchingPublic] = useState(false);
   const [publicSearchCache, setPublicSearchCache] = useState({});
+  const [importedPlaylistName, setImportedPlaylistName] = useState('');
 
   // Handle logout
   const handleLogout = () => {
@@ -264,10 +265,12 @@ const Home = ({ accessToken, setAccessToken }) => {
           <button onClick={handleBackToPlaylists} className="back-button">
             ← Back to Playlists
           </button>
-          <h2>Tierlist for: {selectedPlaylist.name}</h2>
+          <h2>Tierlist for: {importedPlaylistName || selectedPlaylist.name}</h2>
           <TierList 
             songs={playlistTracks} 
-            accessToken={accessToken} 
+            accessToken={accessToken}
+            playlistName={importedPlaylistName || selectedPlaylist.name}
+            onImport={(name) => setImportedPlaylistName(name)}
           />
           <div className="made-with-spotify">
             <p>Made with Spotify</p>

@@ -1,15 +1,27 @@
 import React, { useRef } from 'react';
 
-const TierListJSONExportImport = ({ tiers, tierOrder, state, onImport }) => {
+const TierListJSONExportImport = ({ tiers, tierOrder, state, onImport, tierListName = '' }) => {
   const fileInputRef = useRef(null);
 
   const handleExport = () => {
-    const data = { tiers, tierOrder, state };
+    const data = { 
+      tiers, 
+      tierOrder, 
+      state: {
+        ...state,
+        tierListName: tierListName // Ensure tierListName is included in the state
+      } 
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'tierlist.json';
+    // Use the tier list name in the filename, with fallback to 'tierlist' if not available
+    // Keep hyphens in the filename as they are valid in filenames
+    const filename = tierListName ? 
+      `${tierListName.replace(/[^a-z0-9-]/gi, '_').toLowerCase()}.json` : 
+      'tierlist.json';
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };

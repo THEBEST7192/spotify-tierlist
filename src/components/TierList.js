@@ -237,7 +237,7 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder }) => {
   );
 };
 
-const TierList = ({ songs, accessToken }) => {
+const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [tierOrder, setTierOrder] = useState(DEFAULT_TIER_ORDER);
@@ -550,6 +550,11 @@ const TierList = ({ songs, accessToken }) => {
       setTiers(imported.tiers);
       setTierOrder(imported.tierOrder);
       setState(imported.state);
+      
+      // If there's a tierListName in the imported data, call the onImport callback
+      if (imported.state.tierListName && typeof onImport === 'function') {
+        onImport(imported.state.tierListName);
+      }
     } else {
       console.error('Invalid import JSON format');
     }
@@ -962,6 +967,7 @@ const TierList = ({ songs, accessToken }) => {
             tierOrder={tierOrder}
             state={state}
             onImport={handleImport}
+            tierListName={playlistName}
           />
         </div>
         <CreatePlaylistFromRanked
