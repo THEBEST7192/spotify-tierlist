@@ -4,14 +4,37 @@ const TierListJSONExportImport = ({ tiers, tierOrder, state, onImport, tierListN
   const fileInputRef = useRef(null);
 
   const handleExport = () => {
+    // Minify the state to reduce file size
+    const minifiedState = {};
+    for (const tier in state) {
+      if (Array.isArray(state[tier])) {
+        minifiedState[tier] = state[tier].map(song => ({
+          id: song.id, // Keep the unique drag-and-drop ID
+          content: {
+            // Keep only essential track data
+            id: song.content.id,
+            name: song.content.name,
+            artists: song.content.artists.map(artist => ({ name: artist.name })),
+            album: {
+              images: song.content.album.images
+            },
+            preview_url: song.content.preview_url,
+          }
+        }));
+      } else {
+        minifiedState[tier] = state[tier]; // Preserve non-array properties like tierListName
+      }
+    }
+
     const data = { 
       tiers, 
       tierOrder, 
       state: {
-        ...state,
+        ...minifiedState,
         tierListName: tierListName // Ensure tierListName is included in the state
-      } 
-    };
+      }
+    }; 
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
