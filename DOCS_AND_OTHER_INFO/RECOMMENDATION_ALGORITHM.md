@@ -8,8 +8,13 @@ This document explains how song recommendations are generated and processed in t
   - Highest: 5, Second highest: 4, Third highest: 3, Fourth highest: 2, Fifth highest and everything else: 1, Lowest and Unranked: 0
 - Only songs with AMOUNT_OF_SONGS > 0 participate in recommendation. (This means that you will not be able to rank if you remove all tiers except one as that will now count as the lowest while being the highest, this is not really a issue as it not likely to be encountered and a user has to go out of their way to do it)
 
-## 2. Fetch Similar Tracks
+## 2. Fetch Similar Tracks with Artist Fallback
 - For each weighted song, call Last.fm's `track.getSimilar` (via `getSimilarTracks`), **in parallel**, requesting up to N similar tracks (N = weight, capped).
+- **Fallback mechanism**: If no similar tracks are found for a song, the system automatically:
+  1. Calls Last.fm's `artist.getSimilar` (via `getSimilarArtists`) to find similar artists
+  2. For each similar artist (up to 3), fetches their top tracks from Spotify
+  3. Uses the same weighting system: `AMOUNT_OF_SONGS * artistMatch` (where `artistMatch` is the Last.fm similarity score)
+- This ensures recommendations are generated even when Last.fm lacks similar track data for specific songs.
 
 ## 2.5. Exploration Depth
 - A slider labeled **Exploration Depth** (0–20) lets users control how far into Last.fm’s recommendations to start.
@@ -19,10 +24,11 @@ This document explains how song recommendations are generated and processed in t
 ## 3. Aggregate and Filter
 1. Maintain a **map** (`recommendedTrackMap`) keyed by `artist###track`:
    - Each entry stores the track metadata, list of source recommendations, and a **recommendationCount**.
-2. For each returned track:
+2. For each returned track (from both similar tracks and similar artist fallback):
    - Skip if already in the user's tierlist.
    - If new, add to map with `sources = [ { tier, artist, track } ]`, count = 1.
    - If existing in map, increment count and append source (if unique).
+3. **Unified scoring**: Both similar tracks and similar artist tracks use the same formula: `source_weight × last_fm_match_value`.
 
 ## 4. Build Candidate List
 - Flatten `recommendedTrackMap` into a list of **unique** recommendations.

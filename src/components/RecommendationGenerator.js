@@ -67,6 +67,72 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     return weightedSongs.sort((a, b) => b.AMOUNT_OF_SONGS - a.AMOUNT_OF_SONGS);
   };
 
+  // Get similar artists from Last.fm API based on an artist
+  const getSimilarArtists = async (song) => {
+    try {
+      // Extract artist info
+      const artist = song.content.artists[0].name;
+      
+      // Query Last.fm API for similar artists
+      const response = await axios.get(LASTFM_BASE_URL, {
+        params: {
+          method: 'artist.getSimilar',
+          artist: artist,
+          api_key: LASTFM_API_KEY,
+          format: 'json',
+          limit: 10 // Get top 10 similar artists
+        }
+      });
+      
+      // Process and return similar artists with source info
+      if (response.data?.similarartists?.artist) {
+        return response.data.similarartists.artist.map(similarArtist => ({
+          source: { 
+            artist: artist, 
+            track: song.content.name,
+            AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
+            tier: song.tier
+          },
+          artistName: similarArtist.name,
+          // Score = source weight × matching value from Last.fm
+          score: song.AMOUNT_OF_SONGS * parseFloat(similarArtist.match)
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error(`Error fetching similar artists for ${song.content.artists[0].name}:`, error);
+      return [];
+    }
+  };
+
+  // Get top tracks from a similar artist using Spotify API
+  const getTopTracksFromArtist = async (artistName, sourceInfo, artistMatch) => {
+    try {
+      // Search for the artist on Spotify
+      const artistResponse = await searchTracks(`artist:${artistName}`);
+      
+      if (artistResponse.data.tracks.items.length > 0) {
+        // Get the first few tracks from this artist (they're usually popular ones)
+        const artistTracks = artistResponse.data.tracks.items
+          .filter(track => track.artists[0].name.toLowerCase() === artistName.toLowerCase())
+          .slice(0, 3); // Get top 3 tracks from this artist
+        
+        return artistTracks.map(track => ({
+          source: sourceInfo,
+          name: track.name,
+          artist: track.artists[0].name,
+          url: track.external_urls.spotify,
+          // Use same weight system as similar tracks: source weight × artist match value
+          score: sourceInfo.AMOUNT_OF_SONGS * parseFloat(artistMatch)
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error(`Error fetching top tracks for artist ${artistName}:`, error);
+      return [];
+    }
+  };
+
   // Get similar tracks from Last.fm API based on a song
   const getSimilarTracks = async (song) => {
     try {
@@ -144,9 +210,29 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
       let tempExplorationDepth = explorationDepth;
       let finalRecs = [];
       while (true) {
-        // Get similar tracks for each song
+        // Get similar tracks for each song, with fallback to similar artists
         const similarTracksResults = await Promise.all(
-          songsToUse.map(song => getSimilarTracks(song))
+          songsToUse.map(async (song) => {
+            const similarTracks = await getSimilarTracks(song);
+            
+            // If no similar tracks found, try getting tracks from similar artists
+            if (similarTracks.length === 0) {
+              console.log(`No similar tracks found for ${song.content.name}, trying similar artists...`);
+              const similarArtists = await getSimilarArtists(song);
+              
+              if (similarArtists.length > 0) {
+                 // Get top tracks from each similar artist
+                 const artistTracksPromises = similarArtists.slice(0, 3).map(artistInfo => 
+                   getTopTracksFromArtist(artistInfo.artistName, artistInfo.source, artistInfo.score / artistInfo.source.AMOUNT_OF_SONGS)
+                 );
+                
+                const artistTracksResults = await Promise.all(artistTracksPromises);
+                return artistTracksResults.flat();
+              }
+            }
+            
+            return similarTracks;
+          })
         );
       // Build a map to track recommended artist-track keys for diversity and sources
       const recommendedTrackMap = new Map(); // key: songKey, value: track object with sources and count
