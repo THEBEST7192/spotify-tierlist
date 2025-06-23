@@ -2,6 +2,10 @@
 
 A web application that allows you to create tier lists from your Spotify playlists. Organize your favorite songs into tiers (S, A, B, C, D, E, F or your own) using a drag-and-drop interface, and get personalized song recommendations based on your tier rankings.
 
+I am hosting the latest version of the project here: [tierlistsforspotify.party](https://tierlistsforspotify.party)
+
+I have not recived extended qouta yet, so I will have to manually approve accounts that can use the API, so if you want to use it please message me on Discord (@thebest7192) or host it yourself.
+
 ## Features
 
 - Connect with your Spotify account
@@ -38,12 +42,14 @@ npm install
 ```
 
 3. Create a `.env.local` file in the root directory and add your API credentials:
+```bash
+VITE_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
+VITE_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
+VITE_LASTFM_API_KEY=YOUR_LASTFM_API_KEY
+VITE_SPOTIFY_SCOPES=playlist-read-private,playlist-read-collaborative
 ```
-REACT_APP_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
-REACT_APP_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
-REACT_APP_LASTFM_API_KEY=YOUR_LASTFM_API_KEY
-REACT_APP_SPOTIFY_SCOPES=playlist-read-private,playlist-read-collaborative
-```
+
+The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://localhost:3000` in the Spotify developer console and in the environment file.
 
 4. Build and start the production server:
 ```bash
@@ -110,6 +116,7 @@ One example of those errors is this one:
 ```
 react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with id: (contentHere)👷‍ This is a development only message. It will be removed in production builds.
 ```
+6. If you get any errors when logging in to Spotify it is most likely because of the user not being approved in the developer console of Spotify. Make sure that you have approved the email address of the user trying to log on.
 
 ## Additional Resources
 

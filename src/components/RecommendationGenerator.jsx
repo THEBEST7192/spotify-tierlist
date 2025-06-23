@@ -5,7 +5,7 @@ import './RecommendationGenerator.css';
 import AddToPlaylist from './AddToPlaylist';
 
 // Use environment variable for Last.fm API key
-const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY;
+const LASTFM_API_KEY = import.meta.env.VITE_LASTFM_API_KEY;
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 // Constants for recommendation configuration

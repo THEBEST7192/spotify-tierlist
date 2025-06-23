@@ -1,7 +1,7 @@
-const CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
-const REDIRECT_URI = process.env.REACT_APP_SPOTIFY_REDIRECT_URI;
-const SCOPES = process.env.REACT_APP_SPOTIFY_SCOPES ? 
-  process.env.REACT_APP_SPOTIFY_SCOPES.split(', ') : 
+const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
+const SCOPES = import.meta.env.VITE_SPOTIFY_SCOPES ? 
+  import.meta.env.VITE_SPOTIFY_SCOPES.split(', ') : 
   [];
 
 // Generate a random string for PKCE
@@ -25,7 +25,7 @@ async function generateCodeChallenge(codeVerifier) {
 }
 
 export const getSpotifyAuthURL = async () => {
-  const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const redirectUri = window.location.origin;
   const scope = 'playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-read-private user-read-email';
   
@@ -48,7 +48,7 @@ export const getSpotifyAuthURL = async () => {
 };
 
 export const getAccessToken = async (code) => {
-  const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const redirectUri = window.location.origin;
   const codeVerifier = localStorage.getItem('code_verifier');
 
@@ -80,7 +80,7 @@ export const getAccessToken = async (code) => {
 };
 
 export const refreshAccessToken = async () => {
-  const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const refreshToken = localStorage.getItem('refresh_token');
 
   if (!refreshToken) {

@@ -4,7 +4,7 @@ import { defineConfig, loadEnv, createFilter, transformWithEsbuild } from "vite"
 import react from "@vitejs/plugin-react";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-    setEnv(mode);
+    // Environment variables are now handled by the envPlugin
     return {
         plugins: [
             react(),
@@ -19,29 +19,41 @@ export default defineConfig(({ mode }) => {
         ],
     };
 });
-function setEnv(mode) {
-    Object.assign(process.env, loadEnv(mode, ".", ["REACT_APP_", "NODE_ENV", "PUBLIC_URL"]));
-    process.env.NODE_ENV ||= mode;
-    const { homepage } = JSON.parse(readFileSync("package.json", "utf-8"));
-    process.env.PUBLIC_URL ||= homepage
-        ? `${homepage.startsWith("http") || homepage.startsWith("/")
-            ? homepage
-            : `/${homepage}`}`.replace(/\/$/, "")
-        : "";
-}
-// Expose `process.env` environment variables to your client code
-// Migration guide: Follow the guide below to replace process.env with import.meta.env in your app, you may also need to rename your environment variable to a name that begins with VITE_ instead of REACT_APP_
-// https://vitejs.dev/guide/env-and-mode.html#env-variables
+// Vite automatically loads .env, .env.[mode], and .env.[mode].local files
+// Environment variables with VITE_ prefix are exposed to your client-side code
+// Access them using import.meta.env.VITE_* in your code
+// https://vitejs.dev/guide/env-and-mode.html#env-files
 function envPlugin() {
     return {
-        name: "env-plugin",
+        name: 'vite-env-plugin',
         config(_, { mode }) {
-            const env = loadEnv(mode, ".", ["REACT_APP_", "NODE_ENV", "PUBLIC_URL"]);
+            // Load all environment variables
+            const env = loadEnv(mode, '.', ['VITE_', 'NODE_ENV', 'PUBLIC_URL']);
+            
+            // For backward compatibility, expose VITE_ prefixed vars to process.env
+            const processEnv = {};
+            Object.keys(env).forEach(key => {
+                if (key.startsWith('VITE_')) {
+                    processEnv[`import.meta.env.${key}`] = JSON.stringify(env[key]);
+                    processEnv[`process.env.${key}`] = JSON.stringify(env[key]);
+                }
+            });
+            
+            // Add NODE_ENV and PUBLIC_URL for compatibility
+            if (env.NODE_ENV) {
+                processEnv['process.env.NODE_ENV'] = JSON.stringify(env.NODE_ENV);
+                processEnv['import.meta.env.MODE'] = JSON.stringify(env.NODE_ENV);
+            }
+            
+            if (env.PUBLIC_URL) {
+                processEnv['process.env.PUBLIC_URL'] = JSON.stringify(env.PUBLIC_URL);
+                processEnv['import.meta.env.BASE_URL'] = JSON.stringify(env.PUBLIC_URL);
+            }
+            
             return {
-                define: Object.fromEntries(Object.entries(env).map(([key, value]) => [
-                    `process.env.${key}`,
-                    JSON.stringify(value),
-                ])),
+                define: processEnv,
+                // Set base URL for static assets
+                base: env.PUBLIC_URL || '/',
             };
         },
     };
