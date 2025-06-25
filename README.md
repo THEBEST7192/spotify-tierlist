@@ -46,10 +46,11 @@ npm install
 VITE_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
 VITE_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
 VITE_LASTFM_API_KEY=YOUR_LASTFM_API_KEY
-VITE_SPOTIFY_SCOPES=playlist-read-private,playlist-read-collaborative
 ```
 
 The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://localhost:3000` in the Spotify developer console and in the environment file.
+
+The scope is handled in the [SpotifyAuth.js](src/utils/SpotifyAuth.js) file in the `getSpotifyAuthURL` function.
 
 4. Build and start the production server:
 ```bash

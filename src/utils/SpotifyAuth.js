@@ -1,8 +1,5 @@
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-const SCOPES = import.meta.env.VITE_SPOTIFY_SCOPES ? 
-  import.meta.env.VITE_SPOTIFY_SCOPES.split(', ') : 
-  [];
 
 // Generate a random string for PKCE
 function generateRandomString(length) {
