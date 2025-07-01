@@ -2,6 +2,14 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { getUserPlaylists, searchPlaylists } from "../utils/spotifyApi";
 import "./PlaylistSelector.css";
 
+// Helper function to decode HTML entities in text
+const decodeHtmlEntities = (text) => {
+  if (!text) return '';
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+};
+
 const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQuery, setPublicSearchQuery, searchMode, setSearchMode, publicPlaylists, setPublicPlaylists, isSearchingPublic, setIsSearchingPublic, publicSearchCache, setPublicSearchCache }) => {
   const [playlists, setPlaylists] = useState([]);
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
@@ -188,7 +196,9 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
               <div className="playlist-info">
                 <h3 className="playlist-name">{playlist.name || 'Untitled Playlist'}</h3>
                 <p className="playlist-creator">Created by: {ownerName}</p>
-                <p className="playlist-description">{playlist.description || 'No description available'}</p>
+                <p className="playlist-description">
+                  {playlist.description ? decodeHtmlEntities(playlist.description) : 'No description available'}
+                </p>
               </div>
             </button>
           );

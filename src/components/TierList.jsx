@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
 import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
@@ -9,6 +9,7 @@ import SingingDetector from "./SingingDetector";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 import CinemaPoseDetector from './CinemaPoseDetector';
 import TierListJSONExportImport from "./TierListJSONExportImport";
+import ConfirmationDialog from "./ConfirmationDialog";
 
 // Define default tiers and their colors
 const DEFAULT_TIERS = {
@@ -265,18 +266,91 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
   const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   
+  // State for unavailable songs handling
+  const [unavailableSongs, setUnavailableSongs] = useState([]);
+  const [showUnavailableDialog, setShowUnavailableDialog] = useState(false);
+  
+  // Check for unavailable songs
+  const checkForUnavailableSongs = useCallback((tracks) => {
+    const unavailable = [];
+    
+    // Helper function to recursively check tracks in the state
+    const checkTracks = (tierName, tierSongs) => {
+      tierSongs.forEach((song) => {
+        // Check if the track is unavailable (no preview_url and no external_urls.spotify)
+        const content = song.content || song; // Handle both formats
+        if (content && content.type === 'track' && !content.preview_url && !content.external_urls?.spotify) {
+          unavailable.push({
+            id: content.id || content.dragId, // Use track ID or dragId as fallback
+            name: content.name,
+            artist: content.artists?.[0]?.name || 'Unknown Artist',
+            tier: tierName
+          });
+        }
+      });
+    };
+    
+    // Check all tiers
+    Object.entries(tracks).forEach(([tierName, tierSongs]) => {
+      checkTracks(tierName, tierSongs);
+    });
+    
+    return unavailable;
+  }, []);
+  
+  // Handle user's choice about unavailable songs
+  const handleUnavailableSongsChoice = (remove) => {
+    if (remove && unavailableSongs.length > 0) {
+      setState(prevState => {
+        const newState = { ...prevState };
+        const unavailableIds = new Set(unavailableSongs.map(song => song.id));
+        
+        // Process each tier
+        Object.keys(newState).forEach(tierName => {
+          if (Array.isArray(newState[tierName])) {
+            // Filter out unavailable songs by ID
+            newState[tierName] = newState[tierName].filter(song => {
+              const content = song.content || song;
+              const songId = content.id || content.dragId;
+              return !unavailableIds.has(songId);
+            });
+          }
+        });
+        
+        return newState;
+      });
+    }
+    
+    // Reset the dialog state
+    setShowUnavailableDialog(false);
+    setUnavailableSongs([]);
+  };
+  
   // Initialize with songs
   useEffect(() => {
     if (songs && songs.length > 0) {
-      setState(prev => ({
-        ...prev,
+      const newState = {
+        ...state,
         Unranked: songs.map(song => ({
           id: song.dragId,
           content: song
         }))
-      }));
+      };
+      
+      setState(newState);
+      
+      // Check for unavailable songs after a short delay to allow the state to update
+      const timer = setTimeout(() => {
+        const unavailable = checkForUnavailableSongs(newState);
+        if (unavailable.length > 0) {
+          setUnavailableSongs(unavailable);
+          setShowUnavailableDialog(true);
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timer);
     }
-  }, [songs]);
+  }, [songs, checkForUnavailableSongs]);
 
   // Update state when tierOrder changes
   useEffect(() => {
@@ -592,10 +666,24 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
     };
     
     // Add the song to the Unranked tier
-    setState(prev => ({
-      ...prev,
-      Unranked: [...prev.Unranked, newSong]
-    }));
+    setState(prev => {
+      const newState = {
+        ...prev,
+        Unranked: [...prev.Unranked, newSong]
+      };
+      
+      // Check if the newly added song is unavailable
+      const unavailable = checkForUnavailableSongs({
+        Unranked: [newSong]
+      });
+      
+      if (unavailable.length > 0) {
+        setUnavailableSongs(unavailable);
+        setShowUnavailableDialog(true);
+      }
+      
+      return newState;
+    });
   };
 
   // Handle track end
@@ -715,8 +803,39 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
     return () => document.removeEventListener('moveSongToTier', handleMoveSongToTier);
   }, []);
 
+  // Render the confirmation dialog for unavailable songs
+  const renderUnavailableSongsDialog = () => (
+    <ConfirmationDialog
+      isOpen={showUnavailableDialog}
+      onClose={() => handleUnavailableSongsChoice(false)}
+      onConfirm={() => handleUnavailableSongsChoice(true)}
+      title="Unavailable Songs Detected"
+      confirmText="Remove Unavailable Songs"
+      cancelText="Keep Songs"
+      message={
+        <>
+          <p>We found {unavailableSongs.length} song{unavailableSongs.length > 1 ? 's' : ''} that may not be playable:</p>
+          <ul className="unavailable-songs-list">
+            {unavailableSongs.slice(0, 5).map((song, index) => (
+              <li key={index}>
+                {song.name} by {song.artist}
+                {song.tier !== 'Unranked' ? ` (in ${song.tier} tier)` : ''}
+              </li>
+            ))}
+            {unavailableSongs.length > 5 && (
+              <li>...and {unavailableSongs.length - 5} more</li>
+            )}
+          </ul>
+          <p>These songs may have been removed from Spotify or may not be available in your region.</p>
+          <p>Would you like to remove them from your tier list?</p>
+        </>
+      }
+    />
+  );
+
   return (
     <div className="tier-list-container">
+      {renderUnavailableSongsDialog()}
       <div className="tier-controls">
         <div className="tier-controls-header">
           <button 
