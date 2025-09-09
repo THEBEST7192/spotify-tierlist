@@ -48,11 +48,13 @@
   visibility: hidden;
   transition: opacity 0.5s ease-in;
   z-index: 9999;
+  pointer-events: none;
 }
 
 #cinema-image.visible {
   opacity: 1;
   visibility: visible;
+  display: block; /* Ensure it's displayed */
 }
 
 #cinema-image.fading-out {

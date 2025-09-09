@@ -15,11 +15,14 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
+  const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
   const konamiIndex = useRef(0);
+  const debugModeIndex = useRef(0);
   const searchInputRef = useRef(null);
   const publicSearchInputRef = useRef(null);
 
   const checkKonamiCode = useCallback((key) => {
+    // Check for Konami code
     if (key === konamiCode[konamiIndex.current]) {
       konamiIndex.current++;
       if (konamiIndex.current === konamiCode.length) {
@@ -29,6 +32,18 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
       }
     } else {
       konamiIndex.current = 0;
+    }
+    
+    // Check for debug mode code
+    if (key === debugModeCode[debugModeIndex.current]) {
+      debugModeIndex.current++;
+      if (debugModeIndex.current === debugModeCode.length) {
+        // Dispatch a custom event for debug mode
+        window.dispatchEvent(new CustomEvent('debugModeActivated'));
+        debugModeIndex.current = 0;
+      }
+    } else {
+      debugModeIndex.current = 0;
     }
   }, []);
 

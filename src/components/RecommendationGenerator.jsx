@@ -67,11 +67,23 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     return weightedSongs.sort((a, b) => b.AMOUNT_OF_SONGS - a.AMOUNT_OF_SONGS);
   };
 
+  // Get primary artist name from a tier song object
+  const getPrimaryArtistName = (song) => {
+    const artists = song?.content?.artists;
+    if (!Array.isArray(artists) || artists.length === 0) return null;
+    const name = artists[0]?.name;
+    return typeof name === 'string' && name.trim() ? name : null;
+  };
+
   // Get similar artists from Last.fm API based on an artist
   const getSimilarArtists = async (song) => {
     try {
       // Extract artist info
-      const artist = song.content.artists[0].name;
+      const artist = getPrimaryArtistName(song);
+      if (!artist) {
+        console.warn('[RecommendationGenerator] Missing primary artist, skipping similar artists fetch for song:', song?.content?.name || 'Unknown');
+        return [];
+      }
       
       // Query Last.fm API for similar artists
       const response = await axios.get(LASTFM_BASE_URL, {
@@ -100,7 +112,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching similar artists for ${song.content.artists[0].name}:`, error);
+      console.error(`Error fetching similar artists for ${getPrimaryArtistName(song) || 'Unknown Artist'}:`, error);
       return [];
     }
   };
@@ -114,7 +126,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
       if (artistResponse.data.tracks.items.length > 0) {
         // Get the first few tracks from this artist (they're usually popular ones)
         const artistTracks = artistResponse.data.tracks.items
-          .filter(track => track.artists[0].name.toLowerCase() === artistName.toLowerCase())
+          .filter(track => track.artists?.[0]?.name && track.artists[0].name.toLowerCase() === artistName.toLowerCase())
           .slice(0, 3); // Get top 3 tracks from this artist
         
         return artistTracks.map(track => ({
@@ -137,8 +149,12 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
   const getSimilarTracks = async (song) => {
     try {
       // Extract artist and track info
-      const artist = song.content.artists[0].name;
-      const track = song.content.name;
+      const artist = getPrimaryArtistName(song);
+      const track = song?.content?.name;
+      if (!artist || !track) {
+        console.warn('[RecommendationGenerator] Missing artist or track name, skipping similar tracks fetch for song:', song?.content?.name || 'Unknown');
+        return [];
+      }
       
       // Query Last.fm API for similar tracks
       const response = await axios.get(LASTFM_BASE_URL, {
@@ -169,7 +185,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching similar tracks for ${song.content.name}:`, error);
+      console.error(`Error fetching similar tracks for ${song?.content?.name || 'Unknown Track'}:`, error);
       return [];
     }
   };
@@ -200,9 +216,11 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         songs.forEach(song => {
           if (song.content && song.content.id) {
             existingSongIds.add(song.content.id);
-            const artistName = song.content.artists[0].name.toLowerCase();
-            const trackName = song.content.name.toLowerCase();
-            existingSongKeys.add(`${artistName}###${trackName}`);
+            const artistName = song.content?.artists?.[0]?.name?.toLowerCase();
+            const trackName = song.content?.name?.toLowerCase();
+            if (artistName && trackName) {
+              existingSongKeys.add(`${artistName}###${trackName}`);
+            }
           }
         });
       });
@@ -244,6 +262,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
           const offset = tempExplorationDepth * song.AMOUNT_OF_SONGS;
           for (let i = offset; i < tracks.length && added < song.AMOUNT_OF_SONGS; i++) {
             const t = tracks[i];
+            if (!t || !t.artist || !t.name) { tried++; continue; }
             const artistKey = t.artist.toLowerCase();
             const trackKey = t.name.toLowerCase();
             const songKey = `${artistKey}###${trackKey}`;

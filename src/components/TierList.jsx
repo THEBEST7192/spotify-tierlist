@@ -238,7 +238,7 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder }) => {
   );
 };
 
-const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
+const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode = false }) => {
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [tierOrder, setTierOrder] = useState(DEFAULT_TIER_ORDER);
@@ -636,16 +636,14 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
 
   // Play a track
   const playTrack = (trackId) => {
+    console.log('[TierList] playTrack called with', trackId, 'isPlayerVisible:', isPlayerVisible, 'currentTrack:', currentTrack, 'isPlayerPlaying:', isPlayerPlaying, 'at', Date.now());
     if (!isPlayerVisible) {
-      // If player is not visible, show it and start playing the new track
       setIsPlayerVisible(true);
       setCurrentTrack(trackId);
       setIsPlayerPlaying(true);
     } else if (trackId === currentTrack) {
-      // If clicking the same track that's currently loaded, just toggle play/pause
       setIsPlayerPlaying(!isPlayerPlaying);
     } else {
-      // If clicking a different track while player is visible, switch to the new track
       setCurrentTrack(trackId);
       setIsPlayerPlaying(true);
     }
@@ -688,9 +686,9 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
 
   // Handle track end
   const handleTrackEnd = () => {
+    console.log('[TierList] handleTrackEnd called, clearing currentTrack at', Date.now(), 'currentTrack:', currentTrack, 'isPlayerPlaying:', isPlayerPlaying);
     setCurrentTrack(null);
     setIsPlayerPlaying(false);
-    // Don't hide player here, let user close it manually
   };
 
   // Handle player state changes
@@ -700,9 +698,10 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
 
   // Handle player close
   const handlePlayerClose = () => {
+    console.log('[TierList] handlePlayerClose called, hiding player');
     setIsPlayerVisible(false);
     setIsPlayerPlaying(false);
-    setCurrentTrack(null); // Clear the current track when closing
+    setCurrentTrack(null);
   };
 
   // Function to randomly change tiers of some songs
@@ -892,7 +891,7 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
               {isCinemaEnabled ? '🎬 Absolute cinema on' : '🎬 Absolute cinema off'}
             </span>
           </div>
-          <CinemaPoseDetector isEnabled={isCinemaEnabled} />
+          <CinemaPoseDetector isEnabled={isCinemaEnabled} debugMode={debugMode} />
         </div>
       </div>
       
@@ -1110,10 +1109,11 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport }) => {
       {isPlayerVisible && (
         <SpotifyPlayer 
           trackId={currentTrack} 
-          onTrackEnd={handleTrackEnd}
-          onPlayerStateChange={handlePlayerStateChange} 
+          onTrackEnd={(...args) => { console.log('[TierList] SpotifyPlayer onTrackEnd prop called at', Date.now(), 'args:', args); handleTrackEnd(...args); }}
+          onPlayerStateChange={(...args) => { console.log('[TierList] SpotifyPlayer onPlayerStateChange prop called at', Date.now(), 'args:', args); handlePlayerStateChange(...args); }}
           isPlaying={isPlayerPlaying}
           onClose={handlePlayerClose}
+          accessToken={accessToken}
         />
       )}
     </div>

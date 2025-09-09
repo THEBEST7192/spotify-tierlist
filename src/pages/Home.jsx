@@ -7,6 +7,7 @@ import UserProfile from "../components/UserProfile";
 import SongGroupModal from "../components/SongGroupModal";
 import { getPlaylistTracks } from "../utils/spotifyApi";
 import "./Home.css";
+import CinemaPoseDetector from "../components/CinemaPoseDetector";
 
 const Home = ({ accessToken, setAccessToken }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
@@ -25,7 +26,9 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [publicSearchCache, setPublicSearchCache] = useState({});
   const [importedPlaylistName, setImportedPlaylistName] = useState('');
   const [konamiActive, setKonamiActive] = useState(false);
+  const [debugModeActive, setDebugModeActive] = useState(false);
   const [showKonamiMessage, setShowKonamiMessage] = useState(false);
+  const [showDebugMessage, setShowDebugMessage] = useState(false);
   const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
   let konamiIndex = 0;
 
@@ -92,17 +95,40 @@ const Home = ({ accessToken, setAccessToken }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleKonamiCode]);
 
+  // Function to toggle Debug mode
+  const toggleDebugMode = useCallback(() => {
+    const newState = !debugModeActive;
+    setDebugModeActive(newState);
+    setShowDebugMessage(true);
+    
+    // Play sound similar to Konami code
+    const soundFile = newState ? '/assets/sounds/konami.wav' : '/assets/sounds/konami-off.wav';
+    const audio = new Audio(soundFile);
+    audio.volume = 0.5; // Slightly reduce volume for better UX
+    audio.play().catch(e => console.log('Audio play failed:', e));
+    
+    // Hide message after 5 seconds
+    setTimeout(() => setShowDebugMessage(false), 5000);
+  }, [debugModeActive]);
+
   // Listen for Konami code activation from search bar
   useEffect(() => {
     const handleKonamiActivation = () => {
       toggleKonamiCode();
     };
 
+    const handleDebugModeActivation = () => {
+      toggleDebugMode();
+    };
+
     window.addEventListener('konamiCodeActivated', handleKonamiActivation);
+    window.addEventListener('debugModeActivated', handleDebugModeActivation);
+    
     return () => {
       window.removeEventListener('konamiCodeActivated', handleKonamiActivation);
+      window.removeEventListener('debugModeActivated', handleDebugModeActivation);
     };
-  }, [toggleKonamiCode]);
+  }, [toggleKonamiCode, toggleDebugMode]);
 
   // Handle playlist selection
   const handlePlaylistSelect = async (playlist) => {
@@ -170,7 +196,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         setIsLoading(false);
-      } catch (err) {
+      } catch (error) {
+        console.error("Failed to load tracks from this playlist:", error);
         setError("Failed to load tracks from this playlist");
         setIsLoading(false);
       }
@@ -188,7 +215,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         setIsLoading(false);
-      } catch (err) {
+      } catch (error) {
+        console.error("Failed to load tracks from this playlist:", error);
         setError("Failed to load tracks from this playlist");
         setIsLoading(false);
       }
@@ -206,7 +234,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         setIsLoading(false);
-      } catch (err) {
+      } catch (error) {
+        console.error("Failed to load tracks from this playlist:", error);
         setError("Failed to load tracks from this playlist");
         setIsLoading(false);
       }
@@ -226,7 +255,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         setIsLoading(false);
-      } catch (err) {
+      } catch (error) {
+        console.error("Failed to load tracks from this playlist:", error);
         setError("Failed to load tracks from this playlist");
         setIsLoading(false);
       }
@@ -268,7 +298,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(selectedTracks);
         setIsLoading(false);
-      } catch (err) {
+      } catch (error) {
         setError("Failed to load tracks from this playlist");
         setIsLoading(false);
       }
@@ -297,6 +327,7 @@ const Home = ({ accessToken, setAccessToken }) => {
 
   return (
     <div className="home-container">
+
       <header className="app-header">
         <h1>Tierlist Maker for Spotify</h1>
         <div className="header-controls">
@@ -315,12 +346,17 @@ const Home = ({ accessToken, setAccessToken }) => {
           Konami code {konamiActive ? 'activated' : 'deactivated'}! Song limits {konamiActive ? 'removed' : 'restored'}.
         </div>
       )}
+      {showDebugMessage && (
+        <div className={`konami-message ${debugModeActive ? 'active' : 'inactive'}`}>
+          Debug mode {debugModeActive ? 'activated' : 'deactivated'}! Camera preview {debugModeActive ? 'enabled' : 'disabled'}.
+        </div>
+      )}
       {!accessToken ? (
         <div className="auth-container">
           <div className="spotify-attribution">
             <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify" className="spotify-full-logo" />
             <p>Create a tier list from your favorite Spotify playlists.</p>
-            <p>This application uses content from Spotify. By using this app, you agree to Spotify's terms of service.</p>
+            <p>This application uses content from Spotify. By using this app, you agree to Spotify&apos;s terms of service.</p>
             <p>Please log in with your Spotify account to create a tierlist.</p>
             <AuthButton />
             <div className="made-with-spotify">
@@ -339,6 +375,7 @@ const Home = ({ accessToken, setAccessToken }) => {
             accessToken={accessToken}
             playlistName={importedPlaylistName || selectedPlaylist.name}
             onImport={(name) => setImportedPlaylistName(name)}
+            debugMode={debugModeActive}
           />
           <div className="made-with-spotify">
             <p>Made with Spotify</p>

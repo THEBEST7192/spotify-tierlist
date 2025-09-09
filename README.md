@@ -52,7 +52,7 @@ The client id and redirect URI should be the same as the ones you set in the Spo
 
 The scope is handled in the [SpotifyAuth.js](src/utils/SpotifyAuth.js) file in the `getSpotifyAuthURL` function.
 
-4. Build and start the production server:
+4. Build and serve the app:
 ```bash
 npm run build
 serve -s build
@@ -71,12 +71,17 @@ The app will open in your default browser at `http://localhost:3000`, or whateve
    - Adjust **Exploration Depth** (0–20) to start further down Last.fm’s list for more variety
    - Recommendations are based on similar tracks from Last.fm
    - Each recommendation shows which song and tier influenced it
-   - See [RECOMMENDATION_ALGORITHM.md](DOCS_AND_OTHER_INFO\RECOMMENDATION_ALGORITHM.md) for more information
+   - See [RECOMMENDATION_ALGORITHM.md](DOCS_AND_OTHER_INFO/RECOMMENDATION_ALGORITHM.md) for more information
 
 6. Konami Code
    - Type the Konami Code (Up, Up, Down, Down, Left, Right, Left, Right, B, A) or search for `wwssadadab` to activate the Konami Code
    - All song limits are removed (This does not change how the Spotify/LastFM API works*)
    - You can deactivate the Konami Code effects by activating it again
+
+7. Debug Mode
+   - Type "debugmode" in the console to activate debug mode
+   - Debug mode will show the camera feed that [CinemaPoseDetector](src/components/CinemaPoseDetector.jsx) is using to detect the pose of the user
+   - More debugging will come soon
 
 ## Technologies Used
 
@@ -112,12 +117,12 @@ If you encounter any issues:
 2. Check your internet connection
 3. Clear your browser cache
 4. Try running npm install again
-5. If you ran "npm run start" you should instead run "npm run build" to build the production version of the app. After that you can run "npm run -s serve" to serve the production version of the app. If not you will get various errors that are not really errors, you will also not be able to move the songs around.
+5. If you ran "npm run start" you should instead run "npm run build" to build the production version of the app. After that you can run "serve -s build" to serve the production version of the app. If not you will get various errors that are not really errors, you will also not be able to move the songs around.
 One example of those errors is this one:
 ```
 react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with id: (contentHere)👷‍ This is a development only message. It will be removed in production builds.
 ```
-6. If you get any errors when logging in to Spotify it is most likely because of the user not being approved in the developer console of Spotify. Make sure that you have approved the email address of the user trying to log on.
+6. If you get any errors when logging in to Spotify it is most likely because of the user not being approved in the developer console of Spotify. Make sure that you have approved the email address of the user trying to log on too.
 
 ## Additional Resources
 
