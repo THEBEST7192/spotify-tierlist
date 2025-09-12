@@ -134,6 +134,14 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
 
     if (!trackId) {
       console.log('[SpotifyPlayer] No trackId provided - not loading any track');
+      // Reset controller when trackId becomes null (track ended)
+      if (previousTrackRef.current && controllerRef.current) {
+        console.log('[SpotifyPlayer] Track ended, cleaning up controller for next track');
+        controllerRef.current.destroy();
+        controllerRef.current = null;
+        setIsReady(false);
+        previousTrackRef.current = null;
+      }
       return;
     }
 
@@ -260,12 +268,10 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   }, []);
 
   useEffect(() => {
-    if (isFirefoxETP) {
-      alert('Please disable Enhanced Tracking Protection in Firefox to use the Spotify player. Go to Firefox settings > Privacy & Security > Enhanced Tracking Protection and disable it for this site.');
-    } else if (isMobile) {
+    if (isMobile) {
       alert('For best experience, please enable Desktop Mode in your mobile browser settings.');
     }
-  }, [isFirefoxETP, isMobile]);
+  }, [isMobile]);
 
   useEffect(() => {
     const container = iframeContainerRef.current;
@@ -332,6 +338,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
             if (data.data.position >= data.data.duration - 1 && onTrackEnd) {
               setCurrentPosition(0);
               lastPlaybackPosition.current = 0;
+              setPlayerPlayState(false);
               onTrackEnd();
             }
           });
