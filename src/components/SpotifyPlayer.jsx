@@ -16,7 +16,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   const [isReady, setIsReady] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
-  const [isFirefoxETP, setIsFirefoxETP] = useState(false);
+  const [, setIsFirefoxETP] = useState(false);
   const iframeContainerRef = useRef(null);
   const controllerRef = useRef(null);
   const previousTrackRef = useRef(null);
@@ -26,6 +26,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   const lastPlaybackPosition = useRef(0);
   const creatingControllerRef = useRef(false);
   const pendingStartAfterLoad = useRef(false);
+  const hasNotifiedEnd = useRef(false);
   
   useEffect(() => {
     localStorage.setItem(PLAYER_SIZE_KEY, isExpanded);
@@ -114,6 +115,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       setCurrentPosition(0);
       lastPlaybackPosition.current = 0;
       hasStartedPlaying.current = false;
+      hasNotifiedEnd.current = false;
     }
 
     // Cleanup only when accessToken changes or component unmounts
@@ -125,6 +127,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       setCurrentPosition(0);
       lastPlaybackPosition.current = 0;
       hasStartedPlaying.current = false;
+      hasNotifiedEnd.current = false;
     };
   }, [accessToken]);
 
@@ -142,6 +145,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
         setIsReady(false);
         previousTrackRef.current = null;
       }
+      hasStartedPlaying.current = false;
+      hasNotifiedEnd.current = false;
       return;
     }
 
@@ -160,6 +165,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       try {
         setCurrentPosition(0);
         lastPlaybackPosition.current = 0;
+        hasStartedPlaying.current = false;
+        hasNotifiedEnd.current = false;
         previousTrackRef.current = trackId;
 
         if (!controllerRef.current) {
@@ -172,7 +179,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
           creatingControllerRef.current = true;
           // Pass resumePlaying to mimic initial auto-play behavior when desired
           const shouldResume = Boolean(isPlaying || playerPlayState);
-          initializeController(window.SpotifyIframeApi, undefined, shouldResume, 0);
+          initializeController(window.SpotifyIframeApi, undefined, shouldResume);
         } else {
           console.log('[SpotifyPlayer] Loading new track via loadUri:', trackId);
           controllerRef.current.loadUri(`spotify:track:${trackId}`);
@@ -282,7 +289,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
     }
   }, [isExpanded, isReady]);
 
-  const initializeController = (IFrameAPI, customHeight, resumePlaying, resumePosition) => {
+  const initializeController = (IFrameAPI, customHeight, resumePlaying) => {
     console.log('[SpotifyPlayer] initializeController called with trackId:', trackId);
     
     if (!iframeContainerRef.current) {
@@ -324,18 +331,38 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
           
           controller.addListener('playback_update', (data) => {
             console.log('[SpotifyPlayer] Playback update:', data);
+            const position = Number(data?.data?.position ?? 0);
+            const duration = Number(data?.data?.duration ?? 0);
             const newPlayState = !data.data.isPaused;
+            
             if (!isSeeking.current && newPlayState) {
-              setCurrentPosition(data.data.position);
+              setCurrentPosition(position);
             }
             if (data.data.isPaused && currentPosition > 0) {
               lastPlaybackPosition.current = currentPosition;
             }
+            
+            // Mark that playback truly started once we have duration or progressed beyond 0
+            if (!hasStartedPlaying.current && newPlayState && (duration > 0 || position > 0)) {
+              hasStartedPlaying.current = true;
+            }
+            
             setPlayerPlayState(newPlayState);
             if (onPlayerStateChange) {
               onPlayerStateChange(newPlayState);
             }
-            if (data.data.position >= data.data.duration - 1 && onTrackEnd) {
+            
+            // Only consider end when we had a valid duration and playback actually started
+            const endThresholdMs = 1000; // 1s threshold
+            if (
+              onTrackEnd &&
+              !hasNotifiedEnd.current &&
+              hasStartedPlaying.current &&
+              duration > 0 &&
+              position >= duration - endThresholdMs
+            ) {
+              console.log('[SpotifyPlayer] Detected end-of-track. position:', position, 'duration:', duration);
+              hasNotifiedEnd.current = true;
               setCurrentPosition(0);
               lastPlaybackPosition.current = 0;
               setPlayerPlayState(false);
