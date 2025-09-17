@@ -6,10 +6,14 @@
   box-sizing: border-box;
 }
 
+.search-input-wrapper {
+  margin-bottom: 20px;
+}
+
 .search-input {
   width: 100%;
   padding: 10px;
-  margin: 10px 0;
+  margin: 0;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 16px;
@@ -49,7 +53,7 @@
 .public-search-container {
   display: flex;
   gap: 10px;
-  margin: 10px 0;
+  margin: 0;
 }
 
 .public-search-container .search-input {

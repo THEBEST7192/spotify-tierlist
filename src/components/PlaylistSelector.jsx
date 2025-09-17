@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { getUserPlaylists, searchPlaylists } from "../utils/spotifyApi";
+import { getUserPlaylists, searchPlaylists, getPlaylistById } from "../utils/spotifyApi";
 import "./PlaylistSelector.css";
 
 // Helper function to decode HTML entities in text
@@ -14,6 +14,7 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
   const [playlists, setPlaylists] = useState([]);
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
   const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
   const konamiIndex = useRef(0);
@@ -77,9 +78,34 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
     }
   }, [searchQuery, playlists, searchMode]);
 
+  const SPOTIFY_PLAYLIST_URL_REGEX = /^(?:https?:\/\/)?(?:open\.spotify\.com\/playlist\/|spotify:playlist:)([a-zA-Z0-9]+)(?:\?.*)?$/;
+
   const handlePublicSearch = async () => {
     if (!publicSearchQuery.trim()) return;
     setIsLoading(true);
+
+    const match = publicSearchQuery.match(SPOTIFY_PLAYLIST_URL_REGEX);
+    if (match) {
+      const playlistId = match[1];
+      try {
+        const response = await getPlaylistById(playlistId);
+        const playlist = response.data;
+        if (playlist) {
+          onSelect(playlist);
+          setIsSearchingPublic(false);
+          setPublicSearchQuery('');
+        } else {
+          setError("Playlist not found.");
+        }
+      } catch (error) {
+        console.error("Error fetching playlist by ID:", error);
+        setError("Failed to load playlist from URL.");
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     // Check cache first
     if (publicSearchCache[publicSearchQuery]) {
       setPublicPlaylists(publicSearchCache[publicSearchQuery]);
@@ -99,6 +125,7 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
       setIsSearchingPublic(true);
     } catch (error) {
       console.error("Error searching public playlists:", error);
+      setError(`Failed to search public playlists: ${error.response?.data?.error?.message || error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -139,46 +166,52 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
       </div>
 
       {searchMode === "user" ? (
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Search your playlists..."
-          value={searchQuery}
-          ref={searchInputRef}
-          onKeyDown={(e) => {
-            // Only process letter keys for Konami code
-            if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
-              checkKonamiCode(e.key.toLowerCase());
-            }
-          }}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      ) : (
-        <div className="public-search-container">
+        <div className="search-input-wrapper">
           <input
             type="text"
             className="search-input"
-            placeholder="Search for public playlists..."
-            value={publicSearchQuery}
-            ref={publicSearchInputRef}
+            placeholder="Search your playlists..."
+            value={searchQuery}
+            ref={searchInputRef}
             onKeyDown={(e) => {
               // Only process letter keys for Konami code
               if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
                 checkKonamiCode(e.key.toLowerCase());
               }
             }}
-            onChange={(e) => setPublicSearchQuery(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <button 
-            className="search-button" 
-            onClick={handlePublicSearch}
-            disabled={isLoading}
-          >
-            {isLoading ? "Searching..." : "Search"}
-          </button>
+        </div>
+      ) : (
+        <div className="search-input-wrapper">
+          <div className="public-search-container">
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search for public playlists..."
+              value={publicSearchQuery}
+              ref={publicSearchInputRef}
+              onKeyDown={(e) => {
+                // Only process letter keys for Konami code
+                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                  checkKonamiCode(e.key.toLowerCase());
+                }
+              }}
+              onChange={(e) => setPublicSearchQuery(e.target.value)}
+              onKeyPress={handleKeyPress}
+            />
+            <button 
+              className="search-button" 
+              onClick={handlePublicSearch}
+              disabled={isLoading}
+            >
+              {isLoading ? "Searching..." : "Search"}
+            </button>
+          </div>
         </div>
       )}
+
+      {error && <div className="error-message">{error}</div>}
 
       <div className="playlist-grid">
         {displayPlaylists && displayPlaylists.length > 0 ? displayPlaylists.map((playlist) => {

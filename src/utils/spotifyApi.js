@@ -92,4 +92,8 @@ export const getRecommendations = (params) => {
   });
 };
 
+export const getPlaylistById = (playlistId) => {
+  return spotifyApi.get(`/playlists/${playlistId}`);
+};
+
 export default spotifyApi;
