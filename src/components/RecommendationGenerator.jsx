@@ -12,6 +12,19 @@ const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 const MAX_SONGS_TO_USE = 20;  // Maximum songs used for generating recommendations
 const MAX_RECOMMENDATIONS = 200; // Maximum recommendations to display
 
+// Cache for API responses and assets
+const appCache = {
+  // LastFM API caches
+  similarTracks: new Map(),
+  similarArtists: new Map(),
+  // Spotify API caches
+  spotifyTracks: new Map(),
+  // Image caches
+  imageCache: new Map(),
+  // Cache expiration time (7 days in milliseconds)
+  CACHE_EXPIRATION: 7 * 24 * 60 * 60 * 1000
+};
+
 const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -85,6 +98,33 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         return [];
       }
       
+      // Create a cache key using artist name
+      const cacheKey = artist.toLowerCase();
+      
+      // Check if we have a valid cached response
+      if (appCache.similarArtists.has(cacheKey)) {
+        const cachedData = appCache.similarArtists.get(cacheKey);
+        const now = Date.now();
+        
+        // If cache is still valid, use it
+        if (now - cachedData.timestamp < appCache.CACHE_EXPIRATION) {
+          console.log(`[CACHE: LastFM Similar Artists] Using cached data for ${artist}`);
+          
+          // Map the cached artists with the current song's weight
+          return cachedData.data.map(similarArtist => ({
+            source: { 
+              artist: artist, 
+              track: song.content.name,
+              AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
+              tier: song.tier
+            },
+            artistName: similarArtist.name,
+            // Score = source weight × matching value from Last.fm
+            score: song.AMOUNT_OF_SONGS * parseFloat(similarArtist.match)
+          }));
+        }
+      }
+      
       // Query Last.fm API for similar artists
       const response = await axios.get(LASTFM_BASE_URL, {
         params: {
@@ -96,8 +136,15 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         }
       });
       
-      // Process and return similar artists with source info
+      // Process and store in cache
       if (response.data?.similarartists?.artist) {
+        // Store the raw artist data in cache with timestamp
+        appCache.similarArtists.set(cacheKey, {
+          data: response.data.similarartists.artist,
+          timestamp: Date.now()
+        });
+        
+        // Return processed artists
         return response.data.similarartists.artist.map(similarArtist => ({
           source: { 
             artist: artist, 
@@ -120,6 +167,32 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
   // Get top tracks from a similar artist using Spotify API
   const getTopTracksFromArtist = async (artistName, sourceInfo, artistMatch) => {
     try {
+      // Create a cache key for this artist
+      const cacheKey = `artist:${artistName.toLowerCase()}`;
+      
+      // Check if we have a valid cached response
+      if (appCache.spotifyTracks.has(cacheKey)) {
+        const cachedData = appCache.spotifyTracks.get(cacheKey);
+        const now = Date.now();
+        
+        // If cache is still valid, use it
+        if (now - cachedData.timestamp < appCache.CACHE_EXPIRATION) {
+          console.log(`[CACHE: Spotify Artist Tracks] Using cached data for artist: ${artistName}`);
+          
+          // Map the cached tracks with the current source info
+          return cachedData.data.map(track => ({
+            source: sourceInfo,
+            name: track.name,
+            artist: track.artists[0].name,
+            url: track.external_urls.spotify,
+            // Use same weight system as similar tracks: source weight × artist match value
+            score: sourceInfo.AMOUNT_OF_SONGS * parseFloat(artistMatch),
+            // Include image URLs if available
+            images: track.album?.images || []
+          }));
+        }
+      }
+      
       // Search for the artist on Spotify
       const artistResponse = await searchTracks(`artist:${artistName}`);
       
@@ -129,13 +202,35 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
           .filter(track => track.artists?.[0]?.name && track.artists[0].name.toLowerCase() === artistName.toLowerCase())
           .slice(0, 3); // Get top 3 tracks from this artist
         
+        // Cache the artist tracks
+        appCache.spotifyTracks.set(cacheKey, {
+          data: artistTracks,
+          timestamp: Date.now()
+        });
+        
+        // Cache images if available
+        artistTracks.forEach(track => {
+          if (track.album?.images?.length > 0) {
+            track.album.images.forEach(image => {
+              if (image.url) {
+                appCache.imageCache.set(image.url, {
+                  data: image.url,
+                  timestamp: Date.now()
+                });
+              }
+            });
+          }
+        });
+        
         return artistTracks.map(track => ({
           source: sourceInfo,
           name: track.name,
           artist: track.artists[0].name,
           url: track.external_urls.spotify,
           // Use same weight system as similar tracks: source weight × artist match value
-          score: sourceInfo.AMOUNT_OF_SONGS * parseFloat(artistMatch)
+          score: sourceInfo.AMOUNT_OF_SONGS * parseFloat(artistMatch),
+          // Include image URLs if available
+          images: track.album?.images || []
         }));
       }
       return [];
@@ -156,7 +251,36 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         return [];
       }
       
-      // Query Last.fm API for similar tracks
+      // Create a cache key using artist and track
+      const cacheKey = `${artist.toLowerCase()}###${track.toLowerCase()}`;
+      
+      // Check if we have a valid cached response
+      if (appCache.similarTracks.has(cacheKey)) {
+        const cachedData = appCache.similarTracks.get(cacheKey);
+        const now = Date.now();
+        
+        // If cache is still valid, use it
+        if (now - cachedData.timestamp < appCache.CACHE_EXPIRATION) {
+          console.log(`[CACHE: LastFM Similar Tracks] Using cached data for ${artist} - ${track}`);
+          
+          // Map the cached tracks with the current song's weight
+          return cachedData.data.map(track => ({
+            source: { 
+              artist: artist, 
+              track: song.content.name,
+              AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
+              tier: song.tier
+            },
+            name: track.name,
+            artist: track.artist.name,
+            url: track.url,
+            // Score = source weight × matching value from Last.fm
+            score: song.AMOUNT_OF_SONGS * parseFloat(track.match)
+          }));
+        }
+      }
+      
+      // If no valid cache, query Last.fm API
       const response = await axios.get(LASTFM_BASE_URL, {
         params: {
           method: 'track.getSimilar',
@@ -167,8 +291,15 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         }
       });
       
-      // Process and return similar tracks with source info
+      // Process the response
       if (response.data?.similartracks?.track) {
+        // Store the raw track data in cache with timestamp
+        appCache.similarTracks.set(cacheKey, {
+          data: response.data.similartracks.track,
+          timestamp: Date.now()
+        });
+        
+        // Return processed tracks
         return response.data.similartracks.track.map(track => ({
           source: { 
             artist: artist, 
@@ -389,13 +520,52 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     // Process recommendations up to the limit
     for (const rec of uniqueRecommendations.slice(0, MAX_RECOMMENDATIONS)) {
       try {
-        // Search Spotify for this track
-        const response = await searchTracks(`artist:${rec.artist} track:${rec.name}`);
+        // Create a cache key for this track search
+        const searchCacheKey = `search:${rec.artist.toLowerCase()}:${rec.name.toLowerCase()}`;
+        let spotifyTrack;
         
-        if (response.data.tracks.items.length > 0) {
-          const spotifyTrack = response.data.tracks.items[0];
+        // Check if we have a valid cached response
+        if (appCache.spotifyTracks.has(searchCacheKey)) {
+          const cachedData = appCache.spotifyTracks.get(searchCacheKey);
+          const now = Date.now();
           
-          // Skip if already in tierlist (by ID)
+          // If cache is still valid, use it
+          if (now - cachedData.timestamp < appCache.CACHE_EXPIRATION) {
+            console.log(`[CACHE: Spotify Search] Using cached data for: ${rec.artist} - ${rec.name}`);
+            spotifyTrack = cachedData.data;
+          }
+        }
+        
+        // If no valid cache, search Spotify
+        if (!spotifyTrack) {
+          const response = await searchTracks(`artist:${rec.artist} track:${rec.name}`);
+          
+          if (response.data.tracks.items.length > 0) {
+            spotifyTrack = response.data.tracks.items[0];
+            
+            // Cache the search result
+            appCache.spotifyTracks.set(searchCacheKey, {
+              data: spotifyTrack,
+              timestamp: Date.now()
+            });
+            
+            // Cache album images if available
+            if (spotifyTrack.album?.images?.length > 0) {
+              spotifyTrack.album.images.forEach(image => {
+                if (image.url) {
+                  appCache.imageCache.set(image.url, {
+                    data: image.url,
+                    timestamp: Date.now()
+                  });
+                }
+              });
+            }
+          }
+        }
+        
+        if (spotifyTrack) {
+          
+          // Skip if already in tierlist (by ID or by artist-track combination)
           if (existingSongIds.has(spotifyTrack.id)) {
             continue;
           }
