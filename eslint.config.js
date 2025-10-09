@@ -34,4 +34,19 @@ export default [
       ],
     },
   },
+  {
+    files: ["api/**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: { ...globals.node },
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+      },
+    },
+    rules: {
+      ...pluginJs.configs.recommended.rules,
+      "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    },
+  },
 ];

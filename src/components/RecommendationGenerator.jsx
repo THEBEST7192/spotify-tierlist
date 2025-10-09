@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { searchTracks } from '../utils/spotifyApi';
+import { getSimilarTracksFromBackend, getSimilarArtistsFromBackend } from '../utils/backendApi';
 import './RecommendationGenerator.css';
 import AddToPlaylist from './AddToPlaylist';
-
-// Use environment variable for Last.fm API key
-const LASTFM_API_KEY = import.meta.env.VITE_LASTFM_API_KEY;
-const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 // Constants for recommendation configuration
 const MAX_SONGS_TO_USE = 20;  // Maximum songs used for generating recommendations
@@ -125,27 +122,19 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         }
       }
       
-      // Query Last.fm API for similar artists
-      const response = await axios.get(LASTFM_BASE_URL, {
-        params: {
-          method: 'artist.getSimilar',
-          artist: artist,
-          api_key: LASTFM_API_KEY,
-          format: 'json',
-          limit: 10 // Get top 10 similar artists
-        }
-      });
+      // Query backend API for similar artists
+      const response = await getSimilarArtistsFromBackend(artist, 10);
       
       // Process and store in cache
-      if (response.data?.similarartists?.artist) {
+      if (response?.similarartists?.artist) {
         // Store the raw artist data in cache with timestamp
         appCache.similarArtists.set(cacheKey, {
-          data: response.data.similarartists.artist,
+          data: response.similarartists.artist,
           timestamp: Date.now()
         });
         
         // Return processed artists
-        return response.data.similarartists.artist.map(similarArtist => ({
+        return response.similarartists.artist.map(similarArtist => ({
           source: { 
             artist: artist, 
             track: song.content.name,
@@ -280,27 +269,19 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         }
       }
       
-      // If no valid cache, query Last.fm API
-      const response = await axios.get(LASTFM_BASE_URL, {
-        params: {
-          method: 'track.getSimilar',
-          artist: artist,
-          track: track,
-          api_key: LASTFM_API_KEY,
-          format: 'json'
-        }
-      });
+      // If no valid cache, query backend API
+      const response = await getSimilarTracksFromBackend(artist, track);
       
       // Process the response
-      if (response.data?.similartracks?.track) {
+      if (response?.similartracks?.track) {
         // Store the raw track data in cache with timestamp
         appCache.similarTracks.set(cacheKey, {
-          data: response.data.similartracks.track,
+          data: response.similartracks.track,
           timestamp: Date.now()
         });
         
         // Return processed tracks
-        return response.data.similartracks.track.map(track => ({
+        return response.similartracks.track.map(track => ({
           source: { 
             artist: artist, 
             track: song.content.name,

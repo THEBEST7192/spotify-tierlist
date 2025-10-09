@@ -35,27 +35,49 @@ I have not recived extended qouta yet, so I will have to manually approve accoun
 git clone https://github.com/THEBEST7192/spotify-tierlist
 ```
 
-2. Install dependencies:
+2. Install frontend dependencies:
 ```bash
 cd spotify-tierlist
 npm install
 ```
 
-3. Create a `.env.local` file in the root directory and add your API credentials:
+3. Install backend dependencies:
+```bash
+cd api
+npm install
+cd ..
+```
+
+4. Create a `.env.local` file in the root directory by copying `.env.example` and fill in your API credentials:
+```bash
+cp .env.example .env.local
+```
+Then, open `.env.local` and add your API credentials:
 ```bash
 VITE_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
 VITE_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
-VITE_LASTFM_API_KEY=YOUR_LASTFM_API_KEY
+LASTFM_API_KEY=YOUR_LASTFM_API_KEY
 ```
+
+The `VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. The `LASTFM_API_KEY` is for the backend server.
 
 The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://localhost:3000` in the Spotify developer console and in the environment file.
 
 The scope is handled in the [SpotifyAuth.js](src/utils/SpotifyAuth.js) file in the `getSpotifyAuthURL` function.
 
-4. Build and serve the app:
+5. Start the backend server:
+```bash
+npm run server
+```
+
+6. Build and serve the frontend app:
 ```bash
 npm run build
 serve -s build
+```
+or
+```
+npm run start
 ```
 
 The app will open in your default browser at `http://localhost:3000`, or whatever you set your redirect URI to
@@ -117,12 +139,7 @@ If you encounter any issues:
 2. Check your internet connection
 3. Clear your browser cache
 4. Try running npm install again
-5. If you ran "npm run start" you should instead run "npm run build" to build the production version of the app. After that you can run "serve -s build" to serve the production version of the app. If not you will get various errors that are not really errors, you will also not be able to move the songs around.
-One example of those errors is this one:
-```
-react-beautiful-dnd.esm.js:39 react-beautiful-dndUnable to find draggable with id: (contentHere)👷‍ This is a development only message. It will be removed in production builds.
-```
-6. If you get any errors when logging in to Spotify it is most likely because of the user not being approved in the developer console of Spotify. Make sure that you have approved the email address of the user trying to log on too.
+5. If you get any errors when logging in to Spotify it is most likely because of the user not being approved in the developer console of Spotify. Make sure that you have approved the email address of the user trying to log on too.
 
 ## Additional Resources
 
