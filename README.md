@@ -61,7 +61,7 @@ LASTFM_API_KEY=YOUR_LASTFM_API_KEY
 
 The `VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. The `LASTFM_API_KEY` is for the backend server.
 
-The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://localhost:3000` in the Spotify developer console and in the environment file.
+The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://127.0.0.1:3000` in the Spotify developer console and in the environment file.
 
 The scope is handled in the [SpotifyAuth.js](src/utils/SpotifyAuth.js) file in the `getSpotifyAuthURL` function.
 
@@ -80,7 +80,7 @@ or
 npm run start
 ```
 
-The app will open in your default browser at `http://localhost:3000`, or whatever you set your redirect URI to
+The app will be available at the address provided in the terminal (e.g., `http://127.0.0.1:3000`). Please note that you should use `http://127.0.0.1:PORT` instead of `http://localhost:PORT` to access the application.
 
 ## Usage
 
