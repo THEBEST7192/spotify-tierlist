@@ -563,7 +563,7 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode =
   };
 
   // Export tier list as an image
-  const exportImage = () => {
+  const exportImage = (name) => {
     // Wait for images to load
     const images = document.querySelectorAll('.album-cover');
     const promises = Array.from(images).map(img => {
@@ -612,7 +612,10 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode =
         
         const link = document.createElement("a");
         link.href = canvas.toDataURL("image/png");
-        link.download = "spotify-tierlist.png";
+        const filename = name ? 
+          `${name.replace(/[^a-z0-9-]/gi, '_').toLowerCase()}.png` : 
+          'spotify-tierlist.png';
+        link.download = filename;
         link.click();
       });
     });
@@ -1077,7 +1080,7 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode =
       
       <div className="tier-list-actions">
         <div className="export-group">
-          <button className="export-button" onClick={exportImage}>
+          <button className="export-button" onClick={() => exportImage(playlistName)}>
             Export as Image
           </button>
           <TierListJSONExportImport
