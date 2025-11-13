@@ -3,6 +3,7 @@ import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { MongoClient, ServerApiVersion } from 'mongodb';
 
 // Load environment variables (only for local development)
 if (process.env.NODE_ENV !== 'production') {
@@ -16,13 +17,48 @@ const PORT = process.env.PORT || 3001;
 const LASTFM_API_KEY = process.env.LASTFM_API_KEY;
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/'
 
+const MONGODB_USER = process.env.MONGODB_USER;
+const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD;
+const MONGODB_HOST = process.env.MONGODB_HOST;
+const MONGODB_CLIENT_NAME = process.env.MONGODB_CLIENT_NAME;
+
+const MONGODB_URI = `mongodb+srv://${encodeURIComponent(MONGODB_USER)}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}/?appName=${MONGODB_CLIENT_NAME}`;
+
+const mongoClient = new MongoClient(MONGODB_URI, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  }
+});
+
+async function initMongoConnection() {
+  try {
+    await mongoClient.connect();
+    await mongoClient.db(process.env.MONGODB_DB).command({ ping: 1 });
+    app.locals.mongoClient = mongoClient;
+  } catch (err) {
+    console.error('Failed to connect to MongoDB:', err);
+    app.locals.mongoClient = null; // Set to null if connection fails
+  }
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Last.fm API server is running' });
+app.get('/health', async (req, res) => {
+  let db = false;
+  try {
+    if (app.locals.mongoClient) {
+      await app.locals.mongoClient.db(process.env.MONGODB_DB).command({ ping: 1 });
+      db = true;
+    }
+  } catch {
+    db = false;
+  }
+  res.json({ status: 'OK', message: 'Last.fm API server is running', db });
 });
 
 // Get similar tracks endpoint
@@ -111,10 +147,13 @@ app.use((req, res) => {
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  app.listen(PORT, () => {
-    console.log(`Last.fm API server running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
-  });
+  (async () => {
+    await initMongoConnection();
+    app.listen(PORT, () => {
+      console.log(`Last.fm API server running on port ${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
+    });
+  })();
 }
 
 export default app;
