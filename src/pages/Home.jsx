@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import AuthButton from "../components/AuthButton";
 import LogoutButton from "../components/LogoutButton";
 import PlaylistSelector from "../components/PlaylistSelector";
@@ -6,6 +7,8 @@ import TierList from "../components/TierList";
 import UserProfile from "../components/UserProfile";
 import SongGroupModal from "../components/SongGroupModal";
 import { getPlaylistTracks } from "../utils/spotifyApi";
+import { getTierlist } from "../utils/backendApi";
+
 import "./Home.css";
 import CinemaPoseDetector from "../components/CinemaPoseDetector";
 
@@ -29,6 +32,10 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [debugModeActive, setDebugModeActive] = useState(false);
   const [showKonamiMessage, setShowKonamiMessage] = useState(false);
   const [showDebugMessage, setShowDebugMessage] = useState(false);
+  const [sharedTierlist, setSharedTierlist] = useState(null);
+  const { shortId } = useParams();
+  const navigate = useNavigate();
+
   const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
   let konamiIndex = 0;
 
@@ -133,8 +140,10 @@ const Home = ({ accessToken, setAccessToken }) => {
   // Handle playlist selection
   const handlePlaylistSelect = async (playlist) => {
     try {
+      setSharedTierlist(null);
       setIsLoading(true);
       setError(null);
+
       setPendingPlaylist(playlist);
       // Fetch only the playlist metadata to get the total tracks count
       const metaResponse = await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}`, {
@@ -180,6 +189,7 @@ const Home = ({ accessToken, setAccessToken }) => {
 
   const handleSongGroupSelect = async (option) => {
     if (!pendingPlaylist) return;
+
     setShowSongGroupModal(false);
     setIsLoading(true);
     let offset = 0;
@@ -311,7 +321,55 @@ const Home = ({ accessToken, setAccessToken }) => {
     setSelectedPlaylist(null);
     setPlaylistTracks([]);
     setImportedPlaylistName('');
+    setSharedTierlist(null);
+    if (shortId) {
+      navigate('/');
+    }
   };
+
+  useEffect(() => {
+    if (!shortId) {
+      setSharedTierlist(null);
+      return;
+    }
+
+    let isMounted = true;
+    const loadSharedTierlist = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getTierlist(shortId);
+        if (!isMounted) return;
+        setSharedTierlist(data);
+        const name = data?.state?.tierListName || data?.tierListName || 'Shared Spotify Tierlist';
+        setImportedPlaylistName(name);
+        setSelectedPlaylist({
+          id: `shared-${shortId}`,
+          name,
+          owner: data?.username || undefined
+        });
+        setPlaylistTracks([]);
+        setPendingPlaylist(null);
+        setShowSongGroupModal(false);
+      } catch (err) {
+        console.error('Failed to load shared tierlist:', err);
+        if (!isMounted) return;
+        const backendMessage = err.response?.data?.error;
+        setSharedTierlist(null);
+        setError(backendMessage || err.message || 'Failed to load tierlist');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadSharedTierlist();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shortId]);
 
   if (isLoading) {
     return (
@@ -351,7 +409,7 @@ const Home = ({ accessToken, setAccessToken }) => {
           Debug mode {debugModeActive ? 'activated' : 'deactivated'}! Camera preview {debugModeActive ? 'enabled' : 'disabled'}.
         </div>
       )}
-      {!accessToken ? (
+      {(!accessToken && !sharedTierlist) ? (
         <div className="auth-container">
           <div className="spotify-attribution">
             <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify" className="spotify-full-logo" />
@@ -376,7 +434,9 @@ const Home = ({ accessToken, setAccessToken }) => {
             playlistName={importedPlaylistName || selectedPlaylist.name}
             onImport={(name) => setImportedPlaylistName(name)}
             debugMode={debugModeActive}
+            initialTierlist={sharedTierlist}
           />
+
           <div className="made-with-spotify">
             <p>Made with Spotify</p>
           </div>

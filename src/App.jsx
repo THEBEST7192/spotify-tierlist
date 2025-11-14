@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { getAccessToken, getValidAccessToken } from './utils/SpotifyAuth';
 import Home from './pages/Home';
 import './App.css';
@@ -40,12 +41,43 @@ function App() {
   }
 
   return (
-    <div className="App">
-      <Home 
-        accessToken={accessToken} 
-        setAccessToken={setAccessToken} 
-      />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/"
+          element={(
+            <div className="App">
+              <Home
+                accessToken={accessToken}
+                setAccessToken={setAccessToken}
+              />
+            </div>
+          )}
+        />
+        <Route
+          path="/tierlists/:shortId"
+          element={(
+            <div className="App">
+              <Home
+                accessToken={accessToken}
+                setAccessToken={setAccessToken}
+              />
+            </div>
+          )}
+        />
+        <Route
+          path="*"
+          element={(
+            <div className="App">
+              <Home
+                accessToken={accessToken}
+                setAccessToken={setAccessToken}
+              />
+            </div>
+          )}
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

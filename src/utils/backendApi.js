@@ -65,4 +65,35 @@ export const checkBackendHealth = async () => {
   }
 };
 
+/**
+ * Create a tierlist document in the backend
+ * @param {Object} payload - Tierlist payload matching backend expectations
+ * @returns {Promise<Object>} Created tierlist document
+ */
+export const createTierlist = async (payload) => {
+  const response = await backendApi.post('/api/tierlists', payload);
+  return response.data;
+};
+
+/**
+ * Update an existing tierlist by shortId
+ * @param {string} shortId - Tierlist short identifier
+ * @param {Object} payload - Update payload (must include spotifyUserId)
+ * @returns {Promise<Object>} Updated tierlist document
+ */
+export const updateTierlist = async (shortId, payload) => {
+  const response = await backendApi.put(`/api/tierlists/${shortId}`, payload);
+  return response.data;
+};
+
+/**
+ * Fetch a tierlist by shortId
+ * @param {string} shortId - Tierlist short identifier
+ * @returns {Promise<Object>} Tierlist document
+ */
+export const getTierlist = async (shortId) => {
+  const response = await backendApi.get(`/api/tierlists/${shortId}`);
+  return response.data;
+};
+
 export default backendApi;

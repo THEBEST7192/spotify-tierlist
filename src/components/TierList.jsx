@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
 import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
+import { createTierlist, updateTierlist } from '../utils/backendApi';
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
@@ -238,7 +239,14 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder }) => {
   );
 };
 
-const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode = false }) => {
+const TierList = ({
+  songs,
+  accessToken,
+  playlistName = '',
+  onImport,
+  debugMode = false,
+  initialTierlist = null
+}) => {
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [tierOrder, setTierOrder] = useState(DEFAULT_TIER_ORDER);
@@ -251,6 +259,56 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode =
   const [isSinging, setIsSinging] = useState(false);
   const [randomChangeInterval, setRandomChangeInterval] = useState(null);
   const [isCinemaEnabled, setIsCinemaEnabled] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [uploadedTierlist, setUploadedTierlist] = useState(null);
+  const [uploadingTierlist, setUploadingTierlist] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [uploadShareUrl, setUploadShareUrl] = useState('');
+  const lastHydratedRef = useRef(null);
+
+  const computeShareUrl = useCallback((shortId) => {
+    if (!shortId || typeof window === 'undefined') return '';
+    return `${window.location.origin}/tierlists/${shortId}`;
+  }, []);
+
+  const hydrateTierlist = useCallback((imported, { silent = false } = {}) => {
+    if (!imported || !imported.tiers || !imported.tierOrder || !imported.state) {
+      console.error('Invalid tierlist data for hydration');
+      return false;
+    }
+
+    setTiers(imported.tiers);
+    setTierOrder(imported.tierOrder);
+    setState(imported.state);
+
+    if (imported.state.tierListName && typeof onImport === 'function') {
+      onImport(imported.state.tierListName);
+    }
+
+    setUploadedTierlist(imported);
+    const shareUrl = computeShareUrl(imported.shortId);
+    if (!silent || shareUrl) {
+      setUploadShareUrl(shareUrl);
+    }
+
+    return true;
+  }, [computeShareUrl, onImport]);
+
+  useEffect(() => {
+    if (!initialTierlist) return;
+    const identifier = initialTierlist.shortId || JSON.stringify({
+      tiers: Object.keys(initialTierlist.tiers || {}),
+      order: initialTierlist.tierOrder,
+      name: initialTierlist?.state?.tierListName || initialTierlist.tierListName || ''
+    });
+
+    if (lastHydratedRef.current === identifier) return;
+    const hydrated = hydrateTierlist(initialTierlist, { silent: true });
+    if (hydrated) {
+      lastHydratedRef.current = identifier;
+    }
+  }, [initialTierlist, hydrateTierlist]);
   
   // State for the tier list
   const [state, setState] = useState(() => {
@@ -621,19 +679,92 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode =
     });
   };
 
+  const getFirstAvailableCoverImage = () => {
+    for (const tier of tierOrder) {
+      const songsInTier = state[tier];
+      if (!Array.isArray(songsInTier)) continue;
+      for (const item of songsInTier) {
+        const content = item?.content;
+        const images = content?.album?.images;
+        if (Array.isArray(images) && images.length > 0) {
+          const smallestImageIndex = images.length > 2 ? 2 : 0;
+          return images[smallestImageIndex]?.url || images[0]?.url || '';
+        }
+      }
+    }
+    return '';
+  };
+
   // Handler for importing tierlist JSON
   const handleImport = (imported) => {
-    if (imported.tiers && imported.tierOrder && imported.state) {
-      setTiers(imported.tiers);
-      setTierOrder(imported.tierOrder);
-      setState(imported.state);
-      
-      // If there's a tierListName in the imported data, call the onImport callback
-      if (imported.state.tierListName && typeof onImport === 'function') {
-        onImport(imported.state.tierListName);
-      }
-    } else {
+    const hydrated = hydrateTierlist(imported);
+    if (!hydrated) {
       console.error('Invalid import JSON format');
+    }
+  };
+
+  const handleUploadTierlist = async () => {
+    setUploadError('');
+    setUploadMessage('');
+    setUploadShareUrl('');
+    setUploadingTierlist(true);
+
+    try {
+      let user = currentUser;
+      if (!user) {
+        const userResponse = await getCurrentUser();
+        user = userResponse.data;
+        setCurrentUser(user);
+      }
+
+      if (!user || !user.id) {
+        throw new Error('Unable to determine Spotify user ID');
+      }
+
+      const isUpdate = Boolean(uploadedTierlist?.shortId);
+      const resolvedTierListName = state.tierListName || playlistName || 'My Spotify Tierlist';
+      const coverImage = getFirstAvailableCoverImage();
+      const tierlistState = {
+        ...state,
+        tierListName: resolvedTierListName
+      };
+
+      const payload = {
+        spotifyUserId: user.id,
+        username: user.display_name || user.id,
+        tierListName: resolvedTierListName,
+        coverImage,
+        tiers,
+        tierOrder,
+        state: tierlistState,
+        isPublic: true
+      };
+
+      const response = isUpdate
+        ? await updateTierlist(uploadedTierlist.shortId, payload)
+        : await createTierlist(payload);
+
+      const resolvedResponse = response || uploadedTierlist;
+      if (!resolvedResponse) {
+        throw new Error('No response received from tierlist service');
+      }
+
+      setUploadedTierlist(resolvedResponse);
+
+      const shareUrl = resolvedResponse?.shortId && typeof window !== 'undefined'
+        ? `${window.location.origin}/tierlists/${resolvedResponse.shortId}`
+        : '';
+
+      setUploadShareUrl(shareUrl);
+      setUploadMessage(
+        `Tierlist ${isUpdate ? 'updated' : 'uploaded'} successfully!${shareUrl ? '' : ` ID: ${resolvedResponse?.shortId || ''}`}`
+      );
+    } catch (error) {
+      console.error('Failed to upload tierlist:', error);
+      const backendMessage = error.response?.data?.error;
+      setUploadError(backendMessage || error.message || 'Failed to upload tierlist');
+    } finally {
+      setUploadingTierlist(false);
     }
   };
 
@@ -1079,33 +1210,68 @@ const TierList = ({ songs, accessToken, playlistName = '', onImport, debugMode =
       </DragDropContext>
       
       <div className="tier-list-actions">
-        <div className="export-group">
-          <button className="export-button" onClick={() => exportImage(playlistName)}>
-            Export as Image
-          </button>
-          <TierListJSONExportImport
-            tiers={tiers}
+        <div className="tier-list-primary-actions">
+          <div className="export-group">
+            <button className="export-button" onClick={() => exportImage(playlistName)}>
+              Export as Image
+            </button>
+            <TierListJSONExportImport
+              tiers={tiers}
+              tierOrder={tierOrder}
+              state={state}
+              onImport={handleImport}
+              tierListName={playlistName}
+              onUpload={handleUploadTierlist}
+              uploading={uploadingTierlist}
+              uploadedTierlist={uploadedTierlist}
+              uploadMessage=""
+              uploadError=""
+              uploadShareUrl=""
+            />
+          </div>
+
+          {/* Upload status messages - grouped with export/import/upload buttons */}
+          {(uploadMessage || uploadError) && (
+            <div className="upload-status-container">
+              {uploadMessage && (
+                <div className="success-message upload-status">
+                  {uploadMessage}
+                  {uploadShareUrl && (
+                    <>
+                      {' '}
+                      <a href={uploadShareUrl} target="_blank" rel="noopener noreferrer">
+                        {uploadShareUrl}
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
+              {uploadError && (
+                <div className="error-message upload-status">
+                  {uploadError}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="tier-secondary-actions">
+          <CreatePlaylistFromRanked
+            tierState={state}
             tierOrder={tierOrder}
-            state={state}
-            onImport={handleImport}
-            tierListName={playlistName}
+          />
+          
+          <RecommendationGenerator 
+            tierState={state} 
+            tierOrder={tierOrder}
+            tiers={tiers}
+            accessToken={accessToken} 
+            onPlayTrack={playTrack}
+            onAddToTierlist={addSongToTierlist}
+            currentTrackId={currentTrack}
+            isPlayerPlaying={isPlayerPlaying}
           />
         </div>
-        <CreatePlaylistFromRanked
-          tierState={state}
-          tierOrder={tierOrder}
-        />
-        
-        <RecommendationGenerator 
-          tierState={state} 
-          tierOrder={tierOrder}
-          tiers={tiers}
-          accessToken={accessToken} 
-          onPlayTrack={playTrack}
-          onAddToTierlist={addSongToTierlist}
-          currentTrackId={currentTrack}
-          isPlayerPlaying={isPlayerPlaying}
-        />
       </div>
 
       {/* Spotify Player */}

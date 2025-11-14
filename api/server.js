@@ -4,6 +4,8 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { MongoClient, ServerApiVersion } from 'mongodb';
+import { createTierlistsRouter } from './routes/tierlists.js';
+import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
 
 // Load environment variables (only for local development)
 if (process.env.NODE_ENV !== 'production') {
@@ -32,20 +34,38 @@ const mongoClient = new MongoClient(MONGODB_URI, {
   }
 });
 
+let tierlistsRouterInstance = null;
+
 async function initMongoConnection() {
   try {
     await mongoClient.connect();
-    await mongoClient.db(process.env.MONGODB_DB).command({ ping: 1 });
+    const db = mongoClient.db(process.env.MONGODB_DB);
+    await db.command({ ping: 1 });
+    await ensureTierlistIndexes(db);
     app.locals.mongoClient = mongoClient;
+    app.locals.db = db;
+    tierlistsRouterInstance = createTierlistsRouter(db);
   } catch (err) {
     console.error('Failed to connect to MongoDB:', err);
     app.locals.mongoClient = null; // Set to null if connection fails
+    app.locals.db = null;
+    tierlistsRouterInstance = null;
   }
 }
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+app.use('/api/tierlists', (req, res, next) => {
+  const db = app.locals.db;
+
+  if (!db || !tierlistsRouterInstance) {
+    return res.status(503).json({ error: 'Database not connected' });
+  }
+
+  return tierlistsRouterInstance(req, res, next);
+});
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

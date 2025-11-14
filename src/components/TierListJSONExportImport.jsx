@@ -1,6 +1,18 @@
 import React, { useRef } from 'react';
 
-const TierListJSONExportImport = ({ tiers, tierOrder, state, onImport, tierListName = '' }) => {
+const TierListJSONExportImport = ({
+  tiers,
+  tierOrder,
+  state,
+  onImport,
+  tierListName = '',
+  onUpload,
+  uploading = false,
+  uploadedTierlist = null,
+  uploadMessage = '',
+  uploadError = '',
+  uploadShareUrl = ''
+}) => {
   const fileInputRef = useRef(null);
 
   const handleExport = () => {
@@ -74,6 +86,15 @@ const TierListJSONExportImport = ({ tiers, tierOrder, state, onImport, tierListN
       <div className="export-group">
         <button className="export-button export-json-button" onClick={handleExport}>Export JSON</button>
         <button className="export-button import-json-button" onClick={handleImportClick}>Import JSON</button>
+        {onUpload && (
+          <button
+            className="export-button upload-tierlist-button"
+            onClick={onUpload}
+            disabled={uploading}
+          >
+            {uploading ? 'Uploading...' : uploadedTierlist ? 'Update Online Tierlist' : 'Upload Tierlist'}
+          </button>
+        )}
       </div>
       <input
         type="file"
