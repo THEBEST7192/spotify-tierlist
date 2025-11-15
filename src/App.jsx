@@ -55,6 +55,17 @@ function App() {
           )}
         />
         <Route
+          path="/local/:songId"
+          element={(
+            <div className="App">
+              <Home
+                accessToken={accessToken}
+                setAccessToken={setAccessToken}
+              />
+            </div>
+          )}
+        />
+        <Route
           path="/tierlists/:shortId"
           element={(
             <div className="App">

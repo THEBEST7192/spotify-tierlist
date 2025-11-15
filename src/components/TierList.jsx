@@ -245,7 +245,8 @@ const TierList = ({
   playlistName = '',
   onImport,
   debugMode = false,
-  initialTierlist = null
+  initialTierlist = null,
+  storageKey = null
 }) => {
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
@@ -265,7 +266,10 @@ const TierList = ({
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [uploadShareUrl, setUploadShareUrl] = useState('');
+  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
   const lastHydratedRef = useRef(null);
+  const hydratedFromStorageRef = useRef(false);
+  const hydratedStateRef = useRef(null);
 
   const computeShareUrl = useCallback((shortId) => {
     if (!shortId || typeof window === 'undefined') return '';
@@ -280,10 +284,12 @@ const TierList = ({
 
     setTiers(imported.tiers);
     setTierOrder(imported.tierOrder);
+    hydratedStateRef.current = imported.state;
     setState(imported.state);
+    setIsInitialSyncComplete(true);
 
-    if (imported.state.tierListName && typeof onImport === 'function') {
-      onImport(imported.state.tierListName);
+    if (imported.tierListName && typeof onImport === 'function') {
+      onImport(imported.tierListName);
     }
 
     setUploadedTierlist(imported);
@@ -309,6 +315,29 @@ const TierList = ({
       lastHydratedRef.current = identifier;
     }
   }, [initialTierlist, hydrateTierlist]);
+
+  useEffect(() => {
+    hydratedFromStorageRef.current = false;
+    hydratedStateRef.current = null;
+    setIsInitialSyncComplete(false);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(`tierlist:${storageKey}`);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || !saved.tiers || !saved.tierOrder || !saved.state) return;
+      hydratedStateRef.current = saved.state;
+      // console.log('[TierList] hydrated from storage', {
+      //   storageKey,
+      //   tiers: Object.keys(saved.state || {}).length
+      // });
+      hydrateTierlist(saved, { silent: true });
+      hydratedFromStorageRef.current = true;
+    } catch { void 0; }
+  }, [storageKey, hydrateTierlist]);
   
   // State for the tier list
   const [state, setState] = useState(() => {
@@ -386,29 +415,135 @@ const TierList = ({
   
   // Initialize with songs
   useEffect(() => {
-    if (songs && songs.length > 0) {
-      const newState = {
-        ...state,
-        Unranked: songs.map(song => ({
-          id: song.dragId,
-          content: song
-        }))
-      };
-      
-      setState(newState);
-      
-      // Check for unavailable songs after a short delay to allow the state to update
-      const timer = setTimeout(() => {
-        const unavailable = checkForUnavailableSongs(newState);
-        if (unavailable.length > 0) {
-          setUnavailableSongs(unavailable);
-          setShowUnavailableDialog(true);
-        }
-      }, 1000);
-      
-      return () => clearTimeout(timer);
+    const songsLength = songs ? songs.length : 0;
+    // console.log('[TierList] songs effect', {
+    //   storageKey,
+    //   songsLength,
+    //   hydratedFromStorage: hydratedFromStorageRef.current
+    // });
+
+    if (!songs || songsLength === 0) {
+      return;
     }
-  }, [songs, checkForUnavailableSongs]);
+
+    const incomingByDragId = new Map();
+    const incomingByTrackId = new Map();
+    songs.forEach(song => {
+      if (song?.dragId) {
+        incomingByDragId.set(song.dragId, song);
+      }
+      if (song?.id) {
+        incomingByTrackId.set(song.id, song);
+      }
+    });
+
+    const baseState = hydratedStateRef.current || state;
+    const tierNames = Object.keys(baseState || {});
+    const existingSongIds = new Set();
+    let matchedCount = 0;
+
+    const updatedState = tierNames.reduce((acc, tierName) => {
+      const tierSongs = Array.isArray(baseState[tierName]) ? baseState[tierName] : [];
+      acc[tierName] = tierSongs.map(entry => {
+        const entryContent = entry?.content || entry;
+        const entryDragId = entry?.id || entryContent?.dragId || entryContent?.uri || null;
+        const entryTrackId = entryContent?.id || null;
+
+        const matchedSong = (entryDragId && incomingByDragId.get(entryDragId))
+          || (entryTrackId && incomingByTrackId.get(entryTrackId))
+          || null;
+
+        const resolvedId = matchedSong?.dragId
+          || entryDragId
+          || entryTrackId
+          || entry?.id
+          || entryContent?.uri
+          || `entry-${Math.random().toString(36).slice(2, 10)}`;
+
+        if (entryDragId) existingSongIds.add(entryDragId);
+        if (entryTrackId) existingSongIds.add(entryTrackId);
+        if (resolvedId) existingSongIds.add(resolvedId);
+
+        if (matchedSong) {
+          matchedCount += 1;
+          const candidateIds = [matchedSong.dragId, matchedSong.id, matchedSong.uri].filter(Boolean);
+          candidateIds.forEach(id => existingSongIds.add(id));
+          return {
+            id: resolvedId,
+            content: matchedSong
+          };
+        }
+
+        return {
+          id: resolvedId,
+          content: entryContent
+        };
+      });
+      return acc;
+    }, {});
+
+    if (!Array.isArray(updatedState.Unranked)) {
+      updatedState.Unranked = [];
+    }
+
+    const newEntries = [];
+    songs.forEach(song => {
+      const candidateIds = [song.dragId, song.id, song.uri].filter(Boolean);
+      const alreadyPresent = candidateIds.some(id => existingSongIds.has(id));
+      if (!alreadyPresent) {
+        const entryId = song.dragId || song.id || song.uri || `track-${Math.random().toString(36).slice(2, 10)}`;
+        [entryId, ...candidateIds].forEach(id => existingSongIds.add(id));
+        newEntries.push({
+          id: entryId,
+          content: song
+        });
+      }
+    });
+
+    if (newEntries.length > 0) {
+      updatedState.Unranked = [...updatedState.Unranked, ...newEntries];
+    }
+
+    // console.log('[TierList] songs effect merged state', {
+    //   storageKey,
+    //   matchedCount,
+    //   addedToUnranked: newEntries.length,
+    //   totalTiers: Object.keys(updatedState).length
+    // });
+
+    const usedHydratedSnapshot = !!hydratedStateRef.current;
+    setState(updatedState);
+    if (!isInitialSyncComplete) {
+      setIsInitialSyncComplete(true);
+    }
+    if (usedHydratedSnapshot) {
+      hydratedStateRef.current = null;
+    }
+
+    const timer = setTimeout(() => {
+      const unavailable = checkForUnavailableSongs(updatedState);
+      if (unavailable.length > 0) {
+        setUnavailableSongs(unavailable);
+        setShowUnavailableDialog(true);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [songs, checkForUnavailableSongs, storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || typeof window === 'undefined' || !isInitialSyncComplete) return;
+    const payload = {
+      shortId: uploadedTierlist?.shortId || initialTierlist?.shortId || null,
+      tiers,
+      tierOrder,
+      state,
+      tierListName: playlistName
+    };
+    try {
+      localStorage.setItem(`tierlist:${storageKey}`, JSON.stringify(payload));
+    } catch { void 0; }
+  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete]);
 
   // Update state when tierOrder changes
   useEffect(() => {
