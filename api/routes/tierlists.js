@@ -3,7 +3,11 @@ import { buildTierListDocument, hashSpotifyUserId } from '../utils/tierlistUtils
 
 export function createTierlistsRouter(db) {
   const router = express.Router();
-  const collection = db.collection('tierlists');
+  const collection = db.collection('tierlists', {
+    readPreference: 'primary',
+    readConcern: { level: 'majority' },
+    writeConcern: { w: 'majority' }
+  });
 
   //
   // CREATE new tierlist
@@ -41,7 +45,8 @@ export function createTierlistsRouter(db) {
 
         try {
           const result = await collection.insertOne(doc);
-          return res.status(201).json({ ...doc, _id: result.insertedId });
+          const saved = { ...doc, _id: result.insertedId };
+          return res.status(201).json(saved);
         } catch (err) {
           if (err.code === 11000 && attempt < maxRetries - 1) {
             continue;

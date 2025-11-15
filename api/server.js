@@ -23,10 +23,12 @@ const MONGODB_USER = process.env.MONGODB_USER;
 const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD;
 const MONGODB_HOST = process.env.MONGODB_HOST;
 const MONGODB_CLIENT_NAME = process.env.MONGODB_CLIENT_NAME;
+const MONGODB_DB = process.env.MONGODB_DB;
 
-const MONGODB_URI = `mongodb+srv://${encodeURIComponent(MONGODB_USER)}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}/?appName=${MONGODB_CLIENT_NAME}`;
+const MONGODB_URI = `mongodb+srv://${encodeURIComponent(MONGODB_USER)}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}/${MONGODB_DB}?retryWrites=true&w=majority&appName=${MONGODB_CLIENT_NAME}`;
 
 const mongoClient = new MongoClient(MONGODB_URI, {
+  readPreference: 'primary',
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
@@ -39,7 +41,7 @@ let tierlistsRouterInstance = null;
 async function initMongoConnection() {
   try {
     await mongoClient.connect();
-    const db = mongoClient.db(process.env.MONGODB_DB);
+    const db = mongoClient.db(MONGODB_DB);
     await db.command({ ping: 1 });
     await ensureTierlistIndexes(db);
     app.locals.mongoClient = mongoClient;
@@ -55,16 +57,26 @@ async function initMongoConnection() {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-app.use('/api/tierlists', (req, res, next) => {
-  const db = app.locals.db;
+app.use('/api/tierlists', async (req, res, next) => {
+  try {
+    if (!app.locals.db) {
+      await initMongoConnection();
+    }
 
-  if (!db || !tierlistsRouterInstance) {
+    const db = app.locals.db;
+
+    if (!db) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+
+    const router = createTierlistsRouter(db);
+    return router(req, res, next);
+  } catch (err) {
+    console.error('Error ensuring MongoDB connection:', err);
     return res.status(503).json({ error: 'Database not connected' });
   }
-
-  return tierlistsRouterInstance(req, res, next);
 });
 
 // Health check endpoint
@@ -72,7 +84,7 @@ app.get('/health', async (req, res) => {
   let db = false;
   try {
     if (app.locals.mongoClient) {
-      await app.locals.mongoClient.db(process.env.MONGODB_DB).command({ ping: 1 });
+      await app.locals.mongoClient.db(MONGODB_DB).command({ ping: 1 });
       db = true;
     }
   } catch {
