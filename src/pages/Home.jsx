@@ -672,6 +672,7 @@ const Home = ({ accessToken, setAccessToken }) => {
             debugMode={debugModeActive}
             initialTierlist={sharedTierlist}
             storageKey={shortId ? `shared:${shortId}` : songId ? `local:${songId}` : (selectedPlaylist ? `local:${getLocalIdForPlaylist(selectedPlaylist.id)}` : '')}
+            playlistImages={selectedPlaylist?.images || []}
           />
 
           <div className="made-with-spotify">

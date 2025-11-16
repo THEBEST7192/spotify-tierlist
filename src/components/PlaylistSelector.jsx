@@ -123,11 +123,17 @@ const PlaylistSelector = ({
           createdAt = Date.parse(firstTimestamp) || 0;
         }
 
+        const images = Array.isArray(saved?.images)
+          ? saved.images
+          : Array.isArray(saved?.state?.images)
+          ? saved.state.images
+          : [];
+
         const playlistLike = {
           id: localId,
           name,
           description: "Local tierlist",
-          images: [],
+          images,
           owner: { display_name: "You (local)" },
           _localId: localId,
           _kind: "local-tierlist",

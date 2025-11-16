@@ -11,7 +11,8 @@ const TierListJSONExportImport = ({
   uploadedTierlist = null,
   uploadMessage = '',
   uploadError = '',
-  uploadShareUrl = ''
+  uploadShareUrl = '',
+  playlistImages = []
 }) => {
   const fileInputRef = useRef(null);
 
@@ -44,7 +45,8 @@ const TierListJSONExportImport = ({
       state: {
         ...minifiedState,
         tierListName: tierListName // Ensure tierListName is included in the state
-      }
+      },
+      images: Array.isArray(playlistImages) ? playlistImages : []
     }; 
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });

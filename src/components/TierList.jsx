@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import html2canvas from "html2canvas";
 import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
@@ -246,7 +246,8 @@ const TierList = ({
   onImport,
   debugMode = false,
   initialTierlist = null,
-  storageKey = null
+  storageKey = null,
+  playlistImages = []
 }) => {
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
@@ -261,17 +262,26 @@ const TierList = ({
   const [randomChangeInterval, setRandomChangeInterval] = useState(null);
   const [isCinemaEnabled, setIsCinemaEnabled] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
   const [uploadedTierlist, setUploadedTierlist] = useState(null);
   const [uploadingTierlist, setUploadingTierlist] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [uploadShareUrl, setUploadShareUrl] = useState('');
-  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
-  const lastHydratedRef = useRef(null);
-  const hydratedFromStorageRef = useRef(false);
+  const [inferredPlaylistImages, setInferredPlaylistImages] = useState([]);
   const hydratedStateRef = useRef(null);
+  const hydratedFromStorageRef = useRef(false);
   const manualImportRef = useRef(false);
-
+  const lastHydratedRef = useRef(null);
+  const resolvedPlaylistImages = useMemo(() => {
+    if (Array.isArray(playlistImages) && playlistImages.length > 0) {
+      return playlistImages;
+    }
+    if (Array.isArray(inferredPlaylistImages) && inferredPlaylistImages.length > 0) {
+      return inferredPlaylistImages;
+    }
+    return [];
+  }, [playlistImages, inferredPlaylistImages]);
   const computeShareUrl = useCallback((shortId) => {
     if (!shortId || typeof window === 'undefined') return '';
     return `${window.location.origin}/tierlists/${shortId}`;
@@ -305,6 +315,12 @@ const TierList = ({
       setUploadShareUrl(shareUrl);
     }
 
+    if (Array.isArray(imported.images)) {
+      setInferredPlaylistImages(imported.images);
+    } else if (Array.isArray(imported.state?.images)) {
+      setInferredPlaylistImages(imported.state.images);
+    }
+
     return true;
   }, [computeShareUrl, onImport]);
 
@@ -328,6 +344,7 @@ const TierList = ({
     hydratedStateRef.current = null;
     manualImportRef.current = false;
     setIsInitialSyncComplete(false);
+    setInferredPlaylistImages([]);
   }, [storageKey]);
 
   useEffect(() => {
@@ -553,12 +570,13 @@ const TierList = ({
       state,
       tierListName: (typeof state?.tierListName === 'string' && state.tierListName.trim())
         ? state.tierListName
-        : playlistName
+        : playlistName,
+      images: resolvedPlaylistImages
     };
     try {
       localStorage.setItem(`tierlist:${storageKey}`, JSON.stringify(payload));
     } catch { void 0; }
-  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete]);
+  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete, resolvedPlaylistImages]);
 
   // Update state when tierOrder changes
   useEffect(() => {
@@ -829,7 +847,10 @@ const TierList = ({
     });
   };
 
-  const getFirstAvailableCoverImage = () => {
+  const getFirstAvailableCoverImage = useCallback(() => {
+    if (resolvedPlaylistImages.length > 0) {
+      return resolvedPlaylistImages[0]?.url || '';
+    }
     for (const tier of tierOrder) {
       const songsInTier = state[tier];
       if (!Array.isArray(songsInTier)) continue;
@@ -843,7 +864,7 @@ const TierList = ({
       }
     }
     return '';
-  };
+  }, [resolvedPlaylistImages, state, tierOrder]);
 
   // Handler for importing tierlist JSON
   const handleImport = (imported) => {
@@ -884,6 +905,7 @@ const TierList = ({
         username: user.display_name || user.id,
         tierListName: resolvedTierListName,
         coverImage,
+        images: resolvedPlaylistImages,
         tiers,
         tierOrder,
         state: tierlistState,
@@ -1377,6 +1399,7 @@ const TierList = ({
               uploadMessage=""
               uploadError=""
               uploadShareUrl=""
+              playlistImages={resolvedPlaylistImages}
             />
           </div>
 
