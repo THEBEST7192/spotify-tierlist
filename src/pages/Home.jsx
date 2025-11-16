@@ -55,6 +55,17 @@ const Home = ({ accessToken, setAccessToken }) => {
     }
   }, [genLocalId]);
 
+  const getStoredLocalTierlistName = useCallback((localId) => {
+    try {
+      const raw = localStorage.getItem(`tierlist:local:${localId}`);
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      return saved?.tierListName || saved?.state?.tierListName || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
   const konamiIndexRef = useRef(0);
 
@@ -214,6 +225,8 @@ const Home = ({ accessToken, setAccessToken }) => {
       setSelectedPlaylist(playlist);
       setPlaylistTracks(allTracks);
       const localId = getLocalIdForPlaylist(playlist.id);
+      const storedName = getStoredLocalTierlistName(localId);
+      const effectiveName = storedName || importedPlaylistName || playlist.name || '';
       // console.log('[Home] navigating to local route from handlePlaylistSelect', {
       //   playlistId: playlist.id,
       //   localId,
@@ -222,11 +235,12 @@ const Home = ({ accessToken, setAccessToken }) => {
       navigate(`/local/${localId}`, {
         state: {
           fromPlaylistSelect: true,
-          selectedPlaylist: playlist,
+          selectedPlaylist: { ...playlist, name: effectiveName },
           playlistTracks: allTracks,
-          importedPlaylistName: importedPlaylistName || playlist.name || ''
+          importedPlaylistName: effectiveName
         }
       });
+      setImportedPlaylistName(effectiveName);
       setIsLoading(false);
     } catch (err) {
       console.error("Error fetching playlist tracks:", err);
@@ -261,6 +275,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         const localId = getLocalIdForPlaylist(pendingPlaylist.id);
+        const storedName = getStoredLocalTierlistName(localId);
+        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
         // console.log('[Home] songGroupSelect result', {
         //   type: option.type,
         //   playlistId: pendingPlaylist.id,
@@ -270,11 +286,12 @@ const Home = ({ accessToken, setAccessToken }) => {
         navigate(`/local/${localId}`, {
           state: {
             fromPlaylistSelect: true,
-            selectedPlaylist: pendingPlaylist,
+            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
             playlistTracks: tracks,
-            importedPlaylistName: importedPlaylistName || pendingPlaylist.name || ''
+            importedPlaylistName: effectiveName
           }
         });
+        setImportedPlaylistName(effectiveName);
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
@@ -295,6 +312,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         const localId = getLocalIdForPlaylist(pendingPlaylist.id);
+        const storedName = getStoredLocalTierlistName(localId);
+        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
         // console.log('[Home] songGroupSelect result', {
         //   type: option.type,
         //   playlistId: pendingPlaylist.id,
@@ -304,11 +323,12 @@ const Home = ({ accessToken, setAccessToken }) => {
         navigate(`/local/${localId}`, {
           state: {
             fromPlaylistSelect: true,
-            selectedPlaylist: pendingPlaylist,
+            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
             playlistTracks: tracks,
-            importedPlaylistName: importedPlaylistName || pendingPlaylist.name || ''
+            importedPlaylistName: effectiveName
           }
         });
+        setImportedPlaylistName(effectiveName);
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
@@ -329,6 +349,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         const localId = getLocalIdForPlaylist(pendingPlaylist.id);
+        const storedName = getStoredLocalTierlistName(localId);
+        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
         // console.log('[Home] songGroupSelect result', {
         //   type: option.type,
         //   playlistId: pendingPlaylist.id,
@@ -338,11 +360,12 @@ const Home = ({ accessToken, setAccessToken }) => {
         navigate(`/local/${localId}`, {
           state: {
             fromPlaylistSelect: true,
-            selectedPlaylist: pendingPlaylist,
+            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
             playlistTracks: tracks,
-            importedPlaylistName: importedPlaylistName || pendingPlaylist.name || ''
+            importedPlaylistName: effectiveName
           }
         });
+        setImportedPlaylistName(effectiveName);
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
@@ -365,6 +388,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
         const localId = getLocalIdForPlaylist(pendingPlaylist.id);
+        const storedName = getStoredLocalTierlistName(localId);
+        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
         // console.log('[Home] songGroupSelect result', {
         //   type: option.type,
         //   playlistId: pendingPlaylist.id,
@@ -374,11 +399,12 @@ const Home = ({ accessToken, setAccessToken }) => {
         navigate(`/local/${localId}`, {
           state: {
             fromPlaylistSelect: true,
-            selectedPlaylist: pendingPlaylist,
+            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
             playlistTracks: tracks,
-            importedPlaylistName: importedPlaylistName || pendingPlaylist.name || ''
+            importedPlaylistName: effectiveName
           }
         });
+        setImportedPlaylistName(effectiveName);
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
@@ -423,6 +449,8 @@ const Home = ({ accessToken, setAccessToken }) => {
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(selectedTracks);
         const localId = getLocalIdForPlaylist(pendingPlaylist.id);
+        const storedName = getStoredLocalTierlistName(localId);
+        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
         // console.log('[Home] songGroupSelect result', {
         //   type: option.type,
         //   playlistId: pendingPlaylist.id,
@@ -432,11 +460,12 @@ const Home = ({ accessToken, setAccessToken }) => {
         navigate(`/local/${localId}`, {
           state: {
             fromPlaylistSelect: true,
-            selectedPlaylist: pendingPlaylist,
+            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
             playlistTracks: selectedTracks,
-            importedPlaylistName: importedPlaylistName || pendingPlaylist.name || ''
+            importedPlaylistName: effectiveName
           }
         });
+        setImportedPlaylistName(effectiveName);
         setIsLoading(false);
       } catch {
         setError("Failed to load tracks from this playlist");
@@ -523,12 +552,29 @@ const Home = ({ accessToken, setAccessToken }) => {
 
     setSharedTierlist(null);
 
+    let saved = null;
+    let storedName = null;
+    try {
+      const raw = localStorage.getItem(`tierlist:local:${songId}`);
+      saved = raw ? JSON.parse(raw) : null;
+      storedName = saved?.tierListName || saved?.state?.tierListName || null;
+      // console.log('[Home] hydrated from localStorage', {
+      //   songId,
+      //   hasSaved: !!saved,
+      //   importedPlaylistName: storedName,
+      //   savedKeys: saved ? Object.keys(saved) : []
+      // });
+    } catch (e) {
+      console.error('[Home] failed to hydrate from localStorage', e);
+    }
+
     const navState = location.state;
     if (navState?.fromPlaylistSelect) {
-      const nameFromState = navState.importedPlaylistName || navState.selectedPlaylist?.name || 'Local Spotify Tierlist';
+      const fallbackName = navState.importedPlaylistName || navState.selectedPlaylist?.name || 'Local Spotify Tierlist';
+      const nameFromState = storedName || fallbackName;
       setImportedPlaylistName(nameFromState);
       if (navState.selectedPlaylist) {
-        setSelectedPlaylist(navState.selectedPlaylist);
+        setSelectedPlaylist(prev => prev || { ...navState.selectedPlaylist, name: nameFromState });
       } else {
         setSelectedPlaylist(prev => prev || { id: `local-${songId}`, name: nameFromState });
       }
@@ -546,25 +592,11 @@ const Home = ({ accessToken, setAccessToken }) => {
       return;
     }
 
-    try {
-      const raw = localStorage.getItem(`tierlist:local:${songId}`);
-      const saved = raw ? JSON.parse(raw) : null;
-      const name = saved?.tierListName || saved?.state?.tierListName || 'Local Spotify Tierlist';
-      // console.log('[Home] hydrated from localStorage', {
-      //   songId,
-      //   hasSaved: !!saved,
-      //   importedPlaylistName: name,
-      //   savedKeys: saved ? Object.keys(saved) : []
-      // });
-
-      setImportedPlaylistName(name);
-      setSelectedPlaylist(prev => prev || { id: `local-${songId}`, name });
-      setPendingPlaylist(null);
-      setShowSongGroupModal(false);
-    } catch (e) {
-      console.error('[Home] failed to hydrate from localStorage', e);
-      setSelectedPlaylist(prev => prev || { id: `local-${songId}`, name: 'Local Spotify Tierlist' });
-    }
+    const name = storedName || 'Local Spotify Tierlist';
+    setImportedPlaylistName(name);
+    setSelectedPlaylist(prev => prev || { id: `local-${songId}`, name });
+    setPendingPlaylist(null);
+    setShowSongGroupModal(false);
   }, [songId, location.state]);
 
   if (isLoading) {

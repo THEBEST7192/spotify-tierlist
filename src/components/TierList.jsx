@@ -270,6 +270,7 @@ const TierList = ({
   const lastHydratedRef = useRef(null);
   const hydratedFromStorageRef = useRef(false);
   const hydratedStateRef = useRef(null);
+  const manualImportRef = useRef(false);
 
   const computeShareUrl = useCallback((shortId) => {
     if (!shortId || typeof window === 'undefined') return '';
@@ -282,14 +283,20 @@ const TierList = ({
       return false;
     }
 
+    // Mark as manual import if not silent - BEFORE setState to prevent songs effect from running
+    if (!silent) {
+      manualImportRef.current = true;
+    }
+
     setTiers(imported.tiers);
     setTierOrder(imported.tierOrder);
     hydratedStateRef.current = imported.state;
     setState(imported.state);
     setIsInitialSyncComplete(true);
 
-    if (imported.tierListName && typeof onImport === 'function') {
-      onImport(imported.tierListName);
+    const resolvedName = imported.tierListName || imported.state?.tierListName;
+    if (!silent && resolvedName && typeof onImport === 'function') {
+      onImport(resolvedName);
     }
 
     setUploadedTierlist(imported);
@@ -319,6 +326,7 @@ const TierList = ({
   useEffect(() => {
     hydratedFromStorageRef.current = false;
     hydratedStateRef.current = null;
+    manualImportRef.current = false;
     setIsInitialSyncComplete(false);
   }, [storageKey]);
 
@@ -337,7 +345,7 @@ const TierList = ({
       hydrateTierlist(saved, { silent: true });
       hydratedFromStorageRef.current = true;
     } catch { void 0; }
-  }, [storageKey, hydrateTierlist]);
+  }, [storageKey]);
   
   // State for the tier list
   const [state, setState] = useState(() => {
@@ -426,6 +434,11 @@ const TierList = ({
       return;
     }
 
+    // If we just did a manual import, skip this effect to preserve imported data
+    if (manualImportRef.current) {
+      return;
+    }
+
     const incomingByDragId = new Map();
     const incomingByTrackId = new Map();
     songs.forEach(song => {
@@ -438,7 +451,7 @@ const TierList = ({
     });
 
     const baseState = hydratedStateRef.current || state;
-    const tierNames = Object.keys(baseState || {});
+    const tierNames = Object.keys(baseState || {}).filter(name => name !== 'tierListName');
     const existingSongIds = new Set();
     let matchedCount = 0;
 
@@ -538,7 +551,9 @@ const TierList = ({
       tiers,
       tierOrder,
       state,
-      tierListName: playlistName
+      tierListName: (typeof state?.tierListName === 'string' && state.tierListName.trim())
+        ? state.tierListName
+        : playlistName
     };
     try {
       localStorage.setItem(`tierlist:${storageKey}`, JSON.stringify(payload));
@@ -832,7 +847,7 @@ const TierList = ({
 
   // Handler for importing tierlist JSON
   const handleImport = (imported) => {
-    const hydrated = hydrateTierlist(imported);
+    const hydrated = hydrateTierlist(imported, { silent: false });
     if (!hydrated) {
       console.error('Invalid import JSON format');
     }
