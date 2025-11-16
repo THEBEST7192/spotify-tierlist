@@ -96,6 +96,13 @@ export const getTierlist = async (shortId) => {
   return response.data;
 };
 
+export const toggleTierlistPrivacy = async (shortId, spotifyUserId) => {
+  const response = await backendApi.patch(`/api/tierlists/${shortId}/privacy`, {
+    spotifyUserId
+  });
+  return response.data;
+};
+
 /**
  * Fetch public tierlists from the backend API
  * @param {Object} params - Optional query parameters

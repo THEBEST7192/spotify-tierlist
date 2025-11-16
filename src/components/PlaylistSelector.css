@@ -221,6 +221,46 @@
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
 }
 
+.playlist-privacy-button {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.playlist-privacy-button.public {
+  background: rgba(0, 128, 0, 0.6);
+}
+
+.playlist-privacy-button.private {
+  background: rgba(128, 0, 0, 0.6);
+}
+
+.playlist-privacy-button:hover,
+.playlist-privacy-button:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.playlist-privacy-button img {
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
 .playlist-button:hover {
   background-color: #1ed760;
   transform: translateY(-2px);
@@ -448,6 +488,57 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 8px;
+}
+
+.modal-privacy-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.modal-privacy-toggle .modal-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.privacy-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.privacy-toggle img {
+  width: 18px;
+  height: 18px;
+}
+
+.privacy-toggle.public {
+  background: rgba(0, 128, 0, 0.4);
+}
+
+.privacy-toggle.private {
+  background: rgba(128, 0, 0, 0.45);
+}
+
+.privacy-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.privacy-toggle:not(:disabled):hover,
+.privacy-toggle:not(:disabled):focus {
+  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.65);
 }
 
 .modal-error {

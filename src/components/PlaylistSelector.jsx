@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, searchPlaylists, getPlaylistById, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist } from "../utils/backendApi";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy } from "../utils/backendApi";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -149,6 +149,7 @@ const PlaylistSelector = ({
   const [error, setError] = useState(null);
   const [spotifyUserId, setSpotifyUserId] = useState(null);
   const [coverUpdatingId, setCoverUpdatingId] = useState(null);
+  const [privacyUpdatingId, setPrivacyUpdatingId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalPlaylist, setEditModalPlaylist] = useState(null);
   const [editModalContext, setEditModalContext] = useState(null);
@@ -158,6 +159,7 @@ const PlaylistSelector = ({
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const [uploadDisplayLabel, setUploadDisplayLabel] = useState("");
   const [originalCoverImage, setOriginalCoverImage] = useState("");
+  const [editIsPublic, setEditIsPublic] = useState(true);
   const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
   const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
   const konamiIndex = useRef(0);
@@ -556,18 +558,31 @@ const PlaylistSelector = ({
     return null;
   }, [spotifyUserId]);
 
-  const updateOnlineTierlistImage = useCallback(async (playlist, imageUrl) => {
+  const updateOnlineTierlistImage = useCallback(async (playlist, imageUrl, nextIsPublic = null) => {
     if (!playlist?._shortId) return false;
     const userId = await ensureSpotifyUserId();
     if (!userId) return false;
     setCoverUpdatingId(playlist._shortId);
+    const payload = {
+      spotifyUserId: userId,
+      coverImage: imageUrl || ''
+    };
+    if (typeof nextIsPublic === 'boolean') {
+      payload.isPublic = nextIsPublic;
+    }
     try {
-      await updateTierlist(playlist._shortId, {
-        spotifyUserId: userId,
-        coverImage: imageUrl || ''
-      });
+      await updateTierlist(playlist._shortId, payload);
       setOnlineTierlists(prev => prev.map(list => (
-        list?._shortId === playlist._shortId ? { ...list, coverImage: imageUrl || '' } : list
+        list?._shortId === playlist._shortId
+          ? {
+              ...list,
+              coverImage: imageUrl || '',
+              isPublic: typeof payload.isPublic === 'boolean' ? payload.isPublic : list.isPublic,
+              description: typeof payload.isPublic === 'boolean'
+                ? (payload.isPublic ? 'Online public tierlist' : 'Online private tierlist')
+                : list.description
+            }
+          : list
       )));
       return true;
     } catch (err) {
@@ -579,6 +594,35 @@ const PlaylistSelector = ({
     }
   }, [ensureSpotifyUserId]);
 
+  const handleTogglePrivacy = useCallback(async (playlist, event) => {
+    event?.stopPropagation?.();
+    if (!playlist?._shortId || !playlist.isOwnerSelf || privacyUpdatingId) return;
+    const userId = await ensureSpotifyUserId();
+    if (!userId) return;
+    setPrivacyUpdatingId(playlist._shortId);
+    try {
+      const updatedDoc = await toggleTierlistPrivacy(playlist._shortId, userId);
+      setOnlineTierlists(prev => {
+        const newList = prev.map(list => {
+          if (list?._shortId === playlist._shortId) {
+            return {
+              ...list,
+              isPublic: updatedDoc.isPublic,
+              description: updatedDoc.isPublic ? 'Online public tierlist' : 'Online private tierlist'
+            };
+          }
+          return list;
+        });
+        return newList;
+      });
+    } catch (err) {
+      console.error('Failed to toggle tierlist privacy', err);
+      setError('Failed to toggle tierlist visibility.');
+    } finally {
+      setPrivacyUpdatingId(null);
+    }
+  }, [ensureSpotifyUserId, privacyUpdatingId]);
+
   const resetEditModalState = useCallback(() => {
     setIsEditModalOpen(false);
     setEditModalPlaylist(null);
@@ -587,6 +631,7 @@ const PlaylistSelector = ({
     setEditModalError(null);
     setUploadDisplayLabel("");
     setOriginalCoverImage("");
+    setEditIsPublic(true);
   }, []);
 
   const openEditModal = useCallback((playlist, context) => {
@@ -596,6 +641,8 @@ const PlaylistSelector = ({
     const baseImage = playlist.coverImage || playlist.images?.[0]?.url || "";
     setOriginalCoverImage(baseImage);
     setEditImageUrl(baseImage);
+    const isPublicFlag = typeof playlist.isPublic === 'boolean' ? playlist.isPublic : true;
+    setEditIsPublic(isPublicFlag);
     setEditModalError(null);
     setUploadDisplayLabel(baseImage ? 'Using existing cover' : 'No image selected');
     setIsEditModalOpen(true);
@@ -656,6 +703,12 @@ const PlaylistSelector = ({
     }
   }, [computeDefaultCoverFromPlaylist, editModalContext, editModalPlaylist, isModalBusy]);
 
+  const handleModalPrivacyToggle = useCallback(() => {
+    if (isModalBusy) return;
+    if (!editModalPlaylist?._shortId || !editModalPlaylist?.isOwnerSelf) return;
+    setEditIsPublic(prev => !prev);
+  }, [editModalPlaylist, isModalBusy]);
+
   const handleFileUploadChange = useCallback(async (event) => {
     const input = event.target;
     if (isModalBusy) {
@@ -695,7 +748,7 @@ const PlaylistSelector = ({
       if (editModalContext === 'local' && editModalPlaylist._localId) {
         success = updateLocalTierlistImage(editModalPlaylist._localId, normalizedValue);
       } else if (editModalContext === 'online' && editModalPlaylist._shortId) {
-        success = await updateOnlineTierlistImage(editModalPlaylist, normalizedValue);
+        success = await updateOnlineTierlistImage(editModalPlaylist, normalizedValue, editIsPublic);
       }
     } catch (err) {
       console.error('Failed to persist cover change', err);
@@ -709,7 +762,7 @@ const PlaylistSelector = ({
     } else {
       setEditModalError('Failed to update cover image. Please try again.');
     }
-  }, [editModalPlaylist, editModalContext, editImageUrl, isModalBusy, resetEditModalState, updateLocalTierlistImage, updateOnlineTierlistImage]);
+  }, [editModalPlaylist, editModalContext, editImageUrl, editIsPublic, isModalBusy, resetEditModalState, updateLocalTierlistImage, updateOnlineTierlistImage]);
 
   const handleEditCoverClick = useCallback((playlist, event) => {
     event.stopPropagation();
@@ -886,9 +939,15 @@ const PlaylistSelector = ({
                            playlist.owner.display_name : 
                            'Unknown';
           
+          const playlistKey = playlist._shortId 
+            ? `${playlist._shortId}-${playlist.isPublic ? 'public' : 'private'}`
+            : playlist._localId 
+            ? `local-${playlist._localId}`
+            : playlist.id || Math.random().toString();
+          
           return (
             <button
-              key={playlist.id || Math.random().toString()}
+              key={playlistKey}
               className="playlist-button"
               onClick={() => handlePlaylistClick(playlist)}
             >
@@ -901,6 +960,17 @@ const PlaylistSelector = ({
                   aria-label="Edit cover image"
                 >
                   <img src="/assets/edit.svg" alt="Edit" />
+                </button>
+              ) : null}
+              {searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf ? (
+                <button
+                  type="button"
+                  className={`playlist-privacy-button ${playlist.isPublic ? 'public' : 'private'}`}
+                  disabled={privacyUpdatingId === playlist._shortId}
+                  onClick={(event) => handleTogglePrivacy(playlist, event)}
+                  aria-label={playlist.isPublic ? 'Set tierlist private' : 'Set tierlist public'}
+                >
+                  <img src={playlist.isPublic ? '/assets/public.svg' : '/assets/private.svg'} alt="" aria-hidden="true" />
                 </button>
               ) : null}
               <img
@@ -979,6 +1049,23 @@ const PlaylistSelector = ({
                 <img src={modalPreviewUrl} alt="Cover preview" />
               </div>
             </div>
+            {editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf && (
+              <div className="modal-privacy-toggle" role="group" aria-label="Tierlist visibility">
+                <span className="modal-label">Visibility</span>
+                <button
+                  type="button"
+                  className={`privacy-toggle ${editIsPublic ? 'public' : 'private'}`}
+                  onClick={handleModalPrivacyToggle}
+                  disabled={isModalBusy}
+                >
+                  <img
+                    src={editIsPublic ? '/assets/public.svg' : '/assets/private.svg'}
+                    alt={editIsPublic ? 'Public tierlist' : 'Private tierlist'}
+                  />
+                  <span>{editIsPublic ? 'Public (anyone with the link can view)' : 'Private (only you can view)'}</span>
+                </button>
+              </div>
+            )}
             {editModalError && <div className="modal-error">{editModalError}</div>}
             <div className="modal-actions">
               <button

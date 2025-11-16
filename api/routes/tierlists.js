@@ -172,7 +172,7 @@ export function createTierlistsRouter(db) {
         { returnDocument: 'after' }
       );
 
-      return res.json(result.value);
+      return res.json(result);
     } catch (err) {
       console.error('Error updating tierlist:', err);
       return res.status(500).json({ error: 'Failed to update tierlist' });
@@ -262,10 +262,7 @@ export function createTierlistsRouter(db) {
         { returnDocument: 'after' }
       );
 
-      return res.json({
-        message: `Privacy toggled to ${result.value.isPublic ? 'Public' : 'Private'}`,
-        isPublic: result.value.isPublic
-      });
+      return res.json(result);
     } catch (err) {
       console.error('Error toggling privacy:', err);
       return res.status(500).json({ error: 'Failed to toggle privacy' });
