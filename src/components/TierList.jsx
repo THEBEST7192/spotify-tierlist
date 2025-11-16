@@ -268,20 +268,26 @@ const TierList = ({
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [uploadShareUrl, setUploadShareUrl] = useState('');
-  const [inferredPlaylistImages, setInferredPlaylistImages] = useState([]);
+  const [inferredCoverImage, setInferredCoverImage] = useState('');
   const hydratedStateRef = useRef(null);
   const hydratedFromStorageRef = useRef(false);
   const manualImportRef = useRef(false);
   const lastHydratedRef = useRef(null);
+  const resolvedCoverImage = useMemo(() => {
+    if (Array.isArray(playlistImages) && playlistImages.length > 0) {
+      return playlistImages[0]?.url || '';
+    }
+    return inferredCoverImage || '';
+  }, [playlistImages, inferredCoverImage]);
   const resolvedPlaylistImages = useMemo(() => {
     if (Array.isArray(playlistImages) && playlistImages.length > 0) {
       return playlistImages;
     }
-    if (Array.isArray(inferredPlaylistImages) && inferredPlaylistImages.length > 0) {
-      return inferredPlaylistImages;
+    if (resolvedCoverImage) {
+      return [{ url: resolvedCoverImage }];
     }
     return [];
-  }, [playlistImages, inferredPlaylistImages]);
+  }, [playlistImages, resolvedCoverImage]);
   const computeShareUrl = useCallback((shortId) => {
     if (!shortId || typeof window === 'undefined') return '';
     return `${window.location.origin}/tierlists/${shortId}`;
@@ -315,11 +321,12 @@ const TierList = ({
       setUploadShareUrl(shareUrl);
     }
 
-    if (Array.isArray(imported.images)) {
-      setInferredPlaylistImages(imported.images);
-    } else if (Array.isArray(imported.state?.images)) {
-      setInferredPlaylistImages(imported.state.images);
-    }
+    const importedCover = imported.coverImage
+      || imported.state?.coverImage
+      || imported.images?.[0]?.url
+      || imported.state?.images?.[0]?.url
+      || '';
+    setInferredCoverImage(importedCover);
 
     return true;
   }, [computeShareUrl, onImport]);
@@ -344,7 +351,7 @@ const TierList = ({
     hydratedStateRef.current = null;
     manualImportRef.current = false;
     setIsInitialSyncComplete(false);
-    setInferredPlaylistImages([]);
+    setInferredCoverImage('');
   }, [storageKey]);
 
   useEffect(() => {
@@ -571,12 +578,12 @@ const TierList = ({
       tierListName: (typeof state?.tierListName === 'string' && state.tierListName.trim())
         ? state.tierListName
         : playlistName,
-      images: resolvedPlaylistImages
+      coverImage: resolvedCoverImage
     };
     try {
       localStorage.setItem(`tierlist:${storageKey}`, JSON.stringify(payload));
     } catch { void 0; }
-  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete, resolvedPlaylistImages]);
+  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete, resolvedCoverImage]);
 
   // Update state when tierOrder changes
   useEffect(() => {
@@ -905,7 +912,6 @@ const TierList = ({
         username: user.display_name || user.id,
         tierListName: resolvedTierListName,
         coverImage,
-        images: resolvedPlaylistImages,
         tiers,
         tierOrder,
         state: tierlistState,
@@ -1399,7 +1405,7 @@ const TierList = ({
               uploadMessage=""
               uploadError=""
               uploadShareUrl=""
-              playlistImages={resolvedPlaylistImages}
+              coverImage={resolvedCoverImage}
             />
           </div>
 

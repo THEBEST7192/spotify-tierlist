@@ -1,7 +1,115 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, searchPlaylists, getPlaylistById, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists } from "../utils/backendApi";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist } from "../utils/backendApi";
 import "./PlaylistSelector.css";
+
+const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
+const MAX_RESIZE_ATTEMPTS = 10;
+const SCALE_STEP = 0.85;
+const QUALITY_STEP = 0.9;
+
+const pickBestSongImageUrl = (images = []) => {
+  if (!Array.isArray(images) || images.length === 0) {
+    return null;
+  }
+
+  const exact300 = images.find((img) => Number(img?.width) === 300 || Number(img?.height) === 300);
+  if (exact300?.url) {
+    return exact300.url;
+  }
+
+  const mediumImage = images.length > 1 ? images[1] : null;
+  if (mediumImage?.url) {
+    return mediumImage.url;
+  }
+
+  return images[0]?.url || null;
+};
+
+const extractFirstSongImageFromTierlist = (tierlistData) => {
+  if (!tierlistData || typeof tierlistData !== 'object') {
+    return null;
+  }
+
+  const tierState = tierlistData.state;
+  if (!tierState || typeof tierState !== 'object') {
+    return null;
+  }
+
+  const tierOrderFromData = Array.isArray(tierlistData.tierOrder)
+    ? tierlistData.tierOrder
+    : Array.isArray(tierState.tierOrder)
+    ? tierState.tierOrder
+    : Object.keys(tierState).filter((key) => Array.isArray(tierState[key]));
+
+  for (const tierName of tierOrderFromData) {
+    const entries = tierState?.[tierName];
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      const song = entry?.content || entry;
+      const albumImages = song?.album?.images;
+      const candidate = pickBestSongImageUrl(albumImages);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+};
+
+const estimateBase64Bytes = (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== 'string') return 0;
+  const commaIndex = dataUrl.indexOf(',');
+  const base64Length = commaIndex >= 0 ? dataUrl.length - (commaIndex + 1) : dataUrl.length;
+  return Math.ceil(base64Length * 3 / 4);
+};
+
+const downscaleImageToLimit = (file, limitBytes = MAX_UPLOAD_BYTES) => new Promise((resolve, reject) => {
+  if (typeof window === 'undefined') {
+    reject(new Error('Image uploads are not supported in this environment.'));
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Failed to read the selected file.'));
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        let width = img.width;
+        let height = img.height;
+        let quality = 0.92;
+        let dataUrl = reader.result;
+        for (let attempt = 0; attempt < MAX_RESIZE_ATTEMPTS; attempt++) {
+          canvas.width = Math.max(1, Math.round(width));
+          canvas.height = Math.max(1, Math.round(height));
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          dataUrl = canvas.toDataURL('image/jpeg', Math.min(0.95, quality));
+          if (estimateBase64Bytes(dataUrl) <= limitBytes) {
+            resolve(dataUrl);
+            return;
+          }
+          width *= SCALE_STEP;
+          height *= SCALE_STEP;
+          quality *= QUALITY_STEP;
+        }
+        if (estimateBase64Bytes(dataUrl) <= limitBytes) {
+          resolve(dataUrl);
+        } else {
+          reject(new Error('Could not shrink image under 100KB. Try a smaller image.'));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => reject(new Error('Unsupported image file.'));
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 // Helper function to decode HTML entities in text
 const decodeHtmlEntities = (text) => {
@@ -39,12 +147,24 @@ const PlaylistSelector = ({
   const [includeOwnOnlineTierlists, setIncludeOwnOnlineTierlists] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [spotifyUserId, setSpotifyUserId] = useState(null);
+  const [coverUpdatingId, setCoverUpdatingId] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalPlaylist, setEditModalPlaylist] = useState(null);
+  const [editModalContext, setEditModalContext] = useState(null);
+  const [editImageUrl, setEditImageUrl] = useState("");
+  const [editModalSubmitting, setEditModalSubmitting] = useState(false);
+  const [editModalError, setEditModalError] = useState(null);
+  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+  const [uploadDisplayLabel, setUploadDisplayLabel] = useState("");
+  const [originalCoverImage, setOriginalCoverImage] = useState("");
   const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
   const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
   const konamiIndex = useRef(0);
   const debugModeIndex = useRef(0);
   const searchInputRef = useRef(null);
   const publicSearchInputRef = useRef(null);
+  const fileUploadInputRef = useRef(null);
 
   const checkKonamiCode = useCallback((key) => {
     // Check for Konami code
@@ -123,17 +243,17 @@ const PlaylistSelector = ({
           createdAt = Date.parse(firstTimestamp) || 0;
         }
 
-        const images = Array.isArray(saved?.images)
-          ? saved.images
-          : Array.isArray(saved?.state?.images)
-          ? saved.state.images
-          : [];
+        const coverImage = saved?.coverImage
+          || saved?.state?.coverImage
+          || saved?.images?.[0]?.url
+          || saved?.state?.images?.[0]?.url
+          || '';
 
         const playlistLike = {
           id: localId,
           name,
           description: "Local tierlist",
-          images,
+          coverImage,
           owner: { display_name: "You (local)" },
           _localId: localId,
           _kind: "local-tierlist",
@@ -255,15 +375,24 @@ const PlaylistSelector = ({
     return clone;
   }, []);
 
-  const sortedOnlineTierlists = useMemo(() => {
-    if (!Array.isArray(onlineTierlists)) return [];
-    return createSortedList(onlineTierlists, onlineSortOption);
-  }, [onlineTierlists, onlineSortOption, createSortedList]);
+  const { sortedLocalTierlists, sortedOnlineTierlists } = useMemo(() => {
+    return {
+      sortedLocalTierlists: createSortedList(localTierlists, localSortOption),
+      sortedOnlineTierlists: createSortedList(onlineTierlists, onlineSortOption)
+    };
+  }, [createSortedList, localTierlists, localSortOption, onlineTierlists, onlineSortOption]);
 
-  const sortedLocalTierlists = useMemo(() => {
-    if (!Array.isArray(localTierlists)) return [];
-    return createSortedList(localTierlists, localSortOption);
-  }, [localTierlists, localSortOption, createSortedList]);
+  const filterPlaylistsByQuery = useCallback((lists, query) => {
+    if (!Array.isArray(lists) || !query) return lists || [];
+    const lowered = query.toLowerCase();
+    return lists.filter((playlist) => {
+      if (!playlist) return false;
+      const name = (playlist.name || "").toLowerCase();
+      const desc = (playlist.description || "").toLowerCase();
+      const owner = (playlist.owner && playlist.owner.display_name ? playlist.owner.display_name : "").toLowerCase();
+      return name.includes(lowered) || desc.includes(lowered) || owner.includes(lowered);
+    });
+  }, []);
 
   let basePlaylists =
     searchMode === "user"
@@ -282,30 +411,12 @@ const PlaylistSelector = ({
 
   let displayPlaylists = basePlaylists || [];
 
-  if (searchMode === "local" && localSearchQuery && Array.isArray(basePlaylists)) {
-    const q = localSearchQuery.toLowerCase();
-    displayPlaylists = basePlaylists.filter((playlist) => {
-      if (!playlist) return false;
-      const name = (playlist.name || "").toLowerCase();
-      const desc = (playlist.description || "").toLowerCase();
-      const owner = (playlist.owner && playlist.owner.display_name
-        ? playlist.owner.display_name
-        : "").toLowerCase();
-      return name.includes(q) || desc.includes(q) || owner.includes(q);
-    });
+  if (searchMode === "local" && localSearchQuery) {
+    displayPlaylists = filterPlaylistsByQuery(basePlaylists, localSearchQuery);
   }
 
-  if (searchMode === "online" && onlineSearchQuery && Array.isArray(basePlaylists)) {
-    const q = onlineSearchQuery.toLowerCase();
-    displayPlaylists = basePlaylists.filter((playlist) => {
-      if (!playlist) return false;
-      const name = (playlist.name || "").toLowerCase();
-      const desc = (playlist.description || "").toLowerCase();
-      const owner = (playlist.owner && playlist.owner.display_name
-        ? playlist.owner.display_name
-        : "").toLowerCase();
-      return name.includes(q) || desc.includes(q) || owner.includes(q);
-    });
+  if (searchMode === "online" && onlineSearchQuery) {
+    displayPlaylists = filterPlaylistsByQuery(basePlaylists, onlineSearchQuery);
   }
 
   useEffect(() => {
@@ -337,11 +448,12 @@ const PlaylistSelector = ({
           if (!list || !list.shortId || seen.has(list.shortId)) return;
           seen.add(list.shortId);
           const createdAtValue = Date.parse(list.createdAt || list.updatedAt || '') || 0;
+          const coverImage = list.coverImage || list.images?.[0]?.url || '';
           normalized.push({
             id: list.shortId,
             name: list.tierListName || "Untitled Tierlist",
             description: list.isPublic ? "Online public tierlist" : "Online private tierlist",
-            images: list.coverImage ? [{ url: list.coverImage }] : [],
+            coverImage,
             owner: { display_name: list.username || "Unknown" },
             _shortId: list.shortId,
             _kind: "online-tierlist",
@@ -399,7 +511,221 @@ const PlaylistSelector = ({
     }
   };
 
+  const updateLocalTierlistImage = useCallback((localId, imageUrl) => {
+    if (typeof window === 'undefined') return;
+    const storageKey = `tierlist:local:${localId}`;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (imageUrl) {
+        saved.coverImage = imageUrl;
+        if (saved.state) {
+          saved.state.coverImage = imageUrl;
+        }
+      } else {
+        delete saved.coverImage;
+        if (saved.state && saved.state.coverImage) {
+          delete saved.state.coverImage;
+        }
+      }
+      window.localStorage.setItem(storageKey, JSON.stringify(saved));
+      setLocalTierlists(prev => prev.map(list => (
+        list?._localId === localId ? { ...list, coverImage: imageUrl || '' } : list
+      )));
+      return true;
+    } catch (err) {
+      console.error('Failed to update local tierlist image', err);
+      return false;
+    }
+  }, []);
+
+  const ensureSpotifyUserId = useCallback(async () => {
+    if (spotifyUserId) return spotifyUserId;
+    try {
+      const response = await getCurrentUser();
+      const id = response?.data?.id;
+      if (id) {
+        setSpotifyUserId(id);
+        return id;
+      }
+    } catch (err) {
+      console.error('Failed to fetch Spotify user', err);
+    }
+    setError('Unable to verify Spotify account for cover changes.');
+    return null;
+  }, [spotifyUserId]);
+
+  const updateOnlineTierlistImage = useCallback(async (playlist, imageUrl) => {
+    if (!playlist?._shortId) return false;
+    const userId = await ensureSpotifyUserId();
+    if (!userId) return false;
+    setCoverUpdatingId(playlist._shortId);
+    try {
+      await updateTierlist(playlist._shortId, {
+        spotifyUserId: userId,
+        coverImage: imageUrl || ''
+      });
+      setOnlineTierlists(prev => prev.map(list => (
+        list?._shortId === playlist._shortId ? { ...list, coverImage: imageUrl || '' } : list
+      )));
+      return true;
+    } catch (err) {
+      console.error('Failed to update online tierlist cover', err);
+      setError('Failed to update online cover image.');
+      return false;
+    } finally {
+      setCoverUpdatingId(null);
+    }
+  }, [ensureSpotifyUserId]);
+
+  const resetEditModalState = useCallback(() => {
+    setIsEditModalOpen(false);
+    setEditModalPlaylist(null);
+    setEditModalContext(null);
+    setEditImageUrl("");
+    setEditModalError(null);
+    setUploadDisplayLabel("");
+    setOriginalCoverImage("");
+  }, []);
+
+  const openEditModal = useCallback((playlist, context) => {
+    if (!playlist || !context) return;
+    setEditModalPlaylist(playlist);
+    setEditModalContext(context);
+    const baseImage = playlist.coverImage || playlist.images?.[0]?.url || "";
+    setOriginalCoverImage(baseImage);
+    setEditImageUrl(baseImage);
+    setEditModalError(null);
+    setUploadDisplayLabel(baseImage ? 'Using existing cover' : 'No image selected');
+    setIsEditModalOpen(true);
+  }, []);
+
+  const fetchTierlistDataForReset = useCallback(async (playlist) => {
+    if (!playlist) return null;
+    try {
+      if (playlist._localId) {
+        if (typeof window === 'undefined') return null;
+        const raw = window.localStorage.getItem(`tierlist:local:${playlist._localId}`);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      }
+      if (playlist._shortId) {
+        return await getTierlist(playlist._shortId);
+      }
+    } catch (err) {
+      console.error('Failed to load tierlist data for reset', err);
+    }
+    return null;
+  }, []);
+
+  const computeDefaultCoverFromPlaylist = useCallback(async (playlist) => {
+    const tierlistData = await fetchTierlistDataForReset(playlist);
+    if (!tierlistData) return null;
+    return extractFirstSongImageFromTierlist(tierlistData);
+  }, [fetchTierlistDataForReset]);
+
+  const activeModalRequestId = editModalPlaylist ? (editModalPlaylist._shortId || editModalPlaylist.id) : null;
+  const isOnlineModalUpdatePending = editModalContext === 'online' && !!activeModalRequestId && coverUpdatingId === activeModalRequestId;
+  const isModalBusy = editModalSubmitting || isOnlineModalUpdatePending || isProcessingUpload;
+
+  const handleModalClose = useCallback(() => {
+    if (isModalBusy) return;
+    resetEditModalState();
+  }, [isModalBusy, resetEditModalState]);
+
+  const handleModalReset = useCallback(async () => {
+    if (isModalBusy || !editModalPlaylist || !editModalContext) return;
+    setEditModalError(null);
+    setIsProcessingUpload(true);
+    try {
+      const defaultCover = await computeDefaultCoverFromPlaylist(editModalPlaylist);
+      if (!defaultCover) {
+        setUploadDisplayLabel('No default cover available');
+        setEditModalError('Could not find a song cover to use by default.');
+        return;
+      }
+
+      setEditImageUrl(defaultCover);
+      setUploadDisplayLabel('Using first song cover');
+    } catch (err) {
+      console.error('Failed to compute default cover image', err);
+      setEditModalError(err?.message || 'Failed to reset cover image to default.');
+    } finally {
+      setIsProcessingUpload(false);
+    }
+  }, [computeDefaultCoverFromPlaylist, editModalContext, editModalPlaylist, isModalBusy]);
+
+  const handleFileUploadChange = useCallback(async (event) => {
+    const input = event.target;
+    if (isModalBusy) {
+      if (input) input.value = '';
+      return;
+    }
+    const file = input?.files?.[0];
+    if (!file) return;
+    setIsProcessingUpload(true);
+    setEditModalError(null);
+    try {
+      const resizedDataUrl = await downscaleImageToLimit(file, MAX_UPLOAD_BYTES);
+      setEditImageUrl(resizedDataUrl);
+      setUploadDisplayLabel(file.name ? `Uploaded: ${file.name}` : 'Custom image selected');
+    } catch (err) {
+      console.error('Failed to process uploaded image', err);
+      setEditModalError(err?.message || 'Failed to process that image. Please try another file.');
+    } finally {
+      if (input) input.value = '';
+      setIsProcessingUpload(false);
+    }
+  }, [isModalBusy]);
+
+  const handleUploadButtonClick = useCallback(() => {
+    if (isModalBusy) return;
+    fileUploadInputRef.current?.click();
+  }, [isModalBusy]);
+
+  const handleEditModalSubmit = useCallback(async (event) => {
+    event.preventDefault();
+    if (!editModalPlaylist || !editModalContext || isModalBusy) return;
+    setEditModalError(null);
+    setEditModalSubmitting(true);
+    const normalizedValue = editImageUrl || null;
+    let success = false;
+    try {
+      if (editModalContext === 'local' && editModalPlaylist._localId) {
+        success = updateLocalTierlistImage(editModalPlaylist._localId, normalizedValue);
+      } else if (editModalContext === 'online' && editModalPlaylist._shortId) {
+        success = await updateOnlineTierlistImage(editModalPlaylist, normalizedValue);
+      }
+    } catch (err) {
+      console.error('Failed to persist cover change', err);
+      success = false;
+    } finally {
+      setEditModalSubmitting(false);
+    }
+
+    if (success) {
+      resetEditModalState();
+    } else {
+      setEditModalError('Failed to update cover image. Please try again.');
+    }
+  }, [editModalPlaylist, editModalContext, editImageUrl, isModalBusy, resetEditModalState, updateLocalTierlistImage, updateOnlineTierlistImage]);
+
+  const handleEditCoverClick = useCallback((playlist, event) => {
+    event.stopPropagation();
+    if (!playlist) return;
+    const context = playlist._localId ? 'local' : playlist._shortId ? 'online' : null;
+    if (!context) return;
+    if (context === 'online' && !playlist.isOwnerSelf) {
+      return;
+    }
+    openEditModal({ ...playlist }, context);
+  }, [openEditModal]);
+
+  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || '/default-playlist-cover.png';
+
   return (
+    <>
     <div className="playlist-selector-container">
       <h2>Select a Playlist</h2>
       
@@ -551,11 +877,9 @@ const PlaylistSelector = ({
           if (!playlist) return null;
           
           // Get image URL safely
-          const imageUrl = playlist.images && 
-                          playlist.images.length > 0 && 
-                          playlist.images[0] ? 
-                          playlist.images[0].url : 
-                          '/default-playlist-cover.png';
+          const imageUrl = playlist.coverImage
+            || (playlist.images && playlist.images.length > 0 && playlist.images[0]?.url)
+            || '/default-playlist-cover.png';
           
           // Get owner display name safely
           const ownerName = playlist.owner && playlist.owner.display_name ? 
@@ -568,6 +892,17 @@ const PlaylistSelector = ({
               className="playlist-button"
               onClick={() => handlePlaylistClick(playlist)}
             >
+              {(searchMode === 'local' && playlist._localId) || (searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf) ? (
+                <button
+                  type="button"
+                  className="playlist-edit-button"
+                  disabled={coverUpdatingId === playlist.id || coverUpdatingId === playlist._shortId}
+                  onClick={(event) => handleEditCoverClick(playlist, event)}
+                  aria-label="Edit cover image"
+                >
+                  <img src="/assets/edit.svg" alt="Edit" />
+                </button>
+              ) : null}
               <img
                 src={imageUrl}
                 alt={playlist.name || 'Playlist'}
@@ -592,6 +927,90 @@ const PlaylistSelector = ({
         )}
       </div>
     </div>
+    {isEditModalOpen && (
+      <div className="cover-edit-modal-overlay" role="dialog" aria-modal="true">
+        <div className="cover-edit-modal">
+          <button
+            type="button"
+            className="modal-close-button"
+            onClick={handleModalClose}
+            disabled={isModalBusy}
+            aria-label="Close edit cover modal"
+          >
+            ×
+          </button>
+          <h3>Edit cover image</h3>
+          <p className="modal-subtitle">{editModalPlaylist?.name || 'Untitled playlist'}</p>
+          <form onSubmit={handleEditModalSubmit} className="cover-edit-form">
+            <div className="modal-upload-control">
+              <label className="modal-label" htmlFor="cover-image-upload-display">Upload a new cover</label>
+              <div className="modal-input-with-upload">
+                <input
+                  id="cover-image-upload-display"
+                  type="text"
+                  value={uploadDisplayLabel || 'No image selected'}
+                  readOnly
+                  disabled={isModalBusy}
+                  className="modal-input"
+                />
+                <button
+                  type="button"
+                  className="modal-upload-button"
+                  onClick={handleUploadButtonClick}
+                  disabled={isModalBusy}
+                >
+                  <img src="/assets/upload.svg" alt="" aria-hidden="true" />
+                  <span>Upload</span>
+                </button>
+              </div>
+              <input
+                id="cover-image-upload"
+                ref={fileUploadInputRef}
+                type="file"
+                accept="image/*"
+                className="modal-file-input-hidden"
+                onChange={handleFileUploadChange}
+                disabled={isModalBusy}
+              />
+              <p className="modal-helper-text">Uploads are capped at 100KB; larger images are automatically resized to fit.</p>
+            </div>
+            <div className="modal-preview">
+              <div className="modal-preview-square">
+                <img src={modalPreviewUrl} alt="Cover preview" />
+              </div>
+            </div>
+            {editModalError && <div className="modal-error">{editModalError}</div>}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-button secondary"
+                onClick={handleModalReset}
+                disabled={isModalBusy}
+              >
+                Reset to default
+              </button>
+              <div className="modal-spacer" />
+              <button
+                type="button"
+                className="modal-button ghost"
+                onClick={handleModalClose}
+                disabled={isModalBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="modal-button primary"
+                disabled={isModalBusy}
+              >
+                {isModalBusy ? 'Saving…' : 'Save cover'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

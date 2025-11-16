@@ -12,7 +12,7 @@ const TierListJSONExportImport = ({
   uploadMessage = '',
   uploadError = '',
   uploadShareUrl = '',
-  playlistImages = []
+  coverImage = ''
 }) => {
   const fileInputRef = useRef(null);
 
@@ -39,6 +39,10 @@ const TierListJSONExportImport = ({
       }
     }
 
+    const resolvedCoverImage = (typeof coverImage === 'string' && coverImage.trim())
+      ? coverImage.trim()
+      : (typeof state?.coverImage === 'string' ? state.coverImage : '');
+
     const data = { 
       tiers, 
       tierOrder, 
@@ -46,7 +50,7 @@ const TierListJSONExportImport = ({
         ...minifiedState,
         tierListName: tierListName // Ensure tierListName is included in the state
       },
-      images: Array.isArray(playlistImages) ? playlistImages : []
+      coverImage: resolvedCoverImage
     }; 
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
