@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, searchPlaylists, getPlaylistById, getCurrentUser } from "../utils/spotifyApi";
 import { getPublicTierlists, getUserTierlists } from "../utils/backendApi";
 import "./PlaylistSelector.css";
@@ -32,6 +32,11 @@ const PlaylistSelector = ({
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [localTierlists, setLocalTierlists] = useState([]);
   const [onlineTierlists, setOnlineTierlists] = useState([]);
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const [onlineSearchQuery, setOnlineSearchQuery] = useState("");
+  const [localSortOption, setLocalSortOption] = useState("name-asc");
+  const [onlineSortOption, setOnlineSortOption] = useState("name-asc");
+  const [includeOwnOnlineTierlists, setIncludeOwnOnlineTierlists] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
@@ -102,6 +107,22 @@ const PlaylistSelector = ({
         const name =
           (saved && (saved.tierListName || (saved.state && saved.state.tierListName))) ||
           "Local Tierlist";
+        const timestampSources = [
+          saved?.updatedAt,
+          saved?.createdAt,
+          saved?.lastModified,
+          saved?.state?.updatedAt,
+          saved?.state?.createdAt,
+          saved?.state?.lastModified
+        ];
+        const firstTimestamp = timestampSources.find((value) => value);
+        let createdAt = 0;
+        if (typeof firstTimestamp === 'number') {
+          createdAt = firstTimestamp;
+        } else if (typeof firstTimestamp === 'string') {
+          createdAt = Date.parse(firstTimestamp) || 0;
+        }
+
         const playlistLike = {
           id: localId,
           name,
@@ -109,7 +130,8 @@ const PlaylistSelector = ({
           images: [],
           owner: { display_name: "You (local)" },
           _localId: localId,
-          _kind: "local-tierlist"
+          _kind: "local-tierlist",
+          createdAt
         };
         lists.push(playlistLike);
       }
@@ -202,16 +224,83 @@ const PlaylistSelector = ({
     }
   };
 
-  const displayPlaylists =
+  const createSortedList = useCallback((lists, sortOption) => {
+    if (!Array.isArray(lists)) return [];
+    const clone = [...lists];
+    const getName = (list) => (list?.name || "").toLowerCase();
+    const getTime = (list) => (typeof list?.createdAt === "number" ? list.createdAt : 0);
+
+    switch (sortOption) {
+      case "name-desc":
+        clone.sort((a, b) => getName(b).localeCompare(getName(a)));
+        break;
+      case "newest":
+        clone.sort((a, b) => getTime(b) - getTime(a));
+        break;
+      case "oldest":
+        clone.sort((a, b) => getTime(a) - getTime(b));
+        break;
+      case "name-asc":
+      default:
+        clone.sort((a, b) => getName(a).localeCompare(getName(b)));
+        break;
+    }
+
+    return clone;
+  }, []);
+
+  const sortedOnlineTierlists = useMemo(() => {
+    if (!Array.isArray(onlineTierlists)) return [];
+    return createSortedList(onlineTierlists, onlineSortOption);
+  }, [onlineTierlists, onlineSortOption, createSortedList]);
+
+  const sortedLocalTierlists = useMemo(() => {
+    if (!Array.isArray(localTierlists)) return [];
+    return createSortedList(localTierlists, localSortOption);
+  }, [localTierlists, localSortOption, createSortedList]);
+
+  let basePlaylists =
     searchMode === "user"
       ? filteredPlaylists
       : searchMode === "public"
       ? publicPlaylists
       : searchMode === "local"
-      ? localTierlists
+      ? sortedLocalTierlists
       : searchMode === "online"
-      ? onlineTierlists
+      ? sortedOnlineTierlists
       : [];
+
+  if (searchMode === "online" && !includeOwnOnlineTierlists && Array.isArray(basePlaylists)) {
+    basePlaylists = basePlaylists.filter((playlist) => !playlist || !playlist.isOwnerSelf);
+  }
+
+  let displayPlaylists = basePlaylists || [];
+
+  if (searchMode === "local" && localSearchQuery && Array.isArray(basePlaylists)) {
+    const q = localSearchQuery.toLowerCase();
+    displayPlaylists = basePlaylists.filter((playlist) => {
+      if (!playlist) return false;
+      const name = (playlist.name || "").toLowerCase();
+      const desc = (playlist.description || "").toLowerCase();
+      const owner = (playlist.owner && playlist.owner.display_name
+        ? playlist.owner.display_name
+        : "").toLowerCase();
+      return name.includes(q) || desc.includes(q) || owner.includes(q);
+    });
+  }
+
+  if (searchMode === "online" && onlineSearchQuery && Array.isArray(basePlaylists)) {
+    const q = onlineSearchQuery.toLowerCase();
+    displayPlaylists = basePlaylists.filter((playlist) => {
+      if (!playlist) return false;
+      const name = (playlist.name || "").toLowerCase();
+      const desc = (playlist.description || "").toLowerCase();
+      const owner = (playlist.owner && playlist.owner.display_name
+        ? playlist.owner.display_name
+        : "").toLowerCase();
+      return name.includes(q) || desc.includes(q) || owner.includes(q);
+    });
+  }
 
   useEffect(() => {
     if (searchMode !== "online") return;
@@ -235,16 +324,13 @@ const PlaylistSelector = ({
 
         const [publicLists, userLists] = await Promise.all([publicListsPromise, userListsPromise]);
 
-        const combined = [];
-        if (Array.isArray(publicLists)) combined.push(...publicLists);
-        if (Array.isArray(userLists)) combined.push(...userLists);
-
         const seen = new Set();
         const normalized = [];
 
-        combined.forEach((list) => {
+        const pushNormalized = (list, isOwnerSelf) => {
           if (!list || !list.shortId || seen.has(list.shortId)) return;
           seen.add(list.shortId);
+          const createdAtValue = Date.parse(list.createdAt || list.updatedAt || '') || 0;
           normalized.push({
             id: list.shortId,
             name: list.tierListName || "Untitled Tierlist",
@@ -253,11 +339,21 @@ const PlaylistSelector = ({
             owner: { display_name: list.username || "Unknown" },
             _shortId: list.shortId,
             _kind: "online-tierlist",
-            isPublic: !!list.isPublic
+            isPublic: !!list.isPublic,
+            isOwnerSelf,
+            createdAt: createdAtValue
           });
-        });
+        };
 
-        normalized.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        // First add user-owned tierlists so they are always marked as isOwnerSelf
+        if (Array.isArray(userLists)) {
+          userLists.forEach((list) => pushNormalized(list, true));
+        }
+
+        // Then add other public tierlists (duplicates are skipped by shortId)
+        if (Array.isArray(publicLists)) {
+          publicLists.forEach((list) => pushNormalized(list, false));
+        }
 
         if (!cancelled) {
           setOnlineTierlists(normalized);
@@ -318,7 +414,7 @@ const PlaylistSelector = ({
           className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
           onClick={() => handleSearchModeChange("local")}
         >
-          Local Playlist
+          Local Playlists
         </button>
         <button 
           className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
@@ -369,6 +465,74 @@ const PlaylistSelector = ({
             >
               {isLoading ? "Searching..." : "Search"}
             </button>
+          </div>
+        </div>
+      )}
+      {searchMode === "local" && (
+        <div className="search-input-wrapper">
+          <div className="local-search-container">
+            <input
+              type="text"
+              className="search-input local-search-input"
+              placeholder="Search your local tierlists..."
+              value={localSearchQuery}
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                  checkKonamiCode(e.key.toLowerCase());
+                }
+              }}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+            />
+            <div className="inline-controls local-inline-controls">
+              <select
+                className="sort-select"
+                value={localSortOption}
+                onChange={(e) => setLocalSortOption(e.target.value)}
+              >
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+      {searchMode === "online" && (
+        <div className="search-input-wrapper">
+          <div className="online-search-container">
+            <input
+              type="text"
+              className="search-input online-search-input"
+              placeholder="Search online tierlists..."
+              value={onlineSearchQuery}
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                  checkKonamiCode(e.key.toLowerCase());
+                }
+              }}
+              onChange={(e) => setOnlineSearchQuery(e.target.value)}
+            />
+            <div className="inline-controls online-inline-controls">
+              <label className="online-toggle">
+                <input
+                  type="checkbox"
+                  checked={includeOwnOnlineTierlists}
+                  onChange={() => setIncludeOwnOnlineTierlists(prev => !prev)}
+                />
+                <span>My lists</span>
+              </label>
+              <select
+                className="sort-select"
+                value={onlineSortOption}
+                onChange={(e) => setOnlineSortOption(e.target.value)}
+              >
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
