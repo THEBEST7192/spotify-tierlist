@@ -249,6 +249,14 @@ const Home = ({ accessToken, setAccessToken }) => {
     }
   };
 
+  const handleLocalTierlistSelect = (localId) => {
+    navigate(`/local/${localId}`);
+  };
+
+  const handleOnlineTierlistSelect = (shortId) => {
+    navigate(`/tierlists/${shortId}`);
+  };
+
   const handleSongGroupSelect = async (option) => {
     if (!pendingPlaylist) return;
 
@@ -688,6 +696,8 @@ const Home = ({ accessToken, setAccessToken }) => {
             setIsSearchingPublic={setIsSearchingPublic}
             publicSearchCache={publicSearchCache}
             setPublicSearchCache={setPublicSearchCache}
+            onSelectLocalTierlist={handleLocalTierlistSelect}
+            onSelectOnlineTierlist={handleOnlineTierlistSelect}
           />
           <div className="made-with-spotify">
             <p>Made with Spotify</p>

@@ -96,4 +96,26 @@ export const getTierlist = async (shortId) => {
   return response.data;
 };
 
+/**
+ * Fetch public tierlists from the backend API
+ * @param {Object} params - Optional query parameters
+ * @returns {Promise<Object>} Public tierlists response
+ */
+export const getPublicTierlists = async (params = {}) => {
+  const response = await backendApi.get('/api/tierlists/public', { params });
+  return response.data;
+};
+
+/**
+ * Fetch the current user's tierlists from the backend API
+ * @param {string} spotifyUserId - Spotify user ID
+ * @returns {Promise<Object>} User's tierlists response
+ */
+export const getUserTierlists = async (spotifyUserId) => {
+  const response = await backendApi.get('/api/tierlists/user/self', {
+    params: { spotifyUserId }
+  });
+  return response.data;
+};
+
 export default backendApi;

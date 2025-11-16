@@ -67,6 +67,43 @@ export function createTierlistsRouter(db) {
   });
 
   //
+  // GET all public tierlists
+  //
+  router.get('/public', async (req, res) => {
+    try {
+      const { limit } = req.query;
+      const limitNum = Math.min(parseInt(limit, 10) || 50, 100);
+      const cursor = collection.find({ isPublic: true }).sort({ createdAt: -1 }).limit(limitNum);
+      const lists = await cursor.toArray();
+      return res.json(lists);
+    } catch (err) {
+      console.error('Error fetching public tierlists:', err);
+      return res.status(500).json({ error: 'Failed to fetch public tierlists' });
+    }
+  });
+
+  //
+  // GET all tierlists for the current user (public + private)
+  //
+  router.get('/user/self', async (req, res) => {
+    try {
+      const { spotifyUserId } = req.query;
+
+      if (!spotifyUserId) {
+        return res.status(400).json({ error: 'spotifyUserId is required' });
+      }
+
+      const spotifyUserHash = hashSpotifyUserId(spotifyUserId);
+      const cursor = collection.find({ spotifyUserHash }).sort({ createdAt: -1 });
+      const lists = await cursor.toArray();
+      return res.json(lists);
+    } catch (err) {
+      console.error('Error fetching user tierlists:', err);
+      return res.status(500).json({ error: 'Failed to fetch user tierlists' });
+    }
+  });
+
+  //
   // GET tierlist by shortId
   //
   router.get('/:shortId', async (req, res) => {

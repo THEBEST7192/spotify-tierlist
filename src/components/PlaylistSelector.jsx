@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { getUserPlaylists, searchPlaylists, getPlaylistById } from "../utils/spotifyApi";
+import { getUserPlaylists, searchPlaylists, getPlaylistById, getCurrentUser } from "../utils/spotifyApi";
+import { getPublicTierlists, getUserTierlists } from "../utils/backendApi";
 import "./PlaylistSelector.css";
 
 // Helper function to decode HTML entities in text
@@ -10,9 +11,27 @@ const decodeHtmlEntities = (text) => {
   return textarea.value;
 };
 
-const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQuery, setPublicSearchQuery, searchMode, setSearchMode, publicPlaylists, setPublicPlaylists, isSearchingPublic, setIsSearchingPublic, publicSearchCache, setPublicSearchCache }) => {
+const PlaylistSelector = ({
+  onSelect,
+  searchQuery,
+  setSearchQuery,
+  publicSearchQuery,
+  setPublicSearchQuery,
+  searchMode,
+  setSearchMode,
+  publicPlaylists,
+  setPublicPlaylists,
+  isSearchingPublic,
+  setIsSearchingPublic,
+  publicSearchCache,
+  setPublicSearchCache,
+  onSelectLocalTierlist,
+  onSelectOnlineTierlist
+}) => {
   const [playlists, setPlaylists] = useState([]);
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
+  const [localTierlists, setLocalTierlists] = useState([]);
+  const [onlineTierlists, setOnlineTierlists] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
@@ -60,6 +79,45 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
     };
 
     fetchUserPlaylists();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const lists = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (!key || !key.startsWith("tierlist:local:")) continue;
+        const parts = key.split(":");
+        if (parts.length < 3) continue;
+        const localId = parts[2];
+        const raw = window.localStorage.getItem(key);
+        if (!raw) continue;
+        let saved;
+        try {
+          saved = JSON.parse(raw);
+        } catch {
+          continue;
+        }
+        const name =
+          (saved && (saved.tierListName || (saved.state && saved.state.tierListName))) ||
+          "Local Tierlist";
+        const playlistLike = {
+          id: localId,
+          name,
+          description: "Local tierlist",
+          images: [],
+          owner: { display_name: "You (local)" },
+          _localId: localId,
+          _kind: "local-tierlist"
+        };
+        lists.push(playlistLike);
+      }
+      lists.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      setLocalTierlists(lists);
+    } catch (e) {
+      console.error("Error loading local tierlists:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -133,7 +191,7 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
 
   const handleSearchModeChange = (mode) => {
     setSearchMode(mode);
-    if (mode === "user") {
+    if (mode !== "public") {
       setIsSearchingPublic(false);
     }
   };
@@ -144,7 +202,100 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
     }
   };
 
-  const displayPlaylists = searchMode === "user" ? filteredPlaylists : publicPlaylists;
+  const displayPlaylists =
+    searchMode === "user"
+      ? filteredPlaylists
+      : searchMode === "public"
+      ? publicPlaylists
+      : searchMode === "local"
+      ? localTierlists
+      : searchMode === "online"
+      ? onlineTierlists
+      : [];
+
+  useEffect(() => {
+    if (searchMode !== "online") return;
+
+    let cancelled = false;
+
+    const loadOnlineTierlists = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        let userId = null;
+        try {
+          const userResponse = await getCurrentUser();
+          userId = userResponse && userResponse.data && userResponse.data.id;
+        } catch {
+          userId = null;
+        }
+
+        const publicListsPromise = getPublicTierlists();
+        const userListsPromise = userId ? getUserTierlists(userId) : Promise.resolve([]);
+
+        const [publicLists, userLists] = await Promise.all([publicListsPromise, userListsPromise]);
+
+        const combined = [];
+        if (Array.isArray(publicLists)) combined.push(...publicLists);
+        if (Array.isArray(userLists)) combined.push(...userLists);
+
+        const seen = new Set();
+        const normalized = [];
+
+        combined.forEach((list) => {
+          if (!list || !list.shortId || seen.has(list.shortId)) return;
+          seen.add(list.shortId);
+          normalized.push({
+            id: list.shortId,
+            name: list.tierListName || "Untitled Tierlist",
+            description: list.isPublic ? "Online public tierlist" : "Online private tierlist",
+            images: list.coverImage ? [{ url: list.coverImage }] : [],
+            owner: { display_name: list.username || "Unknown" },
+            _shortId: list.shortId,
+            _kind: "online-tierlist",
+            isPublic: !!list.isPublic
+          });
+        });
+
+        normalized.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+        if (!cancelled) {
+          setOnlineTierlists(normalized);
+        }
+      } catch (err) {
+        console.error("Error loading online tierlists:", err);
+        if (!cancelled) {
+          setError("Failed to load online tierlists");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadOnlineTierlists();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchMode]);
+
+  const handlePlaylistClick = (playlist) => {
+    if (searchMode === "local" && playlist && playlist._localId && typeof onSelectLocalTierlist === "function") {
+      onSelectLocalTierlist(playlist._localId);
+      return;
+    }
+
+    if (searchMode === "online" && playlist && playlist._shortId && typeof onSelectOnlineTierlist === "function") {
+      onSelectOnlineTierlist(playlist._shortId);
+      return;
+    }
+
+    if (typeof onSelect === "function") {
+      onSelect(playlist);
+    }
+  };
 
   return (
     <div className="playlist-selector-container">
@@ -163,9 +314,21 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
         >
           Search Public Playlists
         </button>
+        <button 
+          className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
+          onClick={() => handleSearchModeChange("local")}
+        >
+          Local Playlist
+        </button>
+        <button 
+          className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
+          onClick={() => handleSearchModeChange("online")}
+        >
+          Online Playlists
+        </button>
       </div>
 
-      {searchMode === "user" ? (
+      {searchMode === "user" && (
         <div className="search-input-wrapper">
           <input
             type="text"
@@ -174,7 +337,6 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
             value={searchQuery}
             ref={searchInputRef}
             onKeyDown={(e) => {
-              // Only process letter keys for Konami code
               if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
                 checkKonamiCode(e.key.toLowerCase());
               }
@@ -182,7 +344,8 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-      ) : (
+      )}
+      {searchMode === "public" && (
         <div className="search-input-wrapper">
           <div className="public-search-container">
             <input
@@ -192,7 +355,6 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
               value={publicSearchQuery}
               ref={publicSearchInputRef}
               onKeyDown={(e) => {
-                // Only process letter keys for Konami code
                 if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
                   checkKonamiCode(e.key.toLowerCase());
                 }
@@ -234,7 +396,7 @@ const PlaylistSelector = ({ onSelect, searchQuery, setSearchQuery, publicSearchQ
             <button
               key={playlist.id || Math.random().toString()}
               className="playlist-button"
-              onClick={() => onSelect(playlist)}
+              onClick={() => handlePlaylistClick(playlist)}
             >
               <img
                 src={imageUrl}
