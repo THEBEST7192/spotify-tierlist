@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, searchPlaylists, getPlaylistById, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy } from "../utils/backendApi";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist } from "../utils/backendApi";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -150,6 +150,7 @@ const PlaylistSelector = ({
   const [spotifyUserId, setSpotifyUserId] = useState(null);
   const [coverUpdatingId, setCoverUpdatingId] = useState(null);
   const [privacyUpdatingId, setPrivacyUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalPlaylist, setEditModalPlaylist] = useState(null);
   const [editModalContext, setEditModalContext] = useState(null);
@@ -709,6 +710,50 @@ const PlaylistSelector = ({
     setEditIsPublic(prev => !prev);
   }, [editModalPlaylist, isModalBusy]);
 
+  const handleDeleteLocalTierlist = useCallback((playlist, event, onDeleted) => {
+    event?.stopPropagation?.();
+    if (!playlist?._localId || typeof window === 'undefined' || deletingId) return;
+    const confirmed = window.confirm(`Delete local tierlist "${playlist.name || 'Untitled'}"? This cannot be undone.`);
+    if (!confirmed) return;
+    const localId = playlist._localId;
+    setDeletingId(localId);
+    try {
+      window.localStorage.removeItem(`tierlist:local:${localId}`);
+      setLocalTierlists(prev => prev.filter(list => list?._localId !== localId));
+      if (typeof onDeleted === 'function') {
+        onDeleted();
+      }
+    } catch (err) {
+      console.error('Failed to delete local tierlist', err);
+      setError('Failed to delete local tierlist.');
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deletingId]);
+
+  const handleDeleteOnlineTierlist = useCallback(async (playlist, event, onDeleted) => {
+    event?.stopPropagation?.();
+    if (!playlist?._shortId || !playlist.isOwnerSelf || deletingId) return;
+    const confirmed = window.confirm(`Delete online tierlist "${playlist.name || 'Untitled'}"? This cannot be undone.`);
+    if (!confirmed) return;
+    const userId = await ensureSpotifyUserId();
+    if (!userId) return;
+    const shortId = playlist._shortId;
+    setDeletingId(shortId);
+    try {
+      await deleteTierlist(shortId, userId);
+      setOnlineTierlists(prev => prev.filter(list => list?._shortId !== shortId));
+      if (typeof onDeleted === 'function') {
+        onDeleted();
+      }
+    } catch (err) {
+      console.error('Failed to delete online tierlist', err);
+      setError('Failed to delete online tierlist.');
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deletingId, ensureSpotifyUserId]);
+
   const handleFileUploadChange = useCallback(async (event) => {
     const input = event.target;
     if (isModalBusy) {
@@ -946,13 +991,18 @@ const PlaylistSelector = ({
             ? `local-${playlist._localId}`
             : playlist.id || Math.random().toString();
           
+          const canEditCover = (searchMode === 'local' && playlist._localId) || (searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf);
+          const canDeleteLocal = searchMode === 'local' && playlist._localId;
+          const canDeleteOnline = searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf;
+          const isDeleting = deletingId === playlist._localId || deletingId === playlist._shortId;
+
           return (
             <button
               key={playlistKey}
               className="playlist-button"
               onClick={() => handlePlaylistClick(playlist)}
             >
-              {(searchMode === 'local' && playlist._localId) || (searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf) ? (
+              {canEditCover ? (
                 <button
                   type="button"
                   className="playlist-edit-button"
@@ -963,22 +1013,39 @@ const PlaylistSelector = ({
                   <img src="/assets/edit.svg" alt="Edit" />
                 </button>
               ) : null}
-              {searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf ? (
+              {(canDeleteLocal || canDeleteOnline) ? (
                 <button
                   type="button"
-                  className={`playlist-privacy-button ${playlist.isPublic ? 'public' : 'private'}`}
-                  disabled={privacyUpdatingId === playlist._shortId}
-                  onClick={(event) => handleTogglePrivacy(playlist, event)}
-                  aria-label={playlist.isPublic ? 'Set tierlist private' : 'Set tierlist public'}
+                  className="playlist-delete-button"
+                  disabled={isDeleting}
+                  onClick={(event) =>
+                    canDeleteLocal
+                      ? handleDeleteLocalTierlist(playlist, event)
+                      : handleDeleteOnlineTierlist(playlist, event)
+                  }
+                  aria-label="Delete tierlist"
                 >
-                  <img src={playlist.isPublic ? '/assets/public.svg' : '/assets/private.svg'} alt="" aria-hidden="true" />
+                  {isDeleting ? '…' : '🗑️'}
                 </button>
               ) : null}
-              <img
-                src={imageUrl}
-                alt={playlist.name || 'Playlist'}
-                className="playlist-cover"
-              />
+              <div className="playlist-cover-wrapper">
+                {searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf ? (
+                  <button
+                    type="button"
+                    className={`playlist-privacy-button ${playlist.isPublic ? 'public' : 'private'}`}
+                    disabled={privacyUpdatingId === playlist._shortId}
+                    onClick={(event) => handleTogglePrivacy(playlist, event)}
+                    aria-label={playlist.isPublic ? 'Set tierlist private' : 'Set tierlist public'}
+                  >
+                    <img src={playlist.isPublic ? '/assets/public.svg' : '/assets/private.svg'} alt="" aria-hidden="true" />
+                  </button>
+                ) : null}
+                <img
+                  src={imageUrl}
+                  alt={playlist.name || 'Playlist'}
+                  className="playlist-cover"
+                />
+              </div>
               <div className="playlist-info">
                 <h3 className="playlist-name">{playlist.name || 'Untitled Playlist'}</h3>
                 <p className="playlist-creator">Created by: {ownerName}</p>
@@ -1077,6 +1144,23 @@ const PlaylistSelector = ({
               >
                 Reset to default
               </button>
+              {((editModalContext === 'local' && editModalPlaylist?._localId) ||
+                (editModalContext === 'online' && editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf)) && (
+                <button
+                  type="button"
+                  className="modal-button danger"
+                  onClick={(event) => {
+                    if (editModalContext === 'local' && editModalPlaylist?._localId) {
+                      handleDeleteLocalTierlist(editModalPlaylist, event, resetEditModalState);
+                    } else if (editModalContext === 'online' && editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf) {
+                      handleDeleteOnlineTierlist(editModalPlaylist, event, resetEditModalState);
+                    }
+                  }}
+                  disabled={isModalBusy || !!deletingId}
+                >
+                  Delete tierlist
+                </button>
+              )}
               <div className="modal-spacer" />
               <button
                 type="button"

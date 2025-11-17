@@ -103,6 +103,13 @@ export const toggleTierlistPrivacy = async (shortId, spotifyUserId) => {
   return response.data;
 };
 
+export const deleteTierlist = async (shortId, spotifyUserId) => {
+  const response = await backendApi.delete(`/api/tierlists/${shortId}`, {
+    data: { spotifyUserId }
+  });
+  return response.data;
+};
+
 /**
  * Fetch public tierlists from the backend API
  * @param {Object} params - Optional query parameters
