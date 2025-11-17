@@ -306,11 +306,15 @@ const TierList = ({
 
     setTiers(imported.tiers);
     setTierOrder(imported.tierOrder);
-    hydratedStateRef.current = imported.state;
-    setState(imported.state);
+    const resolvedName = imported.tierListName || imported.state?.tierListName;
+    const stateWithName = {
+      ...imported.state,
+      ...(resolvedName && { tierListName: resolvedName })
+    };
+    hydratedStateRef.current = stateWithName;
+    setState(stateWithName);
     setIsInitialSyncComplete(true);
 
-    const resolvedName = imported.tierListName || imported.state?.tierListName;
     if (!silent && resolvedName && typeof onImport === 'function') {
       onImport(resolvedName);
     }
@@ -928,6 +932,12 @@ const TierList = ({
       }
 
       setUploadedTierlist(resolvedResponse);
+      
+      // Ensure state includes the tierListName after upload
+      setState(prev => ({
+        ...prev,
+        tierListName: resolvedTierListName
+      }));
 
       const shareUrl = resolvedResponse?.shortId && typeof window !== 'undefined'
         ? `${window.location.origin}/tierlists/${resolvedResponse.shortId}`

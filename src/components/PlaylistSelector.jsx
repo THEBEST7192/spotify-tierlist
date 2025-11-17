@@ -775,7 +775,7 @@ const PlaylistSelector = ({
     openEditModal({ ...playlist }, context);
   }, [openEditModal]);
 
-  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || '/default-playlist-cover.png';
+  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || '/assets/placeholder.png';
 
   return (
     <>
@@ -930,9 +930,10 @@ const PlaylistSelector = ({
           if (!playlist) return null;
           
           // Get image URL safely
+          const fallbackImage = pickBestSongImageUrl(playlist.images);
           const imageUrl = playlist.coverImage
-            || (playlist.images && playlist.images.length > 0 && playlist.images[0]?.url)
-            || '/default-playlist-cover.png';
+            || fallbackImage
+            || '/assets/placeholder.png';
           
           // Get owner display name safely
           const ownerName = playlist.owner && playlist.owner.display_name ? 
