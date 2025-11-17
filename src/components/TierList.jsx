@@ -27,6 +27,23 @@ const DEFAULT_TIERS = {
 // Define the default order of tiers
 const DEFAULT_TIER_ORDER = ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
 
+const pickPreferredPlaylistImage = (images = []) => {
+  if (!Array.isArray(images) || images.length === 0) {
+    return null;
+  }
+
+  const exact300 = images.find((img) => Number(img?.width) === 300 || Number(img?.height) === 300);
+  if (exact300) {
+    return exact300;
+  }
+
+  if (images[1]) {
+    return images[1];
+  }
+
+  return images[0];
+};
+
 // IMPORTANT: This is the most reliable ID method
 const getItemStyle = (isDragging, draggableStyle) => ({
   // some basic styles to make the items look nicer
@@ -269,19 +286,37 @@ const TierList = ({
   const [uploadError, setUploadError] = useState('');
   const [uploadShareUrl, setUploadShareUrl] = useState('');
   const [inferredCoverImage, setInferredCoverImage] = useState('');
+  const [state, setState] = useState(() => {
+    return DEFAULT_TIER_ORDER.reduce((acc, tier) => ({
+      ...acc,
+      [tier]: []
+    }), {});
+  });
   const hydratedStateRef = useRef(null);
   const hydratedFromStorageRef = useRef(false);
   const manualImportRef = useRef(false);
   const lastHydratedRef = useRef(null);
   const resolvedCoverImage = useMemo(() => {
     if (Array.isArray(playlistImages) && playlistImages.length > 0) {
-      return playlistImages[0]?.url || '';
+      return pickPreferredPlaylistImage(playlistImages)?.url || '';
+    }
+    if (typeof state?.coverImage === 'string' && state.coverImage.trim()) {
+      return state.coverImage.trim();
     }
     return inferredCoverImage || '';
-  }, [playlistImages, inferredCoverImage]);
+  }, [playlistImages, state?.coverImage, inferredCoverImage]);
   const resolvedPlaylistImages = useMemo(() => {
     if (Array.isArray(playlistImages) && playlistImages.length > 0) {
-      return playlistImages;
+      const preferred = pickPreferredPlaylistImage(playlistImages);
+      if (!preferred) {
+        return playlistImages;
+      }
+      const preferredIndex = playlistImages.findIndex((img) => img === preferred);
+      if (preferredIndex <= 0) {
+        return playlistImages;
+      }
+      const reordered = [preferred, ...playlistImages.filter((_, idx) => idx !== preferredIndex)];
+      return reordered;
     }
     if (resolvedCoverImage) {
       return [{ url: resolvedCoverImage }];
@@ -307,12 +342,20 @@ const TierList = ({
     setTiers(imported.tiers);
     setTierOrder(imported.tierOrder);
     const resolvedName = imported.tierListName || imported.state?.tierListName;
+    const importedCover = imported.coverImage
+      || imported.state?.coverImage
+      || pickPreferredPlaylistImage(imported.images)?.url
+      || pickPreferredPlaylistImage(imported.state?.images)?.url
+      || '';
     const stateWithName = {
       ...imported.state,
       ...(resolvedName && { tierListName: resolvedName })
     };
-    hydratedStateRef.current = stateWithName;
-    setState(stateWithName);
+    const stateWithCover = importedCover
+      ? { ...stateWithName, coverImage: importedCover }
+      : stateWithName;
+    hydratedStateRef.current = stateWithCover;
+    setState(stateWithCover);
     setIsInitialSyncComplete(true);
 
     if (!silent && resolvedName && typeof onImport === 'function') {
@@ -325,11 +368,6 @@ const TierList = ({
       setUploadShareUrl(shareUrl);
     }
 
-    const importedCover = imported.coverImage
-      || imported.state?.coverImage
-      || imported.images?.[0]?.url
-      || imported.state?.images?.[0]?.url
-      || '';
     setInferredCoverImage(importedCover);
 
     return true;
@@ -376,14 +414,6 @@ const TierList = ({
   }, [storageKey]);
   
   // State for the tier list
-  const [state, setState] = useState(() => {
-    // Initialize state with all tiers from tierOrder
-    return DEFAULT_TIER_ORDER.reduce((acc, tier) => ({
-      ...acc,
-      [tier]: []
-    }), {});
-  });
-  
   // State for the currently playing track
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
@@ -869,8 +899,7 @@ const TierList = ({
         const content = item?.content;
         const images = content?.album?.images;
         if (Array.isArray(images) && images.length > 0) {
-          const smallestImageIndex = images.length > 2 ? 2 : 0;
-          return images[smallestImageIndex]?.url || images[0]?.url || '';
+          return pickPreferredPlaylistImage(images)?.url || images[0]?.url || '';
         }
       }
     }
