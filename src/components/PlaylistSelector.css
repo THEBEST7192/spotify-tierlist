@@ -55,6 +55,14 @@
   background-color: #1db954;
 }
 
+.toggle-btn:hover {
+  background-color: #444;
+}
+
+.toggle-btn.active:hover {
+  background-color: #1ed760;
+}
+
 .public-search-container {
   display: flex;
   gap: 10px;
