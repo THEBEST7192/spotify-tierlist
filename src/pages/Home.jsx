@@ -671,7 +671,15 @@ const Home = ({ accessToken, setAccessToken }) => {
             onImport={(name) => setImportedPlaylistName(name)}
             debugMode={debugModeActive}
             initialTierlist={sharedTierlist}
-            storageKey={shortId ? `shared:${shortId}` : songId ? `local:${songId}` : (selectedPlaylist ? `local:${getLocalIdForPlaylist(selectedPlaylist.id)}` : '')}
+            storageKey={
+              shortId
+                ? `shared:${shortId}`
+                : songId
+                ? `local:${songId}`
+                : (selectedPlaylist && typeof selectedPlaylist.id === 'string' && selectedPlaylist.id.startsWith('local-'))
+                ? `local:${selectedPlaylist.id.slice('local-'.length)}`
+                : (selectedPlaylist ? `local:${getLocalIdForPlaylist(selectedPlaylist.id)}` : '')
+            }
             playlistImages={selectedPlaylist?.images || []}
           />
 
