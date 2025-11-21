@@ -138,6 +138,7 @@ const PlaylistSelector = ({
 }) => {
   const OWNER_FILTER_STORAGE_KEY = "playlistSelector.onlineOwnerFilter";
   const ONLINE_SORT_STORAGE_KEY = "playlistSelector.onlineSortOption";
+  const LOCAL_SORT_STORAGE_KEY = "playlistSelector.localSortOption";
 
   const [playlists, setPlaylists] = useState([]);
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
@@ -206,9 +207,14 @@ const PlaylistSelector = ({
       setOnlineOwnerFilter(savedOwnerFilter);
     }
 
-    const savedSortOption = window.localStorage.getItem(ONLINE_SORT_STORAGE_KEY);
-    if (savedSortOption && ["name-asc", "name-desc", "newest", "oldest"].includes(savedSortOption)) {
-      setOnlineSortOption(savedSortOption);
+    const savedOnlineSortOption = window.localStorage.getItem(ONLINE_SORT_STORAGE_KEY);
+    if (savedOnlineSortOption && ["name-asc", "name-desc", "newest", "oldest"].includes(savedOnlineSortOption)) {
+      setOnlineSortOption(savedOnlineSortOption);
+    }
+
+    const savedLocalSortOption = window.localStorage.getItem(LOCAL_SORT_STORAGE_KEY);
+    if (savedLocalSortOption && ["name-asc", "name-desc", "newest", "oldest"].includes(savedLocalSortOption)) {
+      setLocalSortOption(savedLocalSortOption);
     }
   }, []);
 
@@ -221,6 +227,11 @@ const PlaylistSelector = ({
     if (typeof window === "undefined") return;
     window.localStorage.setItem(ONLINE_SORT_STORAGE_KEY, onlineSortOption);
   }, [onlineSortOption]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(LOCAL_SORT_STORAGE_KEY, localSortOption);
+  }, [localSortOption]);
 
   useEffect(() => {
     const fetchUserPlaylists = async () => {
@@ -406,8 +417,14 @@ const PlaylistSelector = ({
   }, []);
 
   const { sortedLocalTierlists, sortedOnlineTierlists } = useMemo(() => {
+    const baseLocalSortOption = localSortOption === "oldest" ? "newest" : localSortOption;
+    const newestFirstLocal = createSortedList(localTierlists, baseLocalSortOption);
+    const resolvedLocalTierlists = localSortOption === "oldest"
+      ? [...newestFirstLocal].reverse()
+      : newestFirstLocal;
+
     return {
-      sortedLocalTierlists: createSortedList(localTierlists, localSortOption),
+      sortedLocalTierlists: resolvedLocalTierlists,
       sortedOnlineTierlists: createSortedList(onlineTierlists, onlineSortOption)
     };
   }, [createSortedList, localTierlists, localSortOption, onlineTierlists, onlineSortOption]);

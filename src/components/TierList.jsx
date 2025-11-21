@@ -604,6 +604,20 @@ const TierList = ({
 
   useEffect(() => {
     if (!storageKey || typeof window === 'undefined' || !isInitialSyncComplete) return;
+    const storageEntryKey = `tierlist:${storageKey}`;
+    const now = Date.now();
+
+    let createdAt = now;
+    try {
+      const existingRaw = localStorage.getItem(storageEntryKey);
+      if (existingRaw) {
+        const existing = JSON.parse(existingRaw);
+        if (typeof existing?.createdAt === 'number') {
+          createdAt = existing.createdAt;
+        }
+      }
+    } catch { /* ignore */ }
+
     const payload = {
       shortId: uploadedTierlist?.shortId || initialTierlist?.shortId || null,
       tiers,
@@ -612,10 +626,13 @@ const TierList = ({
       tierListName: (typeof state?.tierListName === 'string' && state.tierListName.trim())
         ? state.tierListName
         : playlistName,
-      coverImage: resolvedCoverImage
+      coverImage: resolvedCoverImage,
+      createdAt,
+      updatedAt: now,
+      lastModified: now
     };
     try {
-      localStorage.setItem(`tierlist:${storageKey}`, JSON.stringify(payload));
+      localStorage.setItem(storageEntryKey, JSON.stringify(payload));
     } catch { void 0; }
   }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete, resolvedCoverImage]);
 
