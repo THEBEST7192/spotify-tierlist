@@ -136,6 +136,9 @@ const PlaylistSelector = ({
   onSelectLocalTierlist,
   onSelectOnlineTierlist
 }) => {
+  const OWNER_FILTER_STORAGE_KEY = "playlistSelector.onlineOwnerFilter";
+  const ONLINE_SORT_STORAGE_KEY = "playlistSelector.onlineSortOption";
+
   const [playlists, setPlaylists] = useState([]);
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [localTierlists, setLocalTierlists] = useState([]);
@@ -144,7 +147,7 @@ const PlaylistSelector = ({
   const [onlineSearchQuery, setOnlineSearchQuery] = useState("");
   const [localSortOption, setLocalSortOption] = useState("name-asc");
   const [onlineSortOption, setOnlineSortOption] = useState("name-asc");
-  const [includeOwnOnlineTierlists, setIncludeOwnOnlineTierlists] = useState(true);
+  const [onlineOwnerFilter, setOnlineOwnerFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [spotifyUserId, setSpotifyUserId] = useState(null);
@@ -194,6 +197,30 @@ const PlaylistSelector = ({
       debugModeIndex.current = 0;
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedOwnerFilter = window.localStorage.getItem(OWNER_FILTER_STORAGE_KEY);
+    if (savedOwnerFilter && ["mine", "others", "all"].includes(savedOwnerFilter)) {
+      setOnlineOwnerFilter(savedOwnerFilter);
+    }
+
+    const savedSortOption = window.localStorage.getItem(ONLINE_SORT_STORAGE_KEY);
+    if (savedSortOption && ["name-asc", "name-desc", "newest", "oldest"].includes(savedSortOption)) {
+      setOnlineSortOption(savedSortOption);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(OWNER_FILTER_STORAGE_KEY, onlineOwnerFilter);
+  }, [onlineOwnerFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(ONLINE_SORT_STORAGE_KEY, onlineSortOption);
+  }, [onlineSortOption]);
 
   useEffect(() => {
     const fetchUserPlaylists = async () => {
@@ -408,8 +435,12 @@ const PlaylistSelector = ({
       ? sortedOnlineTierlists
       : [];
 
-  if (searchMode === "online" && !includeOwnOnlineTierlists && Array.isArray(basePlaylists)) {
-    basePlaylists = basePlaylists.filter((playlist) => !playlist || !playlist.isOwnerSelf);
+  if (searchMode === "online" && Array.isArray(basePlaylists)) {
+    if (onlineOwnerFilter === "mine") {
+      basePlaylists = basePlaylists.filter((playlist) => playlist && playlist.isOwnerSelf);
+    } else if (onlineOwnerFilter === "others") {
+      basePlaylists = basePlaylists.filter((playlist) => !playlist || !playlist.isOwnerSelf);
+    }
   }
 
   let displayPlaylists = basePlaylists || [];
@@ -944,14 +975,15 @@ const PlaylistSelector = ({
               onChange={(e) => setOnlineSearchQuery(e.target.value)}
             />
             <div className="inline-controls online-inline-controls">
-              <label className="online-toggle">
-                <input
-                  type="checkbox"
-                  checked={includeOwnOnlineTierlists}
-                  onChange={() => setIncludeOwnOnlineTierlists(prev => !prev)}
-                />
-                <span>My lists</span>
-              </label>
+              <select
+                className="sort-select owner-filter-select"
+                value={onlineOwnerFilter}
+                onChange={(e) => setOnlineOwnerFilter(e.target.value)}
+              >
+                <option value="mine">Only My Tierlists</option>
+                <option value="others">Others' Tierlists</option>
+                <option value="all">All Tierlists</option>
+              </select>
               <select
                 className="sort-select"
                 value={onlineSortOption}
