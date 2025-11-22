@@ -2,11 +2,12 @@ import axios from 'axios';
 
 // Backend API base URL - use explicit localhost in dev, relative in prod
 const API_BASE_URL = import.meta.env.VITE_SPOTIFY_REDIRECT_URI && import.meta.env.VITE_SPOTIFY_REDIRECT_URI.includes('127.0.0.1') ? 'http://localhost:3001' : '';
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_BACKEND_TIMEOUT_MS) || 25000;
 
 // Create axios instance with base configuration
 const backendApi = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // 10 second timeout
+  timeout: API_TIMEOUT_MS,
 });
 
 /**

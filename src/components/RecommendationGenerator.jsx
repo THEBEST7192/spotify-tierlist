@@ -30,6 +30,9 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
   const [discoverNewArtists, setDiscoverNewArtists] = useState(false);
   const [explorationDepth, setExplorationDepth] = useState(0); // 0-20 slider affecting recommendation offset
 
+  // Utility to safely normalize tier entries coming from state (which can include metadata like tierListName)
+  const ensureSongArray = (value) => (Array.isArray(value) ? value : []);
+
   // ===== TIER WEIGHT SYSTEM ===== 
   // Calculate the weight of each tier based on position in tierOrder
   // Higher tiers get higher weights
@@ -60,10 +63,11 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     
     // Process each tier and its songs
     Object.entries(tierState).forEach(([tier, songs]) => {
+      const tierSongs = ensureSongArray(songs);
       // Only include songs from tiers with weight > 0
-      if (tierWeights[tier] > 0 && songs.length > 0) {
+      if (tierWeights[tier] > 0 && tierSongs.length > 0) {
         // Add each song with its tier weight
-        songs.forEach(song => {
+        tierSongs.forEach(song => {
           weightedSongs.push({
             ...song,
             AMOUNT_OF_SONGS: tierWeights[tier],
@@ -325,7 +329,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
       const existingSongIds = new Set();
       const existingSongKeys = new Set();
       Object.values(tierState).forEach(songs => {
-        songs.forEach(song => {
+        ensureSongArray(songs).forEach(song => {
           if (song.content && song.content.id) {
             existingSongIds.add(song.content.id);
             const artistName = song.content?.artists?.[0]?.name?.toLowerCase();
@@ -414,6 +418,13 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         }
         break;
       }
+      if (finalRecs.length === 0) {
+        setRecommendations([]);
+        setError('Could not find any recommendations, please adjust the exploration depth or rank more songs.');
+        setIsLoading(false);
+        return;
+      }
+
       setRecommendations(finalRecs);
       setIsLoading(false);
     } catch (error) {
@@ -429,26 +440,28 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
     const existingSongIds = new Set();
     const existingSongNames = new Set();
     const existingArtists = new Set();
-    
-    // Build sets of existing content from the tierlist
+
     Object.values(tierState).forEach(songs => {
-      songs.forEach(song => {
-        if (song.content && song.content.id) {
-          // Track Spotify IDs
-          existingSongIds.add(song.content.id);
-          
-          // Track artist+track combinations
-          if (song.content.artists?.[0]?.name && song.content.name) {
-            const artistName = song.content.artists[0].name.toLowerCase();
-            const trackName = song.content.name.toLowerCase();
-            
-            existingSongNames.add(`${artistName}###${trackName}`);
-            existingArtists.add(artistName);
-          }
+      ensureSongArray(songs).forEach(song => {
+        const content = song?.content;
+        const spotifyId = content?.id;
+        if (spotifyId) {
+          existingSongIds.add(spotifyId);
+        }
+
+        const artistName = content?.artists?.[0]?.name;
+        const trackName = content?.name;
+        if (artistName && trackName) {
+          const artistKey = artistName.toLowerCase();
+          const trackKey = trackName.toLowerCase();
+          existingSongNames.add(`${artistKey}###${trackKey}`);
+          existingArtists.add(artistKey);
+        } else if (artistName) {
+          existingArtists.add(artistName.toLowerCase());
         }
       });
     });
-    
+
     // ----- Group and combine similar recommendations -----
     const uniqueTracksMap = new Map(); // Using artist-track as key
     

@@ -297,11 +297,11 @@ const TierList = ({
   const manualImportRef = useRef(false);
   const lastHydratedRef = useRef(null);
   const resolvedCoverImage = useMemo(() => {
-    if (Array.isArray(playlistImages) && playlistImages.length > 0) {
-      return pickPreferredPlaylistImage(playlistImages)?.url || '';
-    }
     if (typeof state?.coverImage === 'string' && state.coverImage.trim()) {
       return state.coverImage.trim();
+    }
+    if (Array.isArray(playlistImages) && playlistImages.length > 0) {
+      return pickPreferredPlaylistImage(playlistImages)?.url || '';
     }
     return inferredCoverImage || '';
   }, [playlistImages, state?.coverImage, inferredCoverImage]);
@@ -509,7 +509,7 @@ const TierList = ({
     });
 
     const baseState = hydratedStateRef.current || state;
-    const tierNames = Object.keys(baseState || {}).filter(name => name !== 'tierListName');
+    const tierNames = Object.keys(baseState || {}).filter(name => !['tierListName', 'coverImage'].includes(name));
     const existingSongIds = new Set();
     let matchedCount = 0;
 
@@ -555,6 +555,13 @@ const TierList = ({
 
     if (!Array.isArray(updatedState.Unranked)) {
       updatedState.Unranked = [];
+    }
+
+    if (typeof baseState?.tierListName === 'string') {
+      updatedState.tierListName = baseState.tierListName;
+    }
+    if (typeof baseState?.coverImage === 'string') {
+      updatedState.coverImage = baseState.coverImage;
     }
 
     const newEntries = [];
@@ -640,12 +647,19 @@ const TierList = ({
   useEffect(() => {
     setState(prev => {
       const newState = {};
-      
-      // Initialize all tiers in the new order
+
       tierOrder.forEach(tier => {
-        newState[tier] = prev[tier] || [];
+        const tierSongs = Array.isArray(prev?.[tier]) ? prev[tier] : [];
+        newState[tier] = tierSongs;
       });
-      
+
+      if (typeof prev?.tierListName === 'string') {
+        newState.tierListName = prev.tierListName;
+      }
+      if (typeof prev?.coverImage === 'string') {
+        newState.coverImage = prev.coverImage;
+      }
+
       return newState;
     });
   }, [tierOrder]);
@@ -951,10 +965,14 @@ const TierList = ({
 
       const isUpdate = Boolean(uploadedTierlist?.shortId);
       const resolvedTierListName = state.tierListName || playlistName || 'My Spotify Tierlist';
-      const coverImage = getFirstAvailableCoverImage();
+      const existingCoverImage = typeof state?.coverImage === 'string' && state.coverImage.trim()
+        ? state.coverImage.trim()
+        : '';
+      const coverImage = existingCoverImage || getFirstAvailableCoverImage();
       const tierlistState = {
         ...state,
-        tierListName: resolvedTierListName
+        tierListName: resolvedTierListName,
+        ...(coverImage ? { coverImage } : {})
       };
 
       const payload = {
@@ -979,10 +997,11 @@ const TierList = ({
 
       setUploadedTierlist(resolvedResponse);
       
-      // Ensure state includes the tierListName after upload
+      // Ensure state includes the resolved name and cover image after upload
       setState(prev => ({
         ...prev,
-        tierListName: resolvedTierListName
+        tierListName: resolvedTierListName,
+        ...(coverImage ? { coverImage } : {})
       }));
 
       const shareUrl = resolvedResponse?.shortId && typeof window !== 'undefined'
