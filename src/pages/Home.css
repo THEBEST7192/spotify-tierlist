@@ -249,6 +249,39 @@ button.auth-button:hover {
   margin: 0 auto;
 }
 
+.home-error-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 20px;
+}
+
+.home-error-banner {
+  max-width: min(1000px, 92vw);
+  width: 100%;
+  padding: 28px 40px;
+  border-radius: 8px;
+  background-color: #1b0e0e;
+  font-size: 20px;
+  line-height: 1.6;
+  margin: 0 auto;
+}
+
+@media (min-width: 1200px) {
+  .home-error-banner {
+    font-size: 22px;
+    padding: 32px 48px;
+  }
+}
+
+@media (max-width: 768px) {
+  .home-error-banner {
+    font-size: 18px;
+    padding: 22px 26px;
+  }
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

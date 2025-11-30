@@ -109,10 +109,24 @@ export function createTierlistsRouter(db) {
   router.get('/:shortId', async (req, res) => {
     try {
       const { shortId } = req.params;
+      const { spotifyUserId } = req.query;
       const list = await collection.findOne({ shortId });
 
       if (!list) {
         return res.status(404).json({ error: 'Tierlist not found' });
+      }
+
+      if (!list.isPublic) {
+        const normalizedSpotifyUserId = typeof spotifyUserId === 'string' ? spotifyUserId.trim() : '';
+
+        if (!normalizedSpotifyUserId) {
+          return res.status(403).json({ error: 'Tierlist is private' });
+        }
+
+        const spotifyUserHash = hashSpotifyUserId(normalizedSpotifyUserId);
+        if (list.spotifyUserHash !== spotifyUserHash) {
+          return res.status(403).json({ error: 'Tierlist is private' });
+        }
       }
 
       return res.json(list);

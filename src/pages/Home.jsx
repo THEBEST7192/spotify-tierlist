@@ -6,11 +6,52 @@ import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
 import UserProfile from "../components/UserProfile";
 import SongGroupModal from "../components/SongGroupModal";
-import { getPlaylistTracks } from "../utils/spotifyApi";
+import { getPlaylistTracks, getCurrentUser } from "../utils/spotifyApi";
 import { getTierlist } from "../utils/backendApi";
 
 import "./Home.css";
 
+const getHttpStatus = (error) => error?.response?.status;
+
+const getBackendErrorMessage = (error) => {
+  if (!error) return '';
+  return (
+    error.response?.data?.error?.message ||
+    error.response?.data?.error ||
+    error.message ||
+    ''
+  );
+};
+
+const describeHttpError = (error) => {
+  const status = getHttpStatus(error);
+  const backendMessage = getBackendErrorMessage(error);
+  if (status && backendMessage) {
+    return `${backendMessage} (HTTP ${status})`;
+  }
+  if (status) {
+    return `Unexpected error (HTTP ${status})`;
+  }
+  return backendMessage || 'Unexpected error';
+};
+
+const buildPlaylistLoadError = (error, playlistName) => {
+  const friendlyName = playlistName ? `"${playlistName}"` : 'this playlist';
+  const detail = describeHttpError(error);
+  return `Failed to load tracks from ${friendlyName}: ${detail}`;
+};
+
+const buildSharedTierlistError = (error) => {
+  const status = getHttpStatus(error);
+  if (status === 403) {
+    return 'Tierlist is private. Please open it while logged into the Spotify account that created it.';
+  }
+  if (status === 404) {
+    return 'Tierlist not found. The link may be invalid or the tierlist was deleted.';
+  }
+  const detail = describeHttpError(error);
+  return `Failed to load tierlist: ${detail}`;
+};
 
 const Home = ({ accessToken, setAccessToken }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
@@ -33,6 +74,7 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [showKonamiMessage, setShowKonamiMessage] = useState(false);
   const [showDebugMessage, setShowDebugMessage] = useState(false);
   const [sharedTierlist, setSharedTierlist] = useState(null);
+  const [spotifyUserId, setSpotifyUserId] = useState(null);
   const { shortId, songId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,6 +128,7 @@ const Home = ({ accessToken, setAccessToken }) => {
     setAccessToken(null);
     setSelectedPlaylist(null);
     setPlaylistTracks([]);
+    setSpotifyUserId(null);
     
     // Open Spotify logout in a new window/tab
     const spotifyLogoutWindow = window.open('https://accounts.spotify.com/logout', '_blank');
@@ -167,6 +210,25 @@ const Home = ({ accessToken, setAccessToken }) => {
     };
   }, [toggleKonamiCode, toggleDebugMode]);
 
+  const ensureSpotifyUserId = useCallback(async () => {
+    if (spotifyUserId) {
+      return spotifyUserId;
+    }
+
+    try {
+      const response = await getCurrentUser();
+      const id = response?.data?.id;
+      if (id) {
+        setSpotifyUserId(id);
+        return id;
+      }
+    } catch (err) {
+      console.error('Failed to fetch Spotify user', err);
+    }
+
+    return null;
+  }, [spotifyUserId]);
+
   // Handle playlist selection
   const handlePlaylistSelect = async (playlist) => {
     try {
@@ -244,7 +306,7 @@ const Home = ({ accessToken, setAccessToken }) => {
       setIsLoading(false);
     } catch (err) {
       console.error("Error fetching playlist tracks:", err);
-      setError("Failed to load tracks from this playlist");
+      setError(buildPlaylistLoadError(err, playlist?.name));
       setIsLoading(false);
     }
   };
@@ -303,7 +365,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
-        setError("Failed to load tracks from this playlist");
+        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
         setIsLoading(false);
       }
       return;
@@ -340,7 +402,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
-        setError("Failed to load tracks from this playlist");
+        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
         setIsLoading(false);
       }
       return;
@@ -377,7 +439,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
-        setError("Failed to load tracks from this playlist");
+        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
         setIsLoading(false);
       }
       return;
@@ -416,7 +478,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to load tracks from this playlist:", error);
-        setError("Failed to load tracks from this playlist");
+        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
         setIsLoading(false);
       }
       return;
@@ -475,8 +537,9 @@ const Home = ({ accessToken, setAccessToken }) => {
         });
         setImportedPlaylistName(effectiveName);
         setIsLoading(false);
-      } catch {
-        setError("Failed to load tracks from this playlist");
+      } catch (error) {
+        console.error("Failed to load tracks from this playlist:", error);
+        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
         setIsLoading(false);
       }
       return;
@@ -500,29 +563,58 @@ const Home = ({ accessToken, setAccessToken }) => {
     }
 
     let isMounted = true;
+
+    const applyTierlistData = (data) => {
+      setSharedTierlist(data);
+      const name = data?.state?.tierListName || data?.tierListName || 'Shared Spotify Tierlist';
+      setImportedPlaylistName(name);
+      setSelectedPlaylist({
+        id: `shared-${shortId}`,
+        name,
+        owner: data?.username || undefined
+      });
+      setPlaylistTracks([]);
+      setPendingPlaylist(null);
+      setShowSongGroupModal(false);
+    };
+
     const loadSharedTierlist = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      const initialOptions = spotifyUserId ? { spotifyUserId } : undefined;
+
+      const fetchTierlist = async (options) => {
+        return getTierlist(shortId, options);
+      };
+
       try {
-        setIsLoading(true);
-        setError(null);
-        const data = await getTierlist(shortId);
+        const data = await fetchTierlist(initialOptions);
         if (!isMounted) return;
-        setSharedTierlist(data);
-        const name = data?.state?.tierListName || data?.tierListName || 'Shared Spotify Tierlist';
-        setImportedPlaylistName(name);
-        setSelectedPlaylist({
-          id: `shared-${shortId}`,
-          name,
-          owner: data?.username || undefined
-        });
-        setPlaylistTracks([]);
-        setPendingPlaylist(null);
-        setShowSongGroupModal(false);
+        applyTierlistData(data);
       } catch (err) {
-        console.error('Failed to load shared tierlist:', err);
         if (!isMounted) return;
-        const backendMessage = err.response?.data?.error;
+        const status = err.response?.status;
+        if (status === 403 && !initialOptions) {
+          const resolvedSpotifyUserId = await ensureSpotifyUserId();
+          if (resolvedSpotifyUserId) {
+            try {
+              const retryData = await fetchTierlist({ spotifyUserId: resolvedSpotifyUserId });
+              if (!isMounted) return;
+              applyTierlistData(retryData);
+              return;
+            } catch (retryErr) {
+              console.error('Failed to retry loading shared tierlist:', retryErr);
+              setSharedTierlist(null);
+              setError(buildSharedTierlistError(retryErr));
+              return;
+            }
+          }
+        }
+
+        console.error('Failed to load shared tierlist:', err);
         setSharedTierlist(null);
-        setError(backendMessage || err.message || 'Failed to load tierlist');
+        setError(buildSharedTierlistError(err));
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -535,7 +627,7 @@ const Home = ({ accessToken, setAccessToken }) => {
     return () => {
       isMounted = false;
     };
-  }, [shortId]);
+  }, [shortId, spotifyUserId, ensureSpotifyUserId]);
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -616,7 +708,13 @@ const Home = ({ accessToken, setAccessToken }) => {
   }
 
   if (error) {
-    return <div className="error">Error: {error}</div>;
+    return (
+      <div className="home-error-page">
+        <div className="error-message home-error-banner">
+          Error: {error}
+        </div>
+      </div>
+    );
   }
 
   return (

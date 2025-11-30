@@ -707,13 +707,21 @@ const PlaylistSelector = ({
         return JSON.parse(raw);
       }
       if (playlist._shortId) {
-        return await getTierlist(playlist._shortId);
+        let options;
+        if (playlist.isOwnerSelf) {
+          const userId = await ensureSpotifyUserId();
+          if (!userId) {
+            return null;
+          }
+          options = { spotifyUserId: userId };
+        }
+        return await getTierlist(playlist._shortId, options);
       }
     } catch (err) {
       console.error('Failed to load tierlist data for reset', err);
     }
     return null;
-  }, []);
+  }, [ensureSpotifyUserId]);
 
   const computeDefaultCoverFromPlaylist = useCallback(async (playlist) => {
     const tierlistData = await fetchTierlistDataForReset(playlist);

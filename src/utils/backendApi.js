@@ -90,10 +90,18 @@ export const updateTierlist = async (shortId, payload) => {
 /**
  * Fetch a tierlist by shortId
  * @param {string} shortId - Tierlist short identifier
+ * @param {Object} [options]
+ * @param {string} [options.spotifyUserId] - Optional Spotify user ID for private list access
  * @returns {Promise<Object>} Tierlist document
  */
-export const getTierlist = async (shortId) => {
-  const response = await backendApi.get(`/api/tierlists/${shortId}`);
+export const getTierlist = async (shortId, options = {}) => {
+  const params = {};
+  if (options.spotifyUserId) {
+    params.spotifyUserId = options.spotifyUserId;
+  }
+  const response = await backendApi.get(`/api/tierlists/${shortId}`, {
+    params: Object.keys(params).length ? params : undefined
+  });
   return response.data;
 };
 
