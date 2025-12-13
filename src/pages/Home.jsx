@@ -75,6 +75,8 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [showDebugMessage, setShowDebugMessage] = useState(false);
   const [sharedTierlist, setSharedTierlist] = useState(null);
   const [spotifyUserId, setSpotifyUserId] = useState(null);
+  const [loadingColor, setLoadingColor] = useState('#000000'); // Initial color
+  const [dotCount, setDotCount] = useState(0); // Initial dot count
   const { shortId, songId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -209,6 +211,19 @@ const Home = ({ accessToken, setAccessToken }) => {
       window.removeEventListener('debugModeActivated', handleDebugModeActivation);
     };
   }, [toggleKonamiCode, toggleDebugMode]);
+
+  useEffect(() => {
+    const colors = ['#1DB954', '#FF6347', '#FFD700', '#6A5ACD', '#00CED1', '#FF69B4', '#FF4500', '#ADFF2F', '#8A2BE2', '#00FFFF'];
+    let i = 0;
+
+    const interval = setInterval(() => {
+      setLoadingColor(colors[i % colors.length]);
+      setDotCount(i % 4);
+      i = i + 1;
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const ensureSpotifyUserId = useCallback(async () => {
     if (spotifyUserId) {
@@ -701,9 +716,21 @@ const Home = ({ accessToken, setAccessToken }) => {
 
   if (isLoading) {
     return (
-      <div className="loading">
-        <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Loading..." className="loading-spinner" />
-      </div>
+      <div className="loading-screen">
+          <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="127.5" cy="128.5" r="95.5" fill={loadingColor}/>
+            <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
+            <circle cx="127.5" cy="128.5" r="7.95833" fill={loadingColor}/>
+          </svg>
+          <p className="loading-text">
+            <span>Loading</span>
+            <span className="loading-dots">
+              <span className={dotCount >= 1 ? 'dot on' : 'dot'}>.</span>
+              <span className={dotCount >= 2 ? 'dot on' : 'dot'}>.</span>
+              <span className={dotCount >= 3 ? 'dot on' : 'dot'}>.</span>
+            </span>
+          </p>
+        </div>
     );
   }
 
@@ -721,9 +748,9 @@ const Home = ({ accessToken, setAccessToken }) => {
     <div className="home-container">
 
       <header className="app-header">
-        <h1>Tierlist Maker for Spotify</h1>
+        <h1>TuneTier a Tierlist Maker for Spotify</h1>
         <div className="header-controls">
-          <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify" className="spotify-logo" />
+          <img src="/logo.png" alt="Logo" className="app-header-logo" />
           {accessToken && (
             <>
               <UserProfile accessToken={accessToken} />
@@ -746,13 +773,14 @@ const Home = ({ accessToken, setAccessToken }) => {
       {(!accessToken && !sharedTierlist) ? (
         <div className="auth-container">
           <div className="spotify-attribution">
-            <img src="/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify" className="spotify-full-logo" />
+            <img src="/logo.png" alt="Logo" className="app-full-logo" />
             <p>Create a tier list from your favorite Spotify playlists.</p>
             <p>This application uses content from Spotify. By using this app, you agree to Spotify&apos;s terms of service.</p>
+            <p>This application is not affiliated with, endorsed by, or in any way officially connected with Spotify AB.</p>
             <p>Please log in with your Spotify account to create a tierlist.</p>
             <AuthButton />
-            <div className="made-with-spotify">
-              <p>Made with Spotify</p>
+            <div className="app-attribution">
+              <p>A third-party tool for Spotify</p>
             </div>
           </div>
         </div>
@@ -781,8 +809,8 @@ const Home = ({ accessToken, setAccessToken }) => {
             playlistImages={selectedPlaylist?.images || []}
           />
 
-          <div className="made-with-spotify">
-            <p>Made with Spotify</p>
+          <div className="app-attribution">
+            <p>A third-party tool for Spotify</p>
           </div>
         </div>
       ) : (
@@ -806,8 +834,8 @@ const Home = ({ accessToken, setAccessToken }) => {
             onSelectLocalTierlist={handleLocalTierlistSelect}
             onSelectOnlineTierlist={handleOnlineTierlistSelect}
           />
-          <div className="made-with-spotify">
-            <p>Made with Spotify</p>
+          <div className="app-attribution">
+            <p>A third-party tool for Spotify</p>
           </div>
         </div>
       )}

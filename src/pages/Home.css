@@ -137,6 +137,7 @@
   background-color: #191414; /* Spotify black */
   color: white;
   margin-bottom: 2rem;
+  font-size: 0.9rem;
 }
 
 .header-controls {
@@ -162,7 +163,20 @@
 
 .spotify-full-logo {
   height: 80px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
+  object-fit: contain;
+  background-color: transparent;
+}
+
+.app-header-logo {
+  height: 40px;
+  width: auto;
+  margin-right: 10px;
+}
+
+.app-full-logo {
+  height: 100px;
+  margin-bottom: 10px;
   object-fit: contain;
   background-color: transparent;
 }
@@ -175,7 +189,7 @@
   background-color: #ffffff;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  max-width: 600px;
+  max-width: 700px;
   margin: 40px auto;
 }
 
@@ -183,6 +197,7 @@
   margin-bottom: 15px;
   color: #333;
   line-height: 1.5;
+  font-size: 1.0rem;
 }
 
 /* Spotify's primary colors */
@@ -214,7 +229,7 @@ button.auth-button:hover {
   transform: scale(1.05);
 }
 
-.made-with-spotify {
+.app-attribution {
   margin-top: 20px;
   display: flex;
   justify-content: center;
@@ -224,13 +239,57 @@ button.auth-button:hover {
   font-weight: 500;
 }
 
-.made-with-spotify p {
+.app-attribution p {
   margin: 0;
 }
 
-.tierlist-container .made-with-spotify,
-.playlist-selector-container .made-with-spotify {
+.tierlist-container .app-attribution,
+.playlist-selector-container .app-attribution {
   margin-top: 40px;
+}
+
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.loading-screen svg {
+  margin-top: 50px;
+}
+
+.loading-screen p {
+  font-size: 2rem;
+  margin-top: 10px;
+  font-family: 'Arial', sans-serif;
+  text-align: center;
+}
+
+.loading-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  position: relative;
+  left: 20px;
+  width: 12ch;
+  justify-content: center;
+  margin-left: 10px;
+}
+
+.loading-dots {
+  display: inline-flex;
+  width: 3ch;
+}
+
+.loading-dots .dot {
+  opacity: 0;
+}
+
+.loading-dots .dot.on {
+  opacity: 1;
 }
 
 .loading {
