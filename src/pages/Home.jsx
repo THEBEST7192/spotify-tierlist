@@ -815,7 +815,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         </div>
       ) : (
         <div className="playlist-selector-container">
-          <p>Select a playlist to create a tierlist:</p>
+
           <PlaylistSelector 
             accessToken={accessToken} 
             onSelect={handlePlaylistSelect} 

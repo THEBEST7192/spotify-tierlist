@@ -308,6 +308,10 @@ button.auth-button:hover {
   margin: 0 auto;
 }
 
+.playlist-selector-container {
+  margin-top: -50px; 
+}
+
 .home-error-page {
   display: flex;
   justify-content: center;
