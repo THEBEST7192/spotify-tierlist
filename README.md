@@ -73,7 +73,7 @@ npm run server
 6. Build and serve the frontend app:
 ```bash
 npm run build
-serve -s build
+npx serve -s build
 ```
 or
 ```
