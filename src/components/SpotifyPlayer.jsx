@@ -91,10 +91,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
 
    
 
-  // Initialize/destroy controller when accessToken changes (or on mount/unmount)
+  // Initialize/destroy controller on mount/unmount
   useEffect(() => {
-    console.log('[SpotifyPlayer] useEffect (accessToken) accessToken:', accessToken ? 'present' : 'missing');
-
     const cleanupController = () => {
       if (controllerRef.current) {
         console.log('[SpotifyPlayer] Cleaning up controller');
@@ -107,20 +105,8 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       setIsReady(false);
     };
 
-    if (!accessToken) {
-      console.error('[SpotifyPlayer] No accessToken provided - cleaning up controller');
-      cleanupController();
-
-      setPlayerPlayState(false);
-      setCurrentPosition(0);
-      lastPlaybackPosition.current = 0;
-      hasStartedPlaying.current = false;
-      hasNotifiedEnd.current = false;
-    }
-
-    // Cleanup only when accessToken changes or component unmounts
     return () => {
-      console.log('[SpotifyPlayer] Cleanup: destroying controller on accessToken change/unmount');
+      console.log('[SpotifyPlayer] Cleanup: destroying controller on unmount');
       cleanupController();
 
       setPlayerPlayState(false);
@@ -129,7 +115,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       hasStartedPlaying.current = false;
       hasNotifiedEnd.current = false;
     };
-  }, [accessToken]);
+  }, []);
 
   // Switch tracks using loadUri without recreating the controller; initialize if not present
   useEffect(() => {
@@ -147,11 +133,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       }
       hasStartedPlaying.current = false;
       hasNotifiedEnd.current = false;
-      return;
-    }
-
-    if (!accessToken) {
-      console.log('[SpotifyPlayer] No access token yet - will wait to load track');
       return;
     }
 
@@ -297,11 +278,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       return;
     }
     
-    if (!accessToken) {
-      console.error('[SpotifyPlayer] Cannot initialize controller - accessToken is missing');
-      return;
-    }
-    
     if (!trackId) {
       console.error('[SpotifyPlayer] Cannot initialize controller - trackId is missing');
       return;
@@ -420,7 +396,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   };
 
   if (!trackId) return null;
-
   return (
     <div className={`spotify-player${isExpanded ? ' expanded' : ''}`}>
       <div className="player-controls">
