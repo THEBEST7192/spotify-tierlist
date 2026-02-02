@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import html2canvas from "html2canvas";
 import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
 import { createTierlist, updateTierlist } from '../utils/backendApi';

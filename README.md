@@ -108,7 +108,7 @@ The app will be available at the address provided in the terminal (e.g., `http:/
 ## Technologies Used
 
 - React
-- React Beautiful DND (for drag and drop functionality)
+- @hello-pangea/dnd (for drag and drop functionality)
 - HTML2Canvas (for image export)
 - Axios (for API requests)
 - Create React App
@@ -147,7 +147,7 @@ If you encounter any issues:
 - [Last.fm API Documentation](https://www.last.fm/api)
 - [Unoffical Last.fm API Documentation](https://lastfm-docs.github.io/api-docs/)
 - [Create React App Documentation](https://create-react-app.dev/docs)
-- [React Beautiful DND Documentation](https://react-beautiful-dnd.netlify.app/docs/getting-started)
+- [@hello-pangea/dnd Documentation](https://github.com/hello-pangea/dnd)
 - [HTML2Canvas Documentation](https://html2canvas.hertzen.com/documentation)
 
 ## Contact
