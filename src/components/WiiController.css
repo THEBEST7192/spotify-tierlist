@@ -1,0 +1,74 @@
+.wii-controller-container {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wii-connect-button {
+  background-color: #ffffff;
+  color: #000000;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.wii-connect-button:hover {
+  background-color: #e0e0e0;
+}
+
+.wii-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #ccc;
+}
+
+.status-dot.connected {
+  background-color: #1db954;
+  box-shadow: 0 0 5px #1db954;
+}
+
+.status-dot.unsupported {
+  background-color: #ff4444;
+  box-shadow: 0 0 5px #ff4444;
+}
+
+.wii-status.wii-status-unsupported {
+  color: #ff4444;
+}
+
+.wii-disconnect-button {
+  background: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.wii-disconnect-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.wii-error, .wii-error-message {
+  color: #ff4444;
+  font-size: 14px;
+  background-color: rgba(255, 68, 68, 0.1);
+  padding: 8px 12px;
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
+}

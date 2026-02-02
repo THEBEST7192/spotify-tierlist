@@ -11,6 +11,7 @@ import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 import CinemaPoseDetector from './CinemaPoseDetector';
 import TierListJSONExportImport from "./TierListJSONExportImport";
 import ConfirmationDialog from "./ConfirmationDialog";
+import WiiController from "./WiiController";
 
 // Define default tiers and their colors
 const DEFAULT_TIERS = {
@@ -278,6 +279,10 @@ const TierList = ({
   const [isSinging, setIsSinging] = useState(false);
   const [randomChangeInterval, setRandomChangeInterval] = useState(null);
   const [isCinemaEnabled, setIsCinemaEnabled] = useState(false);
+  const [isWiiEnabled, setIsWiiEnabled] = useState(false);
+  const [focusedSongId, setFocusedSongId] = useState(null);
+  const [focusedTierId, setFocusedTierId] = useState(null);
+  const [pickedUpSongId, setPickedUpSongId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
   const [uploadedTierlist, setUploadedTierlist] = useState(null);
@@ -296,6 +301,7 @@ const TierList = ({
   const hydratedFromStorageRef = useRef(false);
   const manualImportRef = useRef(false);
   const lastHydratedRef = useRef(null);
+  const lastFocusedCenterXRef = useRef(null);
   const resolvedCoverImage = useMemo(() => {
     if (typeof state?.coverImage === 'string' && state.coverImage.trim()) {
       return state.coverImage.trim();
@@ -511,7 +517,6 @@ const TierList = ({
     const baseState = hydratedStateRef.current || state;
     const tierNames = Object.keys(baseState || {}).filter(name => !['tierListName', 'coverImage'].includes(name));
     const existingSongIds = new Set();
-    let matchedCount = 0;
 
     const updatedState = tierNames.reduce((acc, tierName) => {
       const tierSongs = Array.isArray(baseState[tierName]) ? baseState[tierName] : [];
@@ -536,7 +541,6 @@ const TierList = ({
         if (resolvedId) existingSongIds.add(resolvedId);
 
         if (matchedSong) {
-          matchedCount += 1;
           const candidateIds = [matchedSong.dragId, matchedSong.id, matchedSong.uri].filter(Boolean);
           candidateIds.forEach(id => existingSongIds.add(id));
           return {
@@ -1189,6 +1193,333 @@ const TierList = ({
     return () => document.removeEventListener('moveSongToTier', handleMoveSongToTier);
   }, []);
 
+  useEffect(() => {
+    if (!isWiiEnabled) {
+      setFocusedSongId(null);
+      setFocusedTierId(null);
+      setPickedUpSongId(null);
+    }
+  }, [isWiiEnabled]);
+
+  // Handle Wiimote button presses
+  const handleWiiButtonPress = useCallback((buttons) => {
+    if (!isWiiEnabled) return;
+
+    // Use a ref to keep track of previous button state to detect presses
+    if (!window._prevWiiButtons) window._prevWiiButtons = {};
+    const prev = window._prevWiiButtons;
+    const isPressed = (btn) => buttons[btn] && !prev[btn];
+
+    // Helper to get all songs in order
+    const getAllSongs = () => {
+      const all = [];
+      tierOrder.forEach(tier => {
+        if (Array.isArray(state[tier])) {
+          state[tier].forEach(song => {
+            all.push({ ...song, tier });
+          });
+        }
+      });
+      return all;
+    };
+
+    const allSongs = getAllSongs();
+    
+    // Initial focus if none exists
+    if (!focusedSongId && !focusedTierId && allSongs.length > 0) {
+      setFocusedSongId(allSongs[0].id);
+      setFocusedTierId(allSongs[0].tier);
+      window._prevWiiButtons = { ...buttons };
+      return;
+    }
+
+    if (allSongs.length === 0) {
+      if (!focusedTierId && tierOrder.length > 0) {
+        setFocusedTierId(tierOrder[0]);
+      }
+      window._prevWiiButtons = { ...buttons };
+      return;
+    }
+
+    const currentIndex = allSongs.findIndex(s => s.id === focusedSongId);
+    const currentSong = allSongs[currentIndex];
+
+    const focusClosestSongInTier = (targetTierIndex, isDown) => {
+      const targetTier = tierOrder[targetTierIndex];
+      const tierSongs = state[targetTier] || [];
+      const currentElement = document.querySelector('.song-card.focused');
+      const currentRect = currentElement ? currentElement.getBoundingClientRect() : null;
+      const elementX = currentRect ? currentRect.left + currentRect.width / 2 : null;
+      if (elementX !== null) {
+        lastFocusedCenterXRef.current = elementX;
+      }
+      const currentX = elementX ?? lastFocusedCenterXRef.current;
+
+      if (tierSongs.length === 0) {
+        setFocusedSongId(null);
+        setFocusedTierId(targetTier);
+        return true;
+      }
+
+      const tierListElement = document.getElementById('tier-list');
+      const tierElements = tierListElement
+        ? Array.from(tierListElement.children).filter(el => el.classList && el.classList.contains('tier'))
+        : [];
+      const targetTierElement = tierElements[targetTierIndex]
+        ? tierElements[targetTierIndex].querySelector('.tier-songs')
+        : null;
+
+      if (targetTierElement && currentX !== null) {
+        const targetCards = Array.from(targetTierElement.querySelectorAll('.song-card'));
+        if (targetCards.length > 0) {
+          const cardRects = targetCards
+            .map(card => ({ card, rect: card.getBoundingClientRect() }))
+            .sort((a, b) => a.rect.top - b.rect.top);
+
+          const rows = [];
+          cardRects.forEach(entry => {
+            const lastRow = rows[rows.length - 1];
+            if (!lastRow || Math.abs(entry.rect.top - lastRow.top) > 10) {
+              rows.push({ top: entry.rect.top, entries: [entry] });
+            } else {
+              lastRow.entries.push(entry);
+            }
+          });
+
+          const boundaryRow = isDown ? rows[0] : rows[rows.length - 1];
+          let bestEntry = boundaryRow.entries[0];
+          let minDiff = Infinity;
+
+          boundaryRow.entries.forEach(entry => {
+            const x = entry.rect.left + entry.rect.width / 2;
+            const diff = Math.abs(x - currentX);
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestEntry = entry;
+            }
+          });
+
+          const targetId = bestEntry.card.dataset.songId;
+          if (targetId) {
+            setFocusedSongId(targetId);
+            setFocusedTierId(targetTier);
+            return true;
+          }
+        }
+      }
+
+      setFocusedSongId(tierSongs[0].id);
+      setFocusedTierId(targetTier);
+      return true;
+    };
+
+    if (!currentSong) {
+      const currentTierIndex = tierOrder.indexOf(focusedTierId);
+      if (currentTierIndex === -1) {
+        window._prevWiiButtons = { ...buttons };
+        return;
+      }
+
+      if (isPressed('DPAD_DOWN') || isPressed('DPAD_UP')) {
+        const isDown = buttons['DPAD_DOWN'];
+        const targetTierIndex = isDown
+          ? (currentTierIndex + 1) % tierOrder.length
+          : (currentTierIndex - 1 + tierOrder.length) % tierOrder.length;
+        focusClosestSongInTier(targetTierIndex, isDown);
+      } else if (isPressed('ONE') || isPressed('TWO')) {
+        const isTwo = buttons['TWO'];
+        const targetTierIndex = isTwo
+          ? (currentTierIndex + 1) % tierOrder.length
+          : (currentTierIndex - 1 + tierOrder.length) % tierOrder.length;
+        focusClosestSongInTier(targetTierIndex, isTwo);
+      } else if (isPressed('B') && pickedUpSongId && focusedTierId) {
+        const songToMove = allSongs.find(s => s.id === pickedUpSongId);
+        const targetTier = focusedTierId;
+
+        if (songToMove) {
+          setState(prevState => {
+            const newState = { ...prevState };
+
+            newState[songToMove.tier] = newState[songToMove.tier].filter(s => s.id !== pickedUpSongId);
+
+            const targetTierSongs = newState[targetTier] || [];
+            const updatedTargetSongs = [...targetTierSongs, songToMove];
+            newState[targetTier] = updatedTargetSongs;
+
+            return newState;
+          });
+        }
+        setPickedUpSongId(null);
+      }
+
+      window._prevWiiButtons = { ...buttons };
+      return;
+    }
+
+    setFocusedTierId(currentSong.tier);
+
+    // 1. Navigation within tier with D-Pad
+    if (isPressed('DPAD_RIGHT')) {
+      const currentTierSongs = allSongs.filter(s => s.tier === currentSong.tier);
+      const indexInTier = currentTierSongs.findIndex(s => s.id === focusedSongId);
+      const nextIndex = (indexInTier + 1) % currentTierSongs.length;
+      setFocusedSongId(currentTierSongs[nextIndex].id);
+    } else if (isPressed('DPAD_LEFT')) {
+      const currentTierSongs = allSongs.filter(s => s.tier === currentSong.tier);
+      const indexInTier = currentTierSongs.findIndex(s => s.id === focusedSongId);
+      const prevIndex = (indexInTier - 1 + currentTierSongs.length) % currentTierSongs.length;
+      setFocusedSongId(currentTierSongs[prevIndex].id);
+    } else if (isPressed('DPAD_DOWN') || isPressed('DPAD_UP')) {
+      // Line-based navigation within the same tier
+      const currentElement = document.querySelector('.song-card.focused');
+      let navigated = false;
+
+      if (currentElement) {
+        const currentRect = currentElement.getBoundingClientRect();
+        const tierElement = currentElement.closest('.tier-songs');
+        if (tierElement) {
+          const cardsInTier = Array.from(tierElement.querySelectorAll('.song-card'));
+          const isDown = buttons['DPAD_DOWN']; // Use raw state here as we already checked isPressed for the block entry
+          
+          let targetCard = null;
+          if (isDown) {
+            // Find cards in the next lines (top is below current bottom)
+            const cardsBelow = cardsInTier.filter(card => {
+              const rect = card.getBoundingClientRect();
+              return rect.top >= currentRect.bottom - 5;
+            });
+            
+            if (cardsBelow.length > 0) {
+              const firstNextLineTop = Math.min(...cardsBelow.map(c => c.getBoundingClientRect().top));
+              const immediateNextLine = cardsBelow.filter(c => Math.abs(c.getBoundingClientRect().top - firstNextLineTop) < 10);
+              
+              let minDiff = Infinity;
+              immediateNextLine.forEach(card => {
+                const diff = Math.abs(card.getBoundingClientRect().left - currentRect.left);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  targetCard = card;
+                }
+              });
+            }
+          } else {
+            // Find cards in previous lines (bottom is above current top)
+            const cardsAbove = cardsInTier.filter(card => {
+              const rect = card.getBoundingClientRect();
+              return rect.bottom <= currentRect.top + 5;
+            });
+            
+            if (cardsAbove.length > 0) {
+              const lastPrevLineBottom = Math.max(...cardsAbove.map(c => c.getBoundingClientRect().bottom));
+              const immediatePrevLine = cardsAbove.filter(c => Math.abs(c.getBoundingClientRect().bottom - lastPrevLineBottom) < 10);
+              
+              let minDiff = Infinity;
+              immediatePrevLine.forEach(card => {
+                const diff = Math.abs(card.getBoundingClientRect().left - currentRect.left);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  targetCard = card;
+                }
+              });
+            }
+          }
+
+          if (targetCard) {
+            const targetId = targetCard.dataset.songId;
+            if (targetId) {
+              setFocusedSongId(targetId);
+              navigated = true;
+            } else {
+              const targetIndex = cardsInTier.indexOf(targetCard);
+              const tierSongs = state[currentSong.tier];
+              if (tierSongs[targetIndex]) {
+                setFocusedSongId(tierSongs[targetIndex].id);
+                navigated = true;
+              }
+            }
+          }
+        }
+      }
+
+      // If we couldn't move to another line in the same tier, move to the next/prev tier
+      if (!navigated) {
+        const currentTierIndex = tierOrder.indexOf(currentSong.tier);
+        const isDown = buttons['DPAD_DOWN'];
+        const targetTierIndex = isDown 
+          ? (currentTierIndex + 1) % tierOrder.length 
+          : (currentTierIndex - 1 + tierOrder.length) % tierOrder.length;
+        navigated = focusClosestSongInTier(targetTierIndex, isDown);
+      }
+    } else if (isPressed('ONE') || isPressed('TWO')) {
+      // 2. Navigation between tiers with 1/2
+      const currentTierIndex = tierOrder.indexOf(currentSong.tier);
+      const isTwo = buttons['TWO'];
+      const targetTierIndex = isTwo 
+        ? (currentTierIndex + 1) % tierOrder.length 
+        : (currentTierIndex - 1 + tierOrder.length) % tierOrder.length;
+      focusClosestSongInTier(targetTierIndex, isTwo);
+    }
+
+    // 3. Pause/Play with 'A'
+    if (isPressed('A')) {
+      if (currentSong && currentSong.content?.id) {
+        playTrack(currentSong.content.id);
+      }
+    }
+
+    // 4. Pick up / Move with 'B'
+    if (isPressed('B')) {
+      if (pickedUpSongId) {
+        const songToMove = allSongs.find(s => s.id === pickedUpSongId);
+        const targetTier = focusedTierId || currentSong.tier;
+        
+        if (songToMove) {
+          setState(prevState => {
+            const newState = { ...prevState };
+            
+            newState[songToMove.tier] = newState[songToMove.tier].filter(s => s.id !== pickedUpSongId);
+
+            const targetTierSongs = newState[targetTier] || [];
+            const focusIndexInTargetAfterRemoval = targetTierSongs.findIndex(s => s.id === focusedSongId);
+
+            let insertIndex = targetTierSongs.length;
+
+            if (songToMove.tier === targetTier) {
+              const sourceTierSongsBefore = prevState[targetTier] || [];
+              const pickedUpIndexBefore = sourceTierSongsBefore.findIndex(s => s.id === pickedUpSongId);
+              const focusIndexBefore = sourceTierSongsBefore.findIndex(s => s.id === focusedSongId);
+
+              if (focusedSongId === pickedUpSongId) {
+                insertIndex = Math.min(Math.max(pickedUpIndexBefore, 0), targetTierSongs.length);
+              } else if (focusIndexInTargetAfterRemoval !== -1) {
+                if (focusIndexBefore !== -1 && pickedUpIndexBefore !== -1 && focusIndexBefore < pickedUpIndexBefore) {
+                  insertIndex = focusIndexInTargetAfterRemoval;
+                } else {
+                  insertIndex = focusIndexInTargetAfterRemoval + 1;
+                }
+              }
+            } else if (focusIndexInTargetAfterRemoval !== -1) {
+              insertIndex = focusIndexInTargetAfterRemoval + 1;
+            }
+
+            const updatedTargetSongs = [...targetTierSongs];
+            updatedTargetSongs.splice(insertIndex, 0, songToMove);
+            newState[targetTier] = updatedTargetSongs;
+            
+            return newState;
+          });
+        }
+        setPickedUpSongId(null);
+      } else {
+        if (focusedSongId) {
+          setPickedUpSongId(focusedSongId);
+        }
+      }
+    }
+
+    window._prevWiiButtons = { ...buttons };
+  }, [isWiiEnabled, focusedSongId, focusedTierId, pickedUpSongId, state, tierOrder, playTrack]);
+
   // Render the confirmation dialog for unavailable songs
   const renderUnavailableSongsDialog = () => (
     <ConfirmationDialog
@@ -1278,6 +1609,23 @@ const TierList = ({
               {isCinemaEnabled ? '🎬 Absolute cinema on' : '🎬 Absolute cinema off'}
             </span>
           </div>
+
+          <div className="detection-group">
+            <div className="cinema-control">
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={isWiiEnabled}
+                  onChange={(e) => setIsWiiEnabled(e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+              <span className="control-label">
+                {isWiiEnabled ? '🎮 Wii Support on' : '🎮 Wii Support off'}
+              </span>
+            </div>
+            <WiiController isEnabled={isWiiEnabled} onButtonPress={handleWiiButtonPress} />
+          </div>
           <CinemaPoseDetector isEnabled={isCinemaEnabled} debugMode={debugMode} />
         </div>
       </div>
@@ -1365,12 +1713,28 @@ const TierList = ({
                   direction="vertical"
                 >
                   {(provided, snapshot) => (
+                    (() => {
+                      const visibleItems = (state[tierId] || []).filter(item => item && item.content);
+                      const isEmpty = visibleItems.length === 0;
+                      const isEmptyFocused = isEmpty && focusedTierId === tierId;
+                      const isEmptyDraggingOver = isEmpty && snapshot.isDraggingOver;
+                      const isCarrying = Boolean(pickedUpSongId);
+                      const showEmptySlot = isEmpty && (isEmptyFocused || isEmptyDraggingOver);
+                      const emptySlotVariant = isEmptyDraggingOver || (isEmptyFocused && isCarrying) ? "carrying" : "focused";
+
+                      return (
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
                       style={getListStyle(snapshot.isDraggingOver)}
-                      className="tier-songs"
+                      className={[
+                        "tier-songs",
+                        snapshot.isDraggingOver ? "dragging-over" : ""
+                      ].filter(Boolean).join(" ")}
                     >
+                      {showEmptySlot && (
+                        <div className={`empty-tier-slot ${emptySlotVariant}`} />
+                      )}
                       {state[tierId].map((item, index) => {
                         if (!item || !item.content) return null;
                         const song = item.content;
@@ -1391,7 +1755,8 @@ const TierList = ({
                                   snapshot.isDragging,
                                   provided.draggableProps.style
                                 )}
-                                className={`song-card ${isPlaying ? 'playing' : ''}`}
+                                data-song-id={item.id}
+                                className={`song-card ${isPlaying ? 'playing' : ''} ${focusedSongId === item.id ? 'focused' : ''} ${pickedUpSongId === item.id ? 'picked-up' : ''}`}
                               >
                                 {song.album && song.album.images && song.album.images.length > 0 && (
                                   <a 
@@ -1454,6 +1819,8 @@ const TierList = ({
                       })}
                       {provided.placeholder}
                     </div>
+                      );
+                    })()
                   )}
                 </Droppable>
               </div>

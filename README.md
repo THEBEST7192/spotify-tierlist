@@ -100,7 +100,19 @@ The app will be available at the address provided in the terminal (e.g., `http:/
    - All song limits are removed (This does not change how the Spotify/LastFM API works*)
    - You can deactivate the Konami Code effects by activating it again
 
-7. Debug Mode
+8. Wiimote Support
+   - Enable "Wii Support" in the tier list creator to use a Wiimote to navigate and organize your tier list.
+   - **Requirements**: Chromium-based browser (Chrome, Edge) and a Wiimote (Original or MotionPlus).
+   - **Controls**:
+     - **D-Pad Left/Right**: Move focus between songs in the current tier.
+     - **D-Pad Up/Down**: Move focus to the next/previous line of songs in the current tier.
+     - **1 Button**: Move focus to the previous tier (up).
+     - **2 Button**: Move focus to the next tier (down).
+     - **A Button**: Play/Pause the Spotify preview for the currently focused song.
+     - **B Button**: Pick up a song. Navigate to another tier and press **B** again to move it there.
+   - Powered by [wiimote-webhid](https://github.com/PicchiKevin/wiimote-webhid).
+
+9. Debug Mode
    - Type "debugmode" in the console to activate debug mode
    - Debug mode will show the camera feed that [CinemaPoseDetector](src/components/CinemaPoseDetector.jsx) is using to detect the pose of the user
    - More debugging will come soon

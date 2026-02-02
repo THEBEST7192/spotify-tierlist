@@ -29,6 +29,8 @@
   "scripts": {
     "start": "npm run build && serve -s build",
     "build": "vite build",
+    "lint": "eslint .",
+    "ling": "eslint . --fix",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "vite",
