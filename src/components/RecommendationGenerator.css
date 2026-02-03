@@ -31,6 +31,11 @@
   background-color: #2A2A2A;
 }
 
+.discover-toggle.wii-control-focused {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
 .discover-toggle input {
   appearance: none;
   -webkit-appearance: none;
@@ -383,6 +388,21 @@
   gap: 10px;
   margin-bottom: 15px;
   flex-shrink: 0; /* Prevent container resizing when slider changes */
+  cursor: pointer;
+  background-color: #1A1A1A;
+  padding: 10px 12px;
+  border-radius: 20px;
+  transition: background-color 0.2s;
+  margin-top: 12px;
+}
+
+.exploration-depth-slider:hover {
+  background-color: #2A2A2A;
+}
+
+.exploration-depth-slider.wii-control-focused {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }
 .exploration-depth-slider input[type="range"] {
   flex: 0 0 200px; /* Fixed width to avoid flex resizing */

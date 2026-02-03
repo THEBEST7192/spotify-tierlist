@@ -280,6 +280,7 @@ const TierList = ({
   const [randomChangeInterval, setRandomChangeInterval] = useState(null);
   const [isCinemaEnabled, setIsCinemaEnabled] = useState(false);
   const [isWiiEnabled, setIsWiiEnabled] = useState(false);
+  const [isWiiUiMode, setIsWiiUiMode] = useState(false);
   const [focusedSongId, setFocusedSongId] = useState(null);
   const [focusedTierId, setFocusedTierId] = useState(null);
   const [pickedUpSongId, setPickedUpSongId] = useState(null);
@@ -302,6 +303,7 @@ const TierList = ({
   const manualImportRef = useRef(false);
   const lastHydratedRef = useRef(null);
   const lastFocusedCenterXRef = useRef(null);
+  const wiiUiFocusedElementRef = useRef(null);
   const resolvedCoverImage = useMemo(() => {
     if (typeof state?.coverImage === 'string' && state.coverImage.trim()) {
       return state.coverImage.trim();
@@ -1198,8 +1200,13 @@ const TierList = ({
       setFocusedSongId(null);
       setFocusedTierId(null);
       setPickedUpSongId(null);
+      setIsWiiUiMode(false);
+      if (wiiUiFocusedElementRef.current) {
+        wiiUiFocusedElementRef.current.classList.remove('wii-control-focused');
+        wiiUiFocusedElementRef.current = null;
+      }
     }
-  }, [isWiiEnabled]);
+  }, [isWiiEnabled, wiiUiFocusedElementRef]);
 
   // Handle Wiimote button presses
   const handleWiiButtonPress = useCallback((buttons) => {
@@ -1209,6 +1216,214 @@ const TierList = ({
     if (!window._prevWiiButtons) window._prevWiiButtons = {};
     const prev = window._prevWiiButtons;
     const isPressed = (btn) => buttons[btn] && !prev[btn];
+
+    const clearUiFocus = () => {
+      if (wiiUiFocusedElementRef.current) {
+        wiiUiFocusedElementRef.current.classList.remove('wii-control-focused');
+        wiiUiFocusedElementRef.current = null;
+      }
+    };
+
+    const getUiControls = () => {
+      const root = document.querySelector('.tier-list-container');
+      if (!root) return [];
+
+      const candidates = Array.from(root.querySelectorAll('button, a[href], input, select, textarea, label.toggle-switch'));
+      return candidates.filter((el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.closest('.song-card')) return false;
+        if (el.closest('.tier-songs')) return false;
+        if (el.getAttribute('aria-hidden') === 'true') return false;
+        if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        return true;
+      });
+    };
+
+    const focusUiElement = (el) => {
+      if (!(el instanceof HTMLElement)) return false;
+
+      let highlightEl = el;
+      let focusEl = el;
+
+      if (el instanceof HTMLInputElement) {
+        const container = el.closest('label.discover-toggle, label.exploration-depth-slider, label.toggle-switch');
+        if (container instanceof HTMLElement) {
+          highlightEl = container;
+        }
+      } else if (el.tagName === 'LABEL') {
+        const nestedFocusable = el.querySelector('input, button, a[href], select, textarea');
+        if (nestedFocusable instanceof HTMLElement) {
+          focusEl = nestedFocusable;
+        }
+      }
+
+      const prevEl = wiiUiFocusedElementRef.current;
+      if (prevEl && prevEl !== highlightEl) {
+        prevEl.classList.remove('wii-control-focused');
+      }
+      highlightEl.classList.add('wii-control-focused');
+      wiiUiFocusedElementRef.current = highlightEl;
+
+      if (highlightEl.tabIndex < 0 && highlightEl.tagName === 'LABEL') {
+        highlightEl.tabIndex = -1;
+      }
+      if (typeof focusEl.focus === 'function') {
+        try { focusEl.focus({ preventScroll: true }); } catch { focusEl.focus(); }
+      }
+      try { highlightEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { void 0; }
+      return true;
+    };
+
+    const focusFirstUiControl = () => {
+      const controls = getUiControls();
+      if (controls.length === 0) return false;
+      return focusUiElement(controls[0]);
+    };
+
+    const focusAdjacentUiControl = (direction) => {
+      const controls = getUiControls();
+      if (controls.length === 0) return false;
+
+      const current = wiiUiFocusedElementRef.current;
+      if (!(current instanceof HTMLElement) || !controls.includes(current)) {
+        return focusUiElement(controls[0]);
+      }
+
+      const currentRect = current.getBoundingClientRect();
+      const currentCenter = {
+        x: currentRect.left + currentRect.width / 2,
+        y: currentRect.top + currentRect.height / 2
+      };
+
+      const getCenter = (el) => {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      };
+
+      const candidates = controls
+        .filter((el) => el !== current)
+        .map((el) => {
+          const center = getCenter(el);
+          return { el, dx: center.x - currentCenter.x, dy: center.y - currentCenter.y };
+        })
+        .filter(({ dx, dy }) => {
+          if (direction === 'UP') return dy < -1;
+          if (direction === 'DOWN') return dy > 1;
+          if (direction === 'LEFT') return dx < -1;
+          if (direction === 'RIGHT') return dx > 1;
+          return false;
+        })
+        .map((entry) => {
+          const { dx, dy } = entry;
+          const primary = direction === 'UP' ? -dy
+            : direction === 'DOWN' ? dy
+            : direction === 'LEFT' ? -dx
+            : dx;
+          const secondary = direction === 'UP' || direction === 'DOWN' ? Math.abs(dx) : Math.abs(dy);
+          return { ...entry, score: primary + secondary * 2 };
+        })
+        .sort((a, b) => a.score - b.score);
+
+      if (candidates.length > 0) {
+        return focusUiElement(candidates[0].el);
+      }
+
+      const currentIndex = controls.indexOf(current);
+      if (currentIndex === -1) return focusUiElement(controls[0]);
+      if (direction === 'UP' || direction === 'LEFT') {
+        return focusUiElement(controls[(currentIndex - 1 + controls.length) % controls.length]);
+      }
+      return focusUiElement(controls[(currentIndex + 1) % controls.length]);
+    };
+
+    const activateUiControl = () => {
+      const el = wiiUiFocusedElementRef.current;
+      if (!(el instanceof HTMLElement)) return false;
+      el.click();
+      return true;
+    };
+
+    const adjustRangeControl = (delta) => {
+      const el = wiiUiFocusedElementRef.current;
+      let range = null;
+      if (el instanceof HTMLInputElement && el.type === 'range') {
+        range = el;
+      } else if (el instanceof HTMLElement) {
+        const nested = el.querySelector('input[type="range"]');
+        if (nested instanceof HTMLInputElement) {
+          range = nested;
+        }
+      }
+
+      if (!range) return false;
+
+      const setNativeValue = (input, value) => {
+        const inputPrototype = Object.getPrototypeOf(input);
+        const descriptor = Object.getOwnPropertyDescriptor(inputPrototype, 'value');
+        const valueSetter = descriptor?.set;
+        if (typeof valueSetter === 'function') {
+          valueSetter.call(input, value);
+          return;
+        }
+        input.value = value;
+      };
+
+      const step = Number(range.step || 1);
+      const min = range.min === '' ? -Infinity : Number(range.min);
+      const max = range.max === '' ? Infinity : Number(range.max);
+      const currentValue = Number(range.value || 0);
+      const nextValue = Math.min(max, Math.max(min, currentValue + delta * step));
+      if (Number.isNaN(nextValue) || nextValue === currentValue) return true;
+      setNativeValue(range, String(nextValue));
+      range.dispatchEvent(new Event('input', { bubbles: true }));
+      range.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    };
+
+
+    if (isPressed('HOME')) {
+      if (isWiiUiMode) {
+        setIsWiiUiMode(false);
+        clearUiFocus();
+      } else {
+        setIsWiiUiMode(true);
+        focusFirstUiControl();
+      }
+      window._prevWiiButtons = { ...buttons };
+      return;
+    }
+
+    if (isWiiUiMode) {
+      if (isPressed('B')) {
+        setIsWiiUiMode(false);
+        clearUiFocus();
+      } else if (isPressed('A')) {
+        activateUiControl();
+      } else if (isPressed('PLUS')) {
+        focusAdjacentUiControl('RIGHT');
+      } else if (isPressed('MINUS')) {
+        focusAdjacentUiControl('LEFT');
+      } else if (isPressed('DPAD_UP')) {
+        focusAdjacentUiControl('UP');
+      } else if (isPressed('DPAD_DOWN')) {
+        focusAdjacentUiControl('DOWN');
+      } else if (isPressed('DPAD_LEFT')) {
+        if (!adjustRangeControl(-1)) {
+          focusAdjacentUiControl('LEFT');
+        }
+      } else if (isPressed('DPAD_RIGHT')) {
+        if (!adjustRangeControl(1)) {
+          focusAdjacentUiControl('RIGHT');
+        }
+      }
+
+      window._prevWiiButtons = { ...buttons };
+      return;
+    }
 
     // Helper to get all songs in order
     const getAllSongs = () => {

@@ -241,6 +241,11 @@
   z-index: 100;
 }
 
+.wii-control-focused {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
 .song-card.picked-up {
   opacity: 0.6;
   border: 2px dashed #1db954;

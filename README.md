@@ -97,7 +97,7 @@ The app will be available at the address provided in the terminal (e.g., `http:/
 
 6. Konami Code
    - Type the Konami Code (Up, Up, Down, Down, Left, Right, Left, Right, B, A) or search for `wwssadadab` to activate the Konami Code
-   - All song limits are removed (This does not change how the Spotify/LastFM API works*)
+   - All song limits are removed (This does not change the Limits of the Spotify/LastFM API, but will remove self imposed limits)
    - You can deactivate the Konami Code effects by activating it again
 
 8. Wiimote Support
@@ -110,6 +110,13 @@ The app will be available at the address provided in the terminal (e.g., `http:/
      - **2 Button**: Move focus to the next tier (down).
      - **A Button**: Play/Pause the Spotify preview for the currently focused song.
      - **B Button**: Pick up a song. Navigate to another tier and press **B** again to move it there.
+     - **HOME Button**: Toggle UI mode (lets you navigate buttons/toggles outside the song grid).
+   - **UI Mode Controls**:
+     - **D-Pad**: Move focus between UI controls (toggles, buttons, links, sliders).
+     - **A Button**: Activate the focused control (click / toggle).
+     - **B Button**: Exit UI mode.
+     - **PLUS / MINUS**: Move focus right/left.
+     - **D-Pad Left/Right on sliders**: Adjust range inputs (e.g. Exploration Depth).
    - Powered by [wiimote-webhid](https://github.com/PicchiKevin/wiimote-webhid).
 
 9. Debug Mode
