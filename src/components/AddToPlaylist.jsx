@@ -406,7 +406,7 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
           {showCloneDialog && playlistToClone && (
             <div className="clone-playlist-dialog">
               <h4>Clone Playlist</h4>
-              <p>You don&apos;t have permission to add tracks to "{playlistToClone.name}". Would you like to create a copy of this playlist and add the tracks to it?</p>
+              <p>You don&apos;t have permission to add tracks to &quot;{playlistToClone.name}&quot;. Would you like to create a copy of this playlist and add the tracks to it?</p>
               
               <input
                 type="text"

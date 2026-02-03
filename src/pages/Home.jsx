@@ -53,6 +53,8 @@ const buildSharedTierlistError = (error) => {
   return `Failed to load tierlist: ${detail}`;
 };
 
+const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
 const Home = ({ accessToken, setAccessToken }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -110,7 +112,7 @@ const Home = ({ accessToken, setAccessToken }) => {
     }
   }, []);
 
-  const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
   const konamiIndexRef = useRef(0);
 
   // Handle logout

@@ -36,8 +36,6 @@ const mongoClient = new MongoClient(MONGODB_URI, {
   }
 });
 
-let tierlistsRouterInstance = null;
-
 async function initMongoConnection() {
   try {
     await mongoClient.connect();
@@ -46,12 +44,10 @@ async function initMongoConnection() {
     await ensureTierlistIndexes(db);
     app.locals.mongoClient = mongoClient;
     app.locals.db = db;
-    tierlistsRouterInstance = createTierlistsRouter(db);
   } catch (err) {
     console.error('Failed to connect to MongoDB:', err);
     app.locals.mongoClient = null; // Set to null if connection fails
     app.locals.db = null;
-    tierlistsRouterInstance = null;
   }
 }
 

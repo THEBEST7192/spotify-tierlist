@@ -719,28 +719,80 @@
   }
 }
 
-.singing-detector {
-  margin: 10px 0;
-  padding: 10px;
-  background-color: rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* Toggle Switch Styles (Shared) */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
 }
 
-.singing-status {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
-.singing-status.singing {
-  color: #1DB954;
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 34px;
 }
 
-.singing-status.not-singing {
-  color: #ff4444;
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #1DB954;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+.manual-toggle-button {
+  background-color: #333;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.manual-toggle-button:hover {
+  background-color: #444;
+}
+
+.force-off-button {
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.force-off-button:hover {
+  background-color: #ff6666;
 }
 
 /* Create Playlist From Ranked Songs Styles */

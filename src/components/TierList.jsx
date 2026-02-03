@@ -6,7 +6,6 @@ import { createTierlist, updateTierlist } from '../utils/backendApi';
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
 import SpotifyPlayer from "./SpotifyPlayer";
-import SingingDetector from "./SingingDetector";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 import CinemaPoseDetector from './CinemaPoseDetector';
 import TierListJSONExportImport from "./TierListJSONExportImport";
@@ -276,8 +275,6 @@ const TierList = ({
   const [showEditMode, setShowEditMode] = useState(false);
   const [editingTier, setEditingTier] = useState(null);
   const [editTierName, setEditTierName] = useState("");
-  const [isSinging, setIsSinging] = useState(false);
-  const [randomChangeInterval, setRandomChangeInterval] = useState(null);
   const [isCinemaEnabled, setIsCinemaEnabled] = useState(false);
   const [isWiiEnabled, setIsWiiEnabled] = useState(false);
   const [isWiiUiMode, setIsWiiUiMode] = useState(false);
@@ -417,9 +414,9 @@ const TierList = ({
       //   tiers: Object.keys(saved.state || {}).length
       // });
       hydrateTierlist(saved, { silent: true });
-      hydratedFromStorageRef.current = true;
-    } catch { void 0; }
-  }, [storageKey]);
+    hydratedFromStorageRef.current = true;
+  } catch { void 0; }
+}, [storageKey, hydrateTierlist]);
   
   // State for the tier list
   // State for the currently playing track
@@ -613,7 +610,7 @@ const TierList = ({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [songs, checkForUnavailableSongs, storageKey]);
+  }, [songs, checkForUnavailableSongs, storageKey, isInitialSyncComplete, state]);
 
   useEffect(() => {
     if (!storageKey || typeof window === 'undefined' || !isInitialSyncComplete) return;
@@ -1028,7 +1025,7 @@ const TierList = ({
   };
 
   // Play a track
-  const playTrack = (trackId) => {
+  const playTrack = useCallback((trackId) => {
     console.log('[TierList] playTrack called with', trackId, 'isPlayerVisible:', isPlayerVisible, 'currentTrack:', currentTrack, 'isPlayerPlaying:', isPlayerPlaying, 'at', Date.now());
     if (!isPlayerVisible) {
       setIsPlayerVisible(true);
@@ -1040,7 +1037,11 @@ const TierList = ({
       setCurrentTrack(trackId);
       setIsPlayerPlaying(true);
     }
-  };
+    try {
+      const ev = new CustomEvent('spotifyPlayerRequestPlay', { detail: { trackId } });
+      document.dispatchEvent(ev);
+    } catch { /* ignore */ }
+  }, [isPlayerVisible, currentTrack, isPlayerPlaying]);
 
   // Function to add a recommended song to the tierlist
   const addSongToTierlist = (trackData) => {
@@ -1096,73 +1097,6 @@ const TierList = ({
     setIsPlayerPlaying(false);
     setCurrentTrack(null);
   };
-
-  // Function to randomly change tiers of some songs
-  const randomlyChangeTiers = () => {
-    // Only run if singing detector is enabled and user is not singing
-    if (isSinging === false) {
-      setState(prev => {
-        const newState = { ...prev };
-        const allSongs = [];
-        
-        // Collect all songs from all tiers
-        Object.entries(newState).forEach(([tier, songs]) => {
-          songs.forEach(song => {
-            allSongs.push({ ...song, currentTier: tier });
-          });
-        });
-        
-        // Randomly select 3-5 songs to move
-        const numSongsToMove = Math.floor(Math.random() * 3) + 3;
-        const songsToMove = [];
-        const availableTiers = tierOrder.filter(tier => tier !== "Unranked");
-        
-        for (let i = 0; i < numSongsToMove && allSongs.length > 0; i++) {
-          const randomIndex = Math.floor(Math.random() * allSongs.length);
-          const song = allSongs.splice(randomIndex, 1)[0];
-          const randomTier = availableTiers[Math.floor(Math.random() * availableTiers.length)];
-          songsToMove.push({ song, newTier: randomTier });
-        }
-        
-        // Move the selected songs to their new tiers
-        songsToMove.forEach(({ song, newTier }) => {
-          // Ensure song, source, and target tiers exist and song has an id
-          if (!song || !song.id || !newState[song.currentTier] || !newState[newTier]) {
-            return;
-          }
-          // Remove from current tier (skip undefined/malformed entries)
-          newState[song.currentTier] = newState[song.currentTier].filter(
-            s => s && s.id && s.id !== song.id
-          );
-          // Add to new tier
-          newState[newTier] = [...newState[newTier], song];
-        });
-        
-        return newState;
-      });
-    }
-  };
-
-  // Start/stop random changes based on singing state
-  useEffect(() => {
-    // Only start the interval if isSinging is explicitly false (not null or undefined)
-    if (isSinging === false) {
-      const interval = setInterval(randomlyChangeTiers, 5000);
-      setRandomChangeInterval(interval);
-    } else {
-      if (randomChangeInterval) {
-        clearInterval(randomChangeInterval);
-        setRandomChangeInterval(null);
-      }
-    }
-    
-    return () => {
-      if (randomChangeInterval) {
-        clearInterval(randomChangeInterval);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSinging]);
 
   // Add event listener for cinema pose song movement
   useEffect(() => {
@@ -1221,9 +1155,7 @@ const TierList = ({
         });
       }
     } else if (focusedTierId) {
-      const tierElement = document.querySelector(`.tier[style*="background-color"]`); // Find the tier element
-      // This is a bit complex as tiers don't have unique IDs in DOM easily accessible here
-      // But we can try to find the tier header with the label
+      // Find the tier header with the label
       const tierHeaders = document.querySelectorAll('.tier-label h3');
       for (const header of tierHeaders) {
         if (header.textContent === tiers[focusedTierId]?.label) {
@@ -1781,7 +1713,7 @@ const TierList = ({
     }
 
     window._prevWiiButtons = { ...buttons };
-  }, [isWiiEnabled, focusedSongId, focusedTierId, pickedUpSongId, state, tierOrder, playTrack]);
+  }, [isWiiEnabled, focusedSongId, focusedTierId, pickedUpSongId, state, tierOrder, playTrack, isWiiUiMode]);
 
   // Render the confirmation dialog for unavailable songs
   const renderUnavailableSongsDialog = () => (
@@ -1858,7 +1790,6 @@ const TierList = ({
           </div>
         )}
         <div className="detection-controls">
-          <SingingDetector onSingingStateChange={setIsSinging} />
           <div className="cinema-control">
             <label className="toggle-switch">
               <input

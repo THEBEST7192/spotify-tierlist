@@ -119,6 +119,9 @@ const decodeHtmlEntities = (text) => {
   return textarea.value;
 };
 
+const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
+const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
+
 const PlaylistSelector = ({
   onSelect,
   searchQuery,
@@ -163,10 +166,7 @@ const PlaylistSelector = ({
   const [editModalError, setEditModalError] = useState(null);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const [uploadDisplayLabel, setUploadDisplayLabel] = useState("");
-  const [originalCoverImage, setOriginalCoverImage] = useState("");
   const [editIsPublic, setEditIsPublic] = useState(true);
-  const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
-  const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
   const konamiIndex = useRef(0);
   const debugModeIndex = useRef(0);
   const searchInputRef = useRef(null);
@@ -679,7 +679,6 @@ const PlaylistSelector = ({
     setEditImageUrl("");
     setEditModalError(null);
     setUploadDisplayLabel("");
-    setOriginalCoverImage("");
     setEditIsPublic(true);
   }, []);
 
@@ -688,7 +687,6 @@ const PlaylistSelector = ({
     setEditModalPlaylist(playlist);
     setEditModalContext(context);
     const baseImage = playlist.coverImage || playlist.images?.[0]?.url || "";
-    setOriginalCoverImage(baseImage);
     setEditImageUrl(baseImage);
     const isPublicFlag = typeof playlist.isPublic === 'boolean' ? playlist.isPublic : true;
     setEditIsPublic(isPublicFlag);
@@ -1006,7 +1004,7 @@ const PlaylistSelector = ({
                 onChange={(e) => setOnlineOwnerFilter(e.target.value)}
               >
                 <option value="mine">Only My Tierlists</option>
-                <option value="others">Others' Tierlists</option>
+                <option value="others">Others&apos; Tierlists</option>
                 <option value="all">All Tierlists</option>
               </select>
               <select

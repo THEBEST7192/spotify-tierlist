@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import * as tf from '@tensorflow/tfjs';
 import './CinemaPoseDetector.css';
@@ -14,25 +14,9 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
   const videoRef = useRef(null);
   const lastPoseTimeRef = useRef(0);
   const COOLDOWN_PERIOD = 5000; // 5 seconds cooldown
+ 
 
-  useEffect(() => {
-    if (isEnabled) {
-      // Preload the cinema assets
-      const preloadImage = new Image();
-      preloadImage.src = cinemaImagePath;
-      
-      const preloadAudio = new Audio();
-      preloadAudio.src = cinemaAudioPath;
-      preloadAudio.preload = 'auto';
-      
-      initializeDetection();
-    } else {
-      cleanup();
-    }
-    return cleanup;
-  }, [isEnabled]);
-
-  const findClosestSong = (keypoints) => {
+  const findClosestSong = useCallback((keypoints) => {
     const nose = keypoints.find(p => p.name === 'nose');
     if (!nose) return null;
 
@@ -63,9 +47,9 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
     });
 
     return closestSong;
-  };
+  }, []);
 
-  const moveToHighestTier = (songElement) => {
+  const moveToHighestTier = useCallback((songElement) => {
     if (!songElement) {
       return;
     }
@@ -89,70 +73,9 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
     });
     
     document.dispatchEvent(moveEvent);
-  };
+  }, []);
 
-  const initializeDetection = async () => {
-    try {
-      // Initialize TensorFlow backend first
-      await tf.setBackend('webgl');
-      await tf.ready();
-      
-      // Initialize camera with more specific constraints
-      const constraints = {
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user',
-          frameRate: { ideal: 30 }
-        },
-        audio: false
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Wait for video to be ready
-        await new Promise((resolve, reject) => {
-          videoRef.current.onloadedmetadata = () => {
-            resolve();
-          };
-          videoRef.current.onerror = (err) => {
-            reject(err);
-          };
-          
-          // Add a timeout in case the video never loads
-          setTimeout(() => {
-            if (videoRef.current.readyState < 2) {
-              resolve();
-            }
-          }, 3000);
-        });
-        
-        // Try to play the video
-        try {
-          await videoRef.current.play();
-        } catch (playError) {
-          // Continue anyway, we'll try again in the detection loop
-        }
-      }
 
-      detectorRef.current = await poseDetection.createDetector(
-        poseDetection.SupportedModels.MoveNet,
-        {
-          modelType: 'SinglePose.Lightning',
-          enableSmoothing: true,
-          minPoseScore: 0.25
-        }
-      );
-
-      // Start detection loop
-      detectPose();
-    } catch (error) {
-      console.error('Error initializing camera or pose detection:', error);
-    }
-  };
 
   const cleanup = () => {
     if (animationFrameRef.current) {
@@ -167,7 +90,7 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
     }
   };
 
-  const isAbsoluteCinemaPose = (keypoints) => {
+  const isAbsoluteCinemaPose = useCallback((keypoints) => {
     // Get the keypoints that are actually important
     const leftWrist = keypoints.find(p => p.name === 'left_wrist');
     const rightWrist = keypoints.find(p => p.name === 'right_wrist');
@@ -187,11 +110,38 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
     const isDetected = leftDist > 80 && rightDist > 80;
     
     return isDetected;
-  };
-  
-  // We've simplified the pose detection, so we no longer need the angle calculation
-  
-  const startCinemaAnimation = (keypoints) => {
+  }, []);
+
+
+
+  const finishAnimation = useCallback(() => {
+    const cinemaAudio = cinemaAudioRef.current;
+    if (cinemaAudio) {
+      cinemaAudio.removeEventListener('ended', finishAnimation);
+    }
+    const cinemaImage = cinemaImageRef.current;
+    if (cinemaImage) {
+      cinemaImage.classList.add('fading-out');
+      cinemaImage.style.opacity = '0';
+      cinemaImage.style.transition = 'opacity 0.3s ease-out';
+    } else {
+      console.error('Cinema image ref not found during fade-out');
+    }
+    setTimeout(() => {
+      if (cinemaImage) {
+        cinemaImage.classList.remove('visible');
+        cinemaImage.classList.remove('fading-out');
+        cinemaImage.style.opacity = '0';
+        cinemaImage.style.visibility = 'hidden';
+        cinemaImage.style.display = '';
+      }
+    }, 300);
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 500);
+  }, []);
+
+  const startCinemaAnimation = useCallback((keypoints) => {
     const now = Date.now();
     if (now - lastPoseTimeRef.current < COOLDOWN_PERIOD) {
       return;
@@ -217,56 +167,27 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
       cinemaAudio.addEventListener('ended', finishAnimation);
       cinemaAudio.play()
         .catch(err => console.error('Error playing audio:', err));
-        
+
       setTimeout(() => {
         cinemaAudio.pause();
         finishAnimation();
       }, 10000);
     }
-  };
-  const finishAnimation = () => {
-    const cinemaAudio = cinemaAudioRef.current;
-    if (cinemaAudio) {
-      cinemaAudio.removeEventListener('ended', finishAnimation);
-    }
-    const cinemaImage = cinemaImageRef.current;
-    if (cinemaImage) {
-      cinemaImage.classList.add('fading-out');
-      cinemaImage.style.opacity = '0';
-      cinemaImage.style.transition = 'opacity 0.3s ease-out';
-    } else {
-      console.error('Cinema image ref not found during fade-out');
-    }
-    setTimeout(() => {
-      if (cinemaImage) {
-        cinemaImage.classList.remove('visible');
-        cinemaImage.classList.remove('fading-out');
-        cinemaImage.style.opacity = '0';
-        cinemaImage.style.visibility = 'hidden';
-        cinemaImage.style.display = '';
-      }
-    }, 300);
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 500);
-  };
+  }, [findClosestSong, moveToHighestTier, finishAnimation]);
 
-  const detectPose = async () => {
+  const detectPose = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current || !isEnabled) {
       animationFrameRef.current = requestAnimationFrame(detectPose);
       return;
     }
 
-    // Only proceed if not currently animating
     if (!isAnimating) {
       try {
-        // Make sure video is ready and playing
         if (videoRef.current.readyState < 2) {
           animationFrameRef.current = requestAnimationFrame(detectPose);
           return;
         }
         
-        // Ensure video is playing
         if (videoRef.current.paused) {
           try {
             await videoRef.current.play();
@@ -278,9 +199,7 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
         const poses = await detectorRef.current.estimatePoses(videoRef.current);
         
         if (poses.length > 0) {
-          // Simplified check for cinema pose
           if (isAbsoluteCinemaPose(poses[0].keypoints)) {
-            // When the pose is detected, start the animation sequence
             startCinemaAnimation(poses[0].keypoints);
           }
         }
@@ -289,9 +208,82 @@ const CinemaPoseDetector = ({ isEnabled, debugMode = false }) => {
       }
     }
     
-    // Continue the detection loop
     animationFrameRef.current = requestAnimationFrame(detectPose);
-  };
+  }, [isEnabled, isAnimating, isAbsoluteCinemaPose, startCinemaAnimation]); // Adding dependencies for detectPose
+
+  const initializeDetection = useCallback(async () => {
+    try {
+      await tf.setBackend('webgl');
+      await tf.ready();
+      
+      const constraints = {
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user',
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        
+        await new Promise((resolve, reject) => {
+          if (!videoRef.current) return resolve();
+          videoRef.current.onloadedmetadata = () => {
+            resolve();
+          };
+          videoRef.current.onerror = (err) => {
+            reject(err);
+          };
+          
+          setTimeout(() => {
+            if (videoRef.current && videoRef.current.readyState < 2) {
+              resolve();
+            }
+          }, 3000);
+        });
+        
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.error('Error playing video:', playError);
+        }
+      }
+
+      detectorRef.current = await poseDetection.createDetector(
+        poseDetection.SupportedModels.MoveNet,
+        {
+          modelType: 'SinglePose.Lightning',
+          enableSmoothing: true,
+          minPoseScore: 0.25
+        }
+      );
+
+      detectPose();
+    } catch (error) {
+      console.error('Error initializing camera or pose detection:', error);
+    }
+  }, [detectPose]);
+
+  useEffect(() => {
+    if (isEnabled) {
+      const preloadImage = new Image();
+      preloadImage.src = cinemaImagePath;
+      
+      const preloadAudio = new Audio();
+      preloadAudio.src = cinemaAudioPath;
+      preloadAudio.preload = 'auto';
+      
+      initializeDetection();
+    } else {
+      cleanup();
+    }
+    return cleanup;
+  }, [isEnabled, initializeDetection]);
 
   // Create refs for cinema elements
   const cinemaImageRef = useRef(null);

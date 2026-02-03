@@ -11,7 +11,7 @@ const AuthButton = () => {
     if (code) {
       // Exchange the code for tokens
       getAccessToken(code)
-        .then(data => {
+        .then(() => {
           // Clear the URL parameters
           window.history.replaceState({}, document.title, window.location.pathname);
           // Reload the page to use the new tokens

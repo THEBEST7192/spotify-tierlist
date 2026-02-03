@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './SpotifyPlayer.css';
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 
@@ -20,6 +20,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   const iframeContainerRef = useRef(null);
   const controllerRef = useRef(null);
   const previousTrackRef = useRef(null);
+  const previousAccessTokenRef = useRef(null);
   const [currentPosition, setCurrentPosition] = useState(0);
   const isSeeking = useRef(false);
   const hasStartedPlaying = useRef(false);
@@ -28,6 +29,109 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   const pendingStartAfterLoad = useRef(false);
   const hasNotifiedEnd = useRef(false);
   
+  const initializeController = useCallback((IFrameAPI, customHeight, resumePlaying) => {
+    console.log('[SpotifyPlayer] initializeController called with trackId:', trackId);
+    
+    if (!iframeContainerRef.current) {
+      console.error('[SpotifyPlayer] Cannot initialize controller - container ref is null');
+      return;
+    }
+    
+    if (!trackId) {
+      console.error('[SpotifyPlayer] Cannot initialize controller - trackId is missing');
+      return;
+    }
+    
+    // Clear any existing content
+    iframeContainerRef.current.innerHTML = '';
+    
+    const options = {
+      uri: `spotify:track:${trackId}`,
+      width: '100%',
+      height: customHeight || (isExpanded ? '152' : '80'),
+      theme: 'black'
+    };
+    console.log('[SpotifyPlayer] Creating controller with options:', options);
+    
+    try {
+      const embedController = IFrameAPI.createController(
+        iframeContainerRef.current,
+        options,
+        (controller) => {
+          console.log('[SpotifyPlayer] Controller created successfully:', controller);
+          controllerRef.current = controller;
+          creatingControllerRef.current = false;
+
+          setIsReady(true);
+          
+          controller.addListener('playback_update', (data) => {
+            console.log('[SpotifyPlayer] Playback update:', data);
+            const position = Number(data?.data?.position ?? 0);
+            const duration = Number(data?.data?.duration ?? 0);
+            const newPlayState = !data.data.isPaused;
+            
+            if (!isSeeking.current && newPlayState) {
+              setCurrentPosition(position);
+            }
+            if (data.data.isPaused && position > 0) {
+              lastPlaybackPosition.current = position;
+            }
+            
+            // Mark that playback truly started once we have duration or progressed beyond 0
+            if (!hasStartedPlaying.current && newPlayState && (duration > 0 || position > 0)) {
+              hasStartedPlaying.current = true;
+            }
+            
+            setPlayerPlayState(newPlayState);
+            if (onPlayerStateChange) {
+              onPlayerStateChange(newPlayState);
+            }
+            
+            // Only consider end when we had a valid duration and playback actually started
+            const endThresholdMs = 1000; // 1s threshold
+            if (
+              onTrackEnd &&
+              !hasNotifiedEnd.current &&
+              hasStartedPlaying.current &&
+              duration > 0 &&
+              position >= duration - endThresholdMs
+            ) {
+              console.log('[SpotifyPlayer] Detected end-of-track. position:', position, 'duration:', duration);
+              hasNotifiedEnd.current = true;
+              setCurrentPosition(0);
+              lastPlaybackPosition.current = 0;
+              setPlayerPlayState(false);
+              onTrackEnd();
+            }
+          });
+          
+          controller.addListener('ready', () => {
+            console.log('[SpotifyPlayer] Controller ready');
+            setIsReady(true);
+            // Avoid triggering playback here to prevent double starts.
+            // The isPlaying effect will handle starting/stopping based on props.
+            if (resumePlaying) {
+              console.log('[SpotifyPlayer] Ready: resumePlaying requested, deferring to isPlaying effect to start playback');
+              // no-op: prevent double start
+            }
+          });
+
+          controller.addListener('iframe_error', () => {
+            console.warn('[SpotifyPlayer] Iframe error detected:');
+            if (typeof window.InstallTrigger !== 'undefined') {
+              setIsFirefoxETP(true);
+            }
+          });
+        }
+      );
+      console.log('[SpotifyPlayer] Embed controller result:', embedController);
+    } catch (err) {
+        console.error('[SpotifyPlayer] Error creating controller:', err);
+        creatingControllerRef.current = false;
+
+      }
+  }, [trackId, isExpanded, onPlayerStateChange, onTrackEnd]);
+
   useEffect(() => {
     localStorage.setItem(PLAYER_SIZE_KEY, isExpanded);
   }, [isExpanded]);
@@ -40,7 +144,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   // instead of being referenced separately
 
   useEffect(() => {
-    console.log('[SpotifyPlayer] useEffect (loadSpotifyApi) trackId:', trackId, 'accessToken:', accessToken ? 'present' : 'missing');
+    console.log('[SpotifyPlayer] useEffect (loadSpotifyApi)');
     const loadSpotifyApi = () => {
 
       if (!spotifyIframeApiCallbackSet) {
@@ -130,11 +234,18 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
         controllerRef.current = null;
         setIsReady(false);
         previousTrackRef.current = null;
+        previousAccessTokenRef.current = null;
       }
       hasStartedPlaying.current = false;
       hasNotifiedEnd.current = false;
       return;
     }
+
+    const trackChanged = trackId !== previousTrackRef.current;
+    const tokenChanged = accessToken !== previousAccessTokenRef.current;
+
+    if (trackChanged) previousTrackRef.current = trackId;
+    if (tokenChanged) previousAccessTokenRef.current = accessToken;
 
     const initOrLoad = () => {
       if (!window.SpotifyIframeApi) {
@@ -144,11 +255,12 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       }
 
       try {
-        setCurrentPosition(0);
-        lastPlaybackPosition.current = 0;
-        hasStartedPlaying.current = false;
-        hasNotifiedEnd.current = false;
-        previousTrackRef.current = trackId;
+        if (trackChanged || tokenChanged) {
+          setCurrentPosition(0);
+          lastPlaybackPosition.current = 0;
+          hasStartedPlaying.current = false;
+          hasNotifiedEnd.current = false;
+        }
 
         if (!controllerRef.current) {
           if (creatingControllerRef.current) {
@@ -162,23 +274,25 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
           const shouldResume = Boolean(isPlaying || playerPlayState);
           initializeController(window.SpotifyIframeApi, undefined, shouldResume);
         } else {
-          console.log('[SpotifyPlayer] Loading new track via loadUri:', trackId);
-          controllerRef.current.loadUri(`spotify:track:${trackId}`);
-          // Ensure consistent behavior when switching tracks: if parent wants playing, start after load
-          setPlayerPlayState(false);
-          if (isPlaying) {
-            pendingStartAfterLoad.current = true;
-            setTimeout(() => {
-              try {
-                if (controllerRef.current) {
-                  controllerRef.current.togglePlay();
+          if (trackChanged || tokenChanged) {
+            console.log('[SpotifyPlayer] Loading new track via loadUri:', trackId);
+            controllerRef.current.loadUri(`spotify:track:${trackId}`);
+            // Ensure consistent behavior when switching tracks: if parent wants playing, start after load
+            setPlayerPlayState(false);
+            if (isPlaying) {
+              pendingStartAfterLoad.current = true;
+              setTimeout(() => {
+                try {
+                  if (controllerRef.current) {
+                    controllerRef.current.togglePlay();
+                  }
+                } catch (e) {
+                  console.error('[SpotifyPlayer] Error auto-starting after loadUri:', e);
+                } finally {
+                  pendingStartAfterLoad.current = false;
                 }
-              } catch (e) {
-                console.error('[SpotifyPlayer] Error auto-starting after loadUri:', e);
-              } finally {
-                pendingStartAfterLoad.current = false;
-              }
-            }, 200);
+              }, 200);
+            }
           }
         }
       } catch (err) {
@@ -187,7 +301,7 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
     };
 
     initOrLoad();
-  }, [trackId, accessToken]);
+  }, [trackId, accessToken, initializeController, isPlaying, playerPlayState]);
 
   useEffect(() => {
     console.log('[SpotifyPlayer] useEffect (isPlaying change) isPlaying:', isPlaying, 'isReady:', isReady, 'playerPlayState:', playerPlayState);
@@ -269,109 +383,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       iframe.style.height = isExpanded ? '152px' : '80px';
     }
   }, [isExpanded, isReady]);
-
-  const initializeController = (IFrameAPI, customHeight, resumePlaying) => {
-    console.log('[SpotifyPlayer] initializeController called with trackId:', trackId);
-    
-    if (!iframeContainerRef.current) {
-      console.error('[SpotifyPlayer] Cannot initialize controller - container ref is null');
-      return;
-    }
-    
-    if (!trackId) {
-      console.error('[SpotifyPlayer] Cannot initialize controller - trackId is missing');
-      return;
-    }
-    
-    // Clear any existing content
-    iframeContainerRef.current.innerHTML = '';
-    
-    const options = {
-      uri: `spotify:track:${trackId}`,
-      width: '100%',
-      height: customHeight || (isExpanded ? '152' : '80'),
-      theme: 'black'
-    };
-    console.log('[SpotifyPlayer] Creating controller with options:', options);
-    
-    try {
-      const embedController = IFrameAPI.createController(
-        iframeContainerRef.current,
-        options,
-        (controller) => {
-          console.log('[SpotifyPlayer] Controller created successfully:', controller);
-          controllerRef.current = controller;
-          creatingControllerRef.current = false;
-
-          setIsReady(true);
-          
-          controller.addListener('playback_update', (data) => {
-            console.log('[SpotifyPlayer] Playback update:', data);
-            const position = Number(data?.data?.position ?? 0);
-            const duration = Number(data?.data?.duration ?? 0);
-            const newPlayState = !data.data.isPaused;
-            
-            if (!isSeeking.current && newPlayState) {
-              setCurrentPosition(position);
-            }
-            if (data.data.isPaused && currentPosition > 0) {
-              lastPlaybackPosition.current = currentPosition;
-            }
-            
-            // Mark that playback truly started once we have duration or progressed beyond 0
-            if (!hasStartedPlaying.current && newPlayState && (duration > 0 || position > 0)) {
-              hasStartedPlaying.current = true;
-            }
-            
-            setPlayerPlayState(newPlayState);
-            if (onPlayerStateChange) {
-              onPlayerStateChange(newPlayState);
-            }
-            
-            // Only consider end when we had a valid duration and playback actually started
-            const endThresholdMs = 1000; // 1s threshold
-            if (
-              onTrackEnd &&
-              !hasNotifiedEnd.current &&
-              hasStartedPlaying.current &&
-              duration > 0 &&
-              position >= duration - endThresholdMs
-            ) {
-              console.log('[SpotifyPlayer] Detected end-of-track. position:', position, 'duration:', duration);
-              hasNotifiedEnd.current = true;
-              setCurrentPosition(0);
-              lastPlaybackPosition.current = 0;
-              setPlayerPlayState(false);
-              onTrackEnd();
-            }
-          });
-          
-          controller.addListener('ready', () => {
-            console.log('[SpotifyPlayer] Controller ready');
-            setIsReady(true);
-            // Avoid triggering playback here to prevent double starts.
-            // The isPlaying effect will handle starting/stopping based on props.
-            if (resumePlaying) {
-              console.log('[SpotifyPlayer] Ready: resumePlaying requested, deferring to isPlaying effect to start playback');
-              // no-op: prevent double start
-            }
-          });
-
-          controller.addListener('iframe_error', () => {
-            console.warn('[SpotifyPlayer] Iframe error detected:');
-            if (typeof window.InstallTrigger !== 'undefined') {
-              setIsFirefoxETP(true);
-            }
-          });
-        }
-      );
-      console.log('[SpotifyPlayer] Embed controller result:', embedController);
-    } catch (err) {
-        console.error('[SpotifyPlayer] Error creating controller:', err);
-        creatingControllerRef.current = false;
-
-      }
-  };
 
   const closePlayer = () => {
     console.log('[SpotifyPlayer] closePlayer called');

@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { searchTracks } from '../utils/spotifyApi';
 import { getSimilarTracksFromBackend, getSimilarArtistsFromBackend } from '../utils/backendApi';
 import './RecommendationGenerator.css';
 import AddToPlaylist from './AddToPlaylist';
 
 // Constants for recommendation configuration
-const MAX_SONGS_TO_USE = 20;  // Maximum songs used for generating recommendations
 const MAX_RECOMMENDATIONS = 200; // Maximum recommendations to display
 
 // Cache for API responses and assets
@@ -22,7 +20,7 @@ const appCache = {
   CACHE_EXPIRATION: 7 * 24 * 60 * 60 * 1000
 };
 
-const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -373,12 +371,11 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
         let allSimilarTracks = [];
         songsToUse.forEach((song, idx) => {
           let added = 0;
-          let tried = 0;
           const tracks = similarTracksResults[idx] || [];
           const offset = tempExplorationDepth * song.AMOUNT_OF_SONGS;
           for (let i = offset; i < tracks.length && added < song.AMOUNT_OF_SONGS; i++) {
             const t = tracks[i];
-            if (!t || !t.artist || !t.name) { tried++; continue; }
+            if (!t || !t.artist || !t.name) { continue; }
             const artistKey = t.artist.toLowerCase();
             const trackKey = t.name.toLowerCase();
             const songKey = `${artistKey}###${trackKey}`;
@@ -394,8 +391,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
                 existing.recommendationCount = (existing.recommendationCount || 1) + 1;
                 recommendedTrackMap.set(songKey, existing);
               }
-            // If in tierlist, just skip but increment tried
-              tried++;
+            // If in tierlist, just skip
               continue;
             }
           // New recommendation
@@ -404,7 +400,6 @@ const RecommendationGenerator = ({ tierState, tierOrder, tiers, onPlayTrack, onA
             recommendedTrackMap.set(songKey, trackWithSources);
             allSimilarTracks.push(trackWithSources);
             added++;
-            tried++;
           }
         });
         // Remove undefined/null

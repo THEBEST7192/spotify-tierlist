@@ -9,9 +9,6 @@ const TierListJSONExportImport = ({
   onUpload,
   uploading = false,
   uploadedTierlist = null,
-  uploadMessage = '',
-  uploadError = '',
-  uploadShareUrl = '',
   coverImage = ''
 }) => {
   const fileInputRef = useRef(null);

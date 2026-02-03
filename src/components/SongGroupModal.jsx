@@ -1,14 +1,7 @@
 import React, { useState, useRef } from "react";
 import "./SongGroupModal.css";
 
-const getGroupSizes = (total, n) => {
-  const base = Math.floor(total / n);
-  const remainder = total % n;
-  return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0));
-};
-
 const SongGroupModal = ({ totalSongs, onSelect, onClose }) => {
-  const [randomGroupCount, setRandomGroupCount] = useState(1);
   const [sliderValue, setSliderValue] = useState(1);
   const [startValue, setStartValue] = useState(1);
   const [endValue, setEndValue] = useState(100);
@@ -17,8 +10,6 @@ const SongGroupModal = ({ totalSongs, onSelect, onClose }) => {
 
   const startHold = (fn) => { fn(); holdTimerRef.current = setInterval(fn, 100); };
   const endHold = () => clearInterval(holdTimerRef.current);
-
-  const groupSizes = getGroupSizes(100, sliderValue);
 
   return (
     <div className="modal-overlay">
