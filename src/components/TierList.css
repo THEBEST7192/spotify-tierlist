@@ -188,7 +188,7 @@
   box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
 }
 
-.empty-tier-slot.carrying {
+.tier-list-container.wii-enabled.wii-carrying .empty-tier-slot.carrying {
   border: 2px dashed #1db954;
 }
 
@@ -218,6 +218,11 @@
   background-color: #333 !important;
 }
 
+.tier-list-container.wii-enabled.wii-carrying .song-card:hover {
+  outline: 2px solid #1DB954;
+  outline-offset: 2px;
+}
+
 .song-card:active {
   background-color: #333 !important;
   cursor: grabbing;
@@ -245,7 +250,7 @@
   outline-offset: 2px;
 }
 
-.song-card.picked-up {
+.tier-list-container.wii-enabled.wii-carrying .song-card.picked-up {
   opacity: 0.6;
   border: 2px dashed #1db954;
   transform: scale(0.95);

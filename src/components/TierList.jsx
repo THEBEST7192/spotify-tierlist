@@ -1746,7 +1746,9 @@ const TierList = ({
   );
 
   return (
-    <div className="tier-list-container">
+    <div
+      className={`tier-list-container${isWiiEnabled ? " wii-enabled" : ""}${isWiiEnabled && pickedUpSongId ? " wii-carrying" : ""}`}
+    >
       {renderUnavailableSongsDialog()}
       <div className="tier-controls">
         <div className="tier-controls-header">
