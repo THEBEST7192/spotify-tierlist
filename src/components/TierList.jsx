@@ -1208,6 +1208,36 @@ const TierList = ({
     }
   }, [isWiiEnabled, wiiUiFocusedElementRef]);
 
+  // Scroll the focused song into view
+  useEffect(() => {
+    if (focusedSongId) {
+      // Look for the song card by its drag ID (which is item.id in the map)
+      const focusedElement = document.querySelector(`.song-card[data-song-id="${focusedSongId}"]`);
+      if (focusedElement) {
+        focusedElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }
+    } else if (focusedTierId) {
+      const tierElement = document.querySelector(`.tier[style*="background-color"]`); // Find the tier element
+      // This is a bit complex as tiers don't have unique IDs in DOM easily accessible here
+      // But we can try to find the tier header with the label
+      const tierHeaders = document.querySelectorAll('.tier-label h3');
+      for (const header of tierHeaders) {
+        if (header.textContent === tiers[focusedTierId]?.label) {
+          header.closest('.tier').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest'
+          });
+          break;
+        }
+      }
+    }
+  }, [focusedSongId, focusedTierId, tiers]);
+
   // Handle Wiimote button presses
   const handleWiiButtonPress = useCallback((buttons) => {
     if (!isWiiEnabled) return;
@@ -1228,9 +1258,16 @@ const TierList = ({
       const root = document.querySelector('.tier-list-container');
       if (!root) return [];
 
-      const candidates = Array.from(root.querySelectorAll('button, a[href], input, select, textarea, label.toggle-switch'));
+      // Include specific labels that act as containers for toggles/sliders
+      const candidates = Array.from(root.querySelectorAll('button, a[href], input, select, textarea, label.discover-toggle, label.exploration-depth-slider, label.toggle-switch'));
       return candidates.filter((el) => {
         if (!(el instanceof HTMLElement)) return false;
+        
+        // If it's an input inside one of our container labels, skip it because we focus the label instead
+        if (el.tagName === 'INPUT' && el.closest('label.discover-toggle, label.exploration-depth-slider, label.toggle-switch')) {
+          return false;
+        }
+
         if (el.closest('.song-card')) return false;
         if (el.closest('.tier-songs')) return false;
         if (el.getAttribute('aria-hidden') === 'true') return false;
@@ -1274,7 +1311,13 @@ const TierList = ({
       if (typeof focusEl.focus === 'function') {
         try { focusEl.focus({ preventScroll: true }); } catch { focusEl.focus(); }
       }
-      try { highlightEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { void 0; }
+      
+      // Use scrollIntoView with smooth behavior for UI mode
+      try { 
+        highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' }); 
+      } catch { 
+        try { highlightEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { void 0; }
+      }
       return true;
     };
 
@@ -1324,7 +1367,10 @@ const TierList = ({
             : direction === 'LEFT' ? -dx
             : dx;
           const secondary = direction === 'UP' || direction === 'DOWN' ? Math.abs(dx) : Math.abs(dy);
-          return { ...entry, score: primary + secondary * 2 };
+          // Prioritize vertical alignment for UP/DOWN navigation but don't be too aggressive
+          // so that we can still reach elements that are slightly offset horizontally
+          const secondaryWeight = (direction === 'UP' || direction === 'DOWN') ? 4 : 2;
+          return { ...entry, score: primary + secondary * secondaryWeight };
         })
         .sort((a, b) => a.score - b.score);
 
@@ -1563,6 +1609,7 @@ const TierList = ({
 
             return newState;
           });
+          setFocusedSongId(pickedUpSongId);
         }
         setPickedUpSongId(null);
       }
@@ -1723,6 +1770,7 @@ const TierList = ({
             
             return newState;
           });
+          setFocusedSongId(pickedUpSongId);
         }
         setPickedUpSongId(null);
       } else {
@@ -1971,7 +2019,7 @@ const TierList = ({
                                   provided.draggableProps.style
                                 )}
                                 data-song-id={item.id}
-                                className={`song-card ${isPlaying ? 'playing' : ''} ${focusedSongId === item.id ? 'focused' : ''} ${pickedUpSongId === item.id ? 'picked-up' : ''}`}
+                                className={`song-card ${isPlaying ? 'playing' : ''} ${!isWiiUiMode && focusedSongId === item.id ? 'focused' : ''} ${pickedUpSongId === item.id ? 'picked-up' : ''}`}
                               >
                                 {song.album && song.album.images && song.album.images.length > 0 && (
                                   <a 

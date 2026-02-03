@@ -228,13 +228,12 @@
 }
 
 .song-card.playing {
-  background-color: #2a2a2a !important;
   border-left: 4px solid #1DB954;
   padding-left: 4px;
-  box-shadow: 0 2px 10px rgba(29, 185, 84, 0.3);
 }
 
 .song-card.focused {
+  background-color: #333 !important; /* Match hover state */
   border: 2px solid #ffffff;
   box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
   transform: scale(1.05);
