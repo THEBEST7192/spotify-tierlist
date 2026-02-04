@@ -77,7 +77,7 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [showDebugMessage, setShowDebugMessage] = useState(false);
   const [sharedTierlist, setSharedTierlist] = useState(null);
   const [spotifyUserId, setSpotifyUserId] = useState(null);
-  const [loadingColor, setLoadingColor] = useState('#000000'); // Initial color
+  const [loadingColor, setLoadingColor] = useState('#1DB954'); // Initial color
   const [dotCount, setDotCount] = useState(0); // Initial dot count
   const { shortId, songId } = useParams();
   const navigate = useNavigate();
