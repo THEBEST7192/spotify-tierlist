@@ -65,11 +65,7 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [totalSongs, setTotalSongs] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [publicSearchQuery, setPublicSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState("user");
-  const [publicPlaylists, setPublicPlaylists] = useState([]);
-  const [isSearchingPublic, setIsSearchingPublic] = useState(false);
-  const [publicSearchCache, setPublicSearchCache] = useState({});
   const [importedPlaylistName, setImportedPlaylistName] = useState('');
   const [konamiActive, setKonamiActive] = useState(false);
   const [debugModeActive, setDebugModeActive] = useState(false);
@@ -261,12 +257,9 @@ const Home = ({ accessToken, setAccessToken }) => {
       setError(null);
 
       setPendingPlaylist(playlist);
-      // Fetch only the playlist metadata to get the total tracks count
-      const metaResponse = await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const meta = await metaResponse.json();
-      const tracksCount = meta.tracks?.total || 0;
+      // Get total tracks count from items paging
+      const metaResp = await getPlaylistTracks(playlist.id, 0, 1);
+      const tracksCount = metaResp?.data?.total || 0;
       setTotalSongs(tracksCount);
       // console.log('[Home] playlist meta', {
       //   playlistId: playlist.id,
@@ -287,10 +280,11 @@ const Home = ({ accessToken, setAccessToken }) => {
       
       while (offset < tracksCount) {
         const response = await getPlaylistTracks(playlist.id, offset, limit);
-        const tracks = response.data.items
-          .filter(item => item.track)
-          .map((item, index) => ({
-            ...item.track,
+        const tracks = (response.data.items || [])
+          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
+          .filter(Boolean)
+          .map((track, index) => ({
+            ...track,
             dragId: `track-${playlist.id}-${offset + index}`
           }));
         allTracks.push(...tracks);
@@ -353,10 +347,11 @@ const Home = ({ accessToken, setAccessToken }) => {
       offset = 0;
       try {
         const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
-        const tracks = response.data.items
-          .filter(item => item.track)
-          .map((item, index) => ({
-            ...item.track,
+        const tracks = (response.data.items || [])
+          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
+          .filter(Boolean)
+          .map((track, index) => ({
+            ...track,
             dragId: `track-${pendingPlaylist.id}-${index}`
           }));
         setSelectedPlaylist(pendingPlaylist);
@@ -390,10 +385,11 @@ const Home = ({ accessToken, setAccessToken }) => {
       offset = Math.floor((totalSongs - 100) / 2);
       try {
         const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
-        const tracks = response.data.items
-          .filter(item => item.track)
-          .map((item, index) => ({
-            ...item.track,
+        const tracks = (response.data.items || [])
+          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
+          .filter(Boolean)
+          .map((track, index) => ({
+            ...track,
             dragId: `track-${pendingPlaylist.id}-${index}`
           }));
         setSelectedPlaylist(pendingPlaylist);
@@ -427,10 +423,11 @@ const Home = ({ accessToken, setAccessToken }) => {
       offset = totalSongs - 100;
       try {
         const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
-        const tracks = response.data.items
-          .filter(item => item.track)
-          .map((item, index) => ({
-            ...item.track,
+        const tracks = (response.data.items || [])
+          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
+          .filter(Boolean)
+          .map((track, index) => ({
+            ...track,
             dragId: `track-${pendingPlaylist.id}-${index}`
           }));
         setSelectedPlaylist(pendingPlaylist);
@@ -466,10 +463,11 @@ const Home = ({ accessToken, setAccessToken }) => {
       const count = option.end - option.start + 1;
       try {
         const response = await getPlaylistTracks(pendingPlaylist.id, startIndex, count);
-        const tracks = response.data.items
-          .filter(item => item.track)
-          .map((item, index) => ({
-            ...item.track,
+        const tracks = (response.data.items || [])
+          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
+          .filter(Boolean)
+          .map((track, index) => ({
+            ...track,
             dragId: `track-${pendingPlaylist.id}-${index}`
           }));
         setSelectedPlaylist(pendingPlaylist);
@@ -502,13 +500,14 @@ const Home = ({ accessToken, setAccessToken }) => {
     } else if (option.type === "random") {
       // Fetch all tracks from playlist (up to totalSongs)
       try {
-        // Collect all track IDs (Spotify API max limit per call is 100, so may need batching)
         let allTracks = [];
         let fetched = 0;
         while (fetched < totalSongs) {
           const batchSize = Math.min(100, totalSongs - fetched);
           const resp = await getPlaylistTracks(pendingPlaylist.id, fetched, batchSize);
-          const batchTracks = resp.data.items.filter(item => item.track).map(item => item.track);
+          const batchTracks = (resp.data.items || [])
+            .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
+            .filter(Boolean);
           allTracks = allTracks.concat(batchTracks);
           fetched += batchSize;
         }
@@ -823,16 +822,8 @@ const Home = ({ accessToken, setAccessToken }) => {
             onSelect={handlePlaylistSelect} 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            publicSearchQuery={publicSearchQuery}
-            setPublicSearchQuery={setPublicSearchQuery}
             searchMode={searchMode}
             setSearchMode={setSearchMode}
-            publicPlaylists={publicPlaylists}
-            setPublicPlaylists={setPublicPlaylists}
-            isSearchingPublic={isSearchingPublic}
-            setIsSearchingPublic={setIsSearchingPublic}
-            publicSearchCache={publicSearchCache}
-            setPublicSearchCache={setPublicSearchCache}
             onSelectLocalTierlist={handleLocalTierlistSelect}
             onSelectOnlineTierlist={handleOnlineTierlistSelect}
           />

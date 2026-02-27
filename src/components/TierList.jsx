@@ -135,12 +135,8 @@ const CreatePlaylistFromRanked = ({ tierState, tierOrder }) => {
         return;
       }
 
-      // Get user ID
-      const userResponse = await getCurrentUser();
-      const userId = userResponse.data.id;
-      
       // Create new playlist
-      const createResponse = await createPlaylist(userId, {
+      const createResponse = await createPlaylist({
         name: playlistName,
         description: playlistDescription,
         isPublic

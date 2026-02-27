@@ -30,12 +30,29 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
       setIsLoading(true);
       setError(null);
       
-      const response = await getUserPlaylists();
-      setPlaylists(response.data.items);
+      const userResponse = await getCurrentUser();
+      const userId = userResponse.data.id;
+      const ownedPlaylists = [];
+      let offset = 0;
+      const limit = 50;
+      while (true) {
+        const response = await getUserPlaylists({ limit, offset });
+        const items = Array.isArray(response?.data?.items) ? response.data.items : [];
+        items.forEach((playlist) => {
+          if (playlist?.owner?.id === userId) {
+            ownedPlaylists.push(playlist);
+          }
+        });
+        if (!response?.data?.next || items.length === 0) {
+          break;
+        }
+        offset += items.length;
+      }
+      setPlaylists(ownedPlaylists);
       
       // Set the first playlist as default if available
-      if (response.data.items.length > 0) {
-        setSelectedPlaylist(response.data.items[0].id);
+      if (ownedPlaylists.length > 0) {
+        setSelectedPlaylist(ownedPlaylists[0].id);
       }
       
       setIsLoading(false);
@@ -180,12 +197,8 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
       setIsLoading(true);
       setError(null);
       
-      // Get user ID first
-      const userResponse = await getCurrentUser();
-      const userId = userResponse.data.id;
-      
       // Create new playlist
-      const createResponse = await createPlaylist(userId, {
+      const createResponse = await createPlaylist({
         name: newPlaylistName,
         description: newPlaylistDescription,
         isPublic: newPlaylistIsPublic
@@ -235,12 +248,8 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
       setIsLoading(true);
       setError(null);
       
-      // Get user ID first
-      const userResponse = await getCurrentUser();
-      const userId = userResponse.data.id;
-      
       // Create new playlist
-      const createResponse = await createPlaylist(userId, {
+      const createResponse = await createPlaylist({
         name: clonedPlaylistName,
         description: `A copy of ${playlistToClone.name}`,
         isPublic: false // Default to private for cloned playlists
@@ -256,7 +265,10 @@ const AddToPlaylist = ({ trackId, isSingleTrack = false }) => {
       do {
         tracksRes = await getPlaylistTracks(playlistToClone.id, offset, BATCH_SIZE);
         const items = tracksRes.data.items || [];
-        existingUris.push(...items.map(item => item.track.uri));
+        items.forEach((entry) => {
+          const t = entry?.track ?? entry?.item ?? entry?.content ?? null;
+          if (t?.uri) existingUris.push(t.uri);
+        });
         offset += items.length;
       } while (tracksRes.data.next);
       for (let i = 0; i < existingUris.length; i += BATCH_SIZE) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import TierList from "../components/TierList";
 import { getValidAccessToken } from "../utils/SpotifyAuth";
+import { getPlaylistTracks } from "../utils/spotifyApi";
 
 const TierListPage = ({ playlist }) => {
   const [songs, setSongs] = useState([]);
@@ -34,27 +34,21 @@ const TierListPage = ({ playlist }) => {
 
       try {
         setLoading(true);
-        const response = await axios.get(
-          `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
-          {
-            headers: {
-              Authorization: `Bearer ${validAccessToken}`
-            }
-          }
-        );
+        const response = await getPlaylistTracks(playlist.id, 0, 100);
 
         // Extract track data from response
         const trackItems = response.data.items || [];
         const processedTracks = trackItems
-          .map((item, index) => {
-            if (!item.track) return null;
+          .map((entry, index) => {
+            const track = entry?.track ?? entry?.item ?? entry?.content ?? null;
+            if (!track) return null;
             return {
-              ...item.track,
+              ...track,
               dragId: `track-${index}`,
               index
             };
           })
-          .filter(track => track !== null);
+          .filter(Boolean);
         setSongs(processedTracks);
         setLoading(false);
       } catch (err) {

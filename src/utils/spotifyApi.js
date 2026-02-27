@@ -39,7 +39,7 @@ spotifyApi.interceptors.response.use(
 );
 
 export const getPlaylistTracks = (playlistId, offset = 0, limit = 100) => {
-  return spotifyApi.get(`/playlists/${playlistId}/tracks`, {
+  return spotifyApi.get(`/playlists/${playlistId}/items`, {
     params: { offset, limit },
   });
 };
@@ -48,8 +48,8 @@ export const getCurrentUser = () => {
   return spotifyApi.get('/me');
 };
 
-export const getUserPlaylists = () => {
-  return spotifyApi.get('/me/playlists');
+export const getUserPlaylists = (params = {}) => {
+  return spotifyApi.get('/me/playlists', { params });
 };
 
 export const searchPlaylists = (query) => {
@@ -57,13 +57,13 @@ export const searchPlaylists = (query) => {
     params: {
       q: query,
       type: 'playlist',
-      limit: 50
+      limit: 10
     }
   });
 };
 
-export const createPlaylist = (userId, { name, description, isPublic }) => {
-  return spotifyApi.post(`/users/${userId}/playlists`, {
+export const createPlaylist = ({ name, description, isPublic }) => {
+  return spotifyApi.post('/me/playlists', {
     name,
     description,
     public: isPublic
@@ -71,7 +71,7 @@ export const createPlaylist = (userId, { name, description, isPublic }) => {
 };
 
 export const addTracksToPlaylist = (playlistId, uris) => {
-  return spotifyApi.post(`/playlists/${playlistId}/tracks`, {
+  return spotifyApi.post(`/playlists/${playlistId}/items`, {
     uris
   });
 };

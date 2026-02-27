@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { getUserPlaylists, searchPlaylists, getPlaylistById, getCurrentUser } from "../utils/spotifyApi";
+import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
 import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist } from "../utils/backendApi";
 import "./PlaylistSelector.css";
 
@@ -126,16 +126,8 @@ const PlaylistSelector = ({
   onSelect,
   searchQuery,
   setSearchQuery,
-  publicSearchQuery,
-  setPublicSearchQuery,
   searchMode,
   setSearchMode,
-  publicPlaylists,
-  setPublicPlaylists,
-  isSearchingPublic,
-  setIsSearchingPublic,
-  publicSearchCache,
-  setPublicSearchCache,
   onSelectLocalTierlist,
   onSelectOnlineTierlist
 }) => {
@@ -152,7 +144,7 @@ const PlaylistSelector = ({
   const [localSortOption, setLocalSortOption] = useState("name-asc");
   const [onlineSortOption, setOnlineSortOption] = useState("name-asc");
   const [onlineOwnerFilter, setOnlineOwnerFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [spotifyUserId, setSpotifyUserId] = useState(null);
   const [coverUpdatingId, setCoverUpdatingId] = useState(null);
@@ -170,7 +162,7 @@ const PlaylistSelector = ({
   const konamiIndex = useRef(0);
   const debugModeIndex = useRef(0);
   const searchInputRef = useRef(null);
-  const publicSearchInputRef = useRef(null);
+  
   const fileUploadInputRef = useRef(null);
 
   const checkKonamiCode = useCallback((key) => {
@@ -236,9 +228,26 @@ const PlaylistSelector = ({
   useEffect(() => {
     const fetchUserPlaylists = async () => {
       try {
-        const response = await getUserPlaylists();
-        setPlaylists(response.data.items);
-        setFilteredPlaylists(response.data.items);
+        const userResponse = await getCurrentUser();
+        const userId = userResponse.data.id;
+        const ownedPlaylists = [];
+        let offset = 0;
+        const limit = 50;
+        while (true) {
+          const response = await getUserPlaylists({ limit, offset });
+          const items = Array.isArray(response?.data?.items) ? response.data.items : [];
+          items.forEach((playlist) => {
+            if (playlist?.owner?.id === userId) {
+              ownedPlaylists.push(playlist);
+            }
+          });
+          if (!response?.data?.next || items.length === 0) {
+            break;
+          }
+          offset += items.length;
+        }
+        setPlaylists(ownedPlaylists);
+        setFilteredPlaylists(ownedPlaylists);
       } catch (err) {
         console.error("Error fetching playlists:", err);
       }
@@ -325,70 +334,10 @@ const PlaylistSelector = ({
     }
   }, [searchQuery, playlists, searchMode]);
 
-  const SPOTIFY_PLAYLIST_URL_REGEX = /^(?:https?:\/\/)?(?:open\.spotify\.com\/playlist\/|spotify:playlist:)([a-zA-Z0-9]+)(?:\?.*)?$/;
-
-  const handlePublicSearch = async () => {
-    if (!publicSearchQuery.trim()) return;
-    setIsLoading(true);
-
-    const match = publicSearchQuery.match(SPOTIFY_PLAYLIST_URL_REGEX);
-    if (match) {
-      const playlistId = match[1];
-      try {
-        const response = await getPlaylistById(playlistId);
-        const playlist = response.data;
-        if (playlist) {
-          onSelect(playlist);
-          setIsSearchingPublic(false);
-          setPublicSearchQuery('');
-        } else {
-          setError("Playlist not found.");
-        }
-      } catch (error) {
-        console.error("Error fetching playlist by ID:", error);
-        setError("Failed to load playlist from URL.");
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    // Check cache first
-    if (publicSearchCache[publicSearchQuery]) {
-      setPublicPlaylists(publicSearchCache[publicSearchQuery]);
-      setIsSearchingPublic(true);
-      setIsLoading(false);
-      return;
-    }
-    try {
-      const response = await searchPlaylists(publicSearchQuery);
-      
-      // Make sure we have valid playlist items before setting them
-      const items = response.data.playlists?.items || [];
-      const validPlaylists = items.filter(item => item != null);
-      
-      setPublicPlaylists(validPlaylists);
-      setPublicSearchCache({ ...publicSearchCache, [publicSearchQuery]: validPlaylists });
-      setIsSearchingPublic(true);
-    } catch (error) {
-      console.error("Error searching public playlists:", error);
-      setError(`Failed to search public playlists: ${error.response?.data?.error?.message || error.message || 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  
 
   const handleSearchModeChange = (mode) => {
     setSearchMode(mode);
-    if (mode !== "public") {
-      setIsSearchingPublic(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && searchMode === "public") {
-      handlePublicSearch();
-    }
   };
 
   const createSortedList = useCallback((lists, sortOption) => {
@@ -444,8 +393,6 @@ const PlaylistSelector = ({
   let basePlaylists =
     searchMode === "user"
       ? filteredPlaylists
-      : searchMode === "public"
-      ? publicPlaylists
       : searchMode === "local"
       ? sortedLocalTierlists
       : searchMode === "online"
@@ -889,12 +836,6 @@ const PlaylistSelector = ({
           My Playlists
         </button>
         <button 
-          className={`toggle-btn ${searchMode === "public" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("public")}
-        >
-          Search Public Playlists
-        </button>
-        <button 
           className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
           onClick={() => handleSearchModeChange("local")}
         >
@@ -925,33 +866,7 @@ const PlaylistSelector = ({
           />
         </div>
       )}
-      {searchMode === "public" && (
-        <div className="search-input-wrapper">
-          <div className="public-search-container">
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Search for public playlists..."
-              value={publicSearchQuery}
-              ref={publicSearchInputRef}
-              onKeyDown={(e) => {
-                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
-                  checkKonamiCode(e.key.toLowerCase());
-                }
-              }}
-              onChange={(e) => setPublicSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
-            />
-            <button 
-              className="search-button" 
-              onClick={handlePublicSearch}
-              disabled={isLoading}
-            >
-              {isLoading ? "Searching..." : "Search"}
-            </button>
-          </div>
-        </div>
-      )}
+      
       {searchMode === "local" && (
         <div className="search-input-wrapper">
           <div className="local-search-container">
@@ -1110,14 +1025,7 @@ const PlaylistSelector = ({
               </div>
             </button>
           );
-        }) : (
-          searchMode === "public" && isSearchingPublic ? 
-          <div className="no-results">No playlists found matching your search</div> :
-          null
-        )}
-        {displayPlaylists && displayPlaylists.length === 0 && searchMode === "public" && isSearchingPublic && (
-          <div className="no-results">No playlists found matching your search</div>
-        )}
+        }) : null}
       </div>
     </div>
     {isEditModalOpen && (
