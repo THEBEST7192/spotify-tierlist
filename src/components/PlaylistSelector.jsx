@@ -164,6 +164,9 @@ const PlaylistSelector = ({
   const searchInputRef = useRef(null);
   
   const fileUploadInputRef = useRef(null);
+  const [ownedOffset, setOwnedOffset] = useState(0);
+  const [hasMoreOwned, setHasMoreOwned] = useState(false);
+  const [loadingMoreOwned, setLoadingMoreOwned] = useState(false);
 
   const checkKonamiCode = useCallback((key) => {
     // Check for Konami code
@@ -226,35 +229,49 @@ const PlaylistSelector = ({
   }, [localSortOption]);
 
   useEffect(() => {
-    const fetchUserPlaylists = async () => {
+    const fetchFirstPage = async () => {
       try {
         const userResponse = await getCurrentUser();
         const userId = userResponse.data.id;
-        const ownedPlaylists = [];
-        let offset = 0;
+        setSpotifyUserId(userId);
         const limit = 50;
-        while (true) {
-          const response = await getUserPlaylists({ limit, offset });
-          const items = Array.isArray(response?.data?.items) ? response.data.items : [];
-          items.forEach((playlist) => {
-            if (playlist?.owner?.id === userId) {
-              ownedPlaylists.push(playlist);
-            }
-          });
-          if (!response?.data?.next || items.length === 0) {
-            break;
-          }
-          offset += items.length;
-        }
-        setPlaylists(ownedPlaylists);
-        setFilteredPlaylists(ownedPlaylists);
+        const response = await getUserPlaylists({ limit, offset: 0 });
+        const items = Array.isArray(response?.data?.items) ? response.data.items : [];
+        const owned = items.filter((p) => p?.owner?.id === userId);
+        setPlaylists(owned);
+        setFilteredPlaylists(owned);
+        setOwnedOffset(items.length);
+        setHasMoreOwned(!!response?.data?.next);
       } catch (err) {
         console.error("Error fetching playlists:", err);
       }
     };
-
-    fetchUserPlaylists();
+    fetchFirstPage();
   }, []);
+
+  const loadMoreOwned = useCallback(async () => {
+    if (!hasMoreOwned || loadingMoreOwned) return;
+    try {
+      setLoadingMoreOwned(true);
+      const limit = 50;
+      const response = await getUserPlaylists({ limit, offset: ownedOffset });
+      const items = Array.isArray(response?.data?.items) ? response.data.items : [];
+      const owned = spotifyUserId ? items.filter((p) => p?.owner?.id === spotifyUserId) : items;
+      const nextList = [...playlists, ...owned];
+      setPlaylists(nextList);
+
+      if (searchMode === "user" && !searchQuery) {
+        setFilteredPlaylists(nextList);
+      }
+      const newOffset = ownedOffset + items.length;
+      setOwnedOffset(newOffset);
+      setHasMoreOwned(!!response?.data?.next && items.length > 0);
+    } catch (err) {
+      console.error("Error loading more playlists:", err);
+    } finally {
+      setLoadingMoreOwned(false);
+    }
+  }, [hasMoreOwned, loadingMoreOwned, ownedOffset, playlists, searchMode, searchQuery, spotifyUserId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1027,6 +1044,18 @@ const PlaylistSelector = ({
           );
         }) : null}
       </div>
+      {searchMode === "user" && hasMoreOwned && (
+        <div className="load-more-container">
+          <button
+            type="button"
+            className="load-more-button"
+            onClick={loadMoreOwned}
+            disabled={loadingMoreOwned}
+          >
+            {loadingMoreOwned ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
     {isEditModalOpen && (
       <div className="cover-edit-modal-overlay" role="dialog" aria-modal="true">

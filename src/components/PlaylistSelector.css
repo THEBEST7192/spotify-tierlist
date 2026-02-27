@@ -182,6 +182,47 @@
   margin-top: 20px;
 }
 
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 24px 0 8px;
+}
+
+.load-more-button {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #1db954;
+  color: #fff;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.load-more-button:hover:not(:disabled) {
+  background: #1ed760;
+  transform: translateY(-2px);
+}
+
+.load-more-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.load-more-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.5);
+}
+
+@media (max-width: 768px) {
+  .load-more-button {
+    width: 100%;
+    height: 40px;
+  }
+}
+
 .playlist-button {
   width: 100%;
   padding: 15px;
