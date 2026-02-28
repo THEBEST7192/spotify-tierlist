@@ -30,7 +30,7 @@ const AuthButton = () => {
 
   return (
     <button onClick={login} className="auth-button">
-      LOGIN WITH SPOTIFY
+      Log in with Spotify
     </button>
   );
 };

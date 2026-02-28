@@ -229,6 +229,11 @@ button.auth-button:hover {
   transform: scale(1.05);
 }
 
+.auth-button-primary {
+  margin-top: 8px;
+}
+
+
 .app-attribution {
   margin-top: 20px;
   display: flex;

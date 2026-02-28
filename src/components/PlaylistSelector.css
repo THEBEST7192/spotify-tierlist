@@ -63,6 +63,44 @@
   background-color: #1ed760;
 }
 
+.my-playlists-login-prompt {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.my-playlists-login-prompt p {
+  margin: 0 0 14px;
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.my-playlists-login-prompt .auth-button {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-radius: 20px;
+  background: #1db954;
+  color: #fff;
+  border: none;
+}
+
+.my-playlists-login-prompt .auth-button:hover {
+  background: #1ed760;
+  color: #fff;
+}
+
+.my-playlists-login-prompt .my-playlists-login-note {
+  margin-bottom: 14px;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+}
+
 .public-search-container {
   display: flex;
   gap: 10px;

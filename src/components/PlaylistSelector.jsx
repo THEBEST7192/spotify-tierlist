@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
 import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist } from "../utils/backendApi";
+import AuthButton from "./AuthButton";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -123,6 +124,7 @@ const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
 const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
 
 const PlaylistSelector = ({
+  accessToken,
   onSelect,
   searchQuery,
   setSearchQuery,
@@ -847,10 +849,10 @@ const PlaylistSelector = ({
       
       <div className="search-mode-toggle">
         <button 
-          className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("user")}
+          className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
+          onClick={() => handleSearchModeChange("online")}
         >
-          My Playlists
+          Online Playlists
         </button>
         <button 
           className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
@@ -859,10 +861,10 @@ const PlaylistSelector = ({
           Local Playlists
         </button>
         <button 
-          className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("online")}
+          className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
+          onClick={() => handleSearchModeChange("user")}
         >
-          Online Playlists
+          My Playlists
         </button>
       </div>
 
@@ -955,6 +957,16 @@ const PlaylistSelector = ({
       )}
 
       {error && <div className="error-message">{error}</div>}
+
+      {searchMode === "user" && !accessToken && (
+        <div className="my-playlists-login-prompt">
+          <p>Log in with Spotify to see your playlists.</p>
+          <p className="my-playlists-login-note">
+            Spotify restricts how many users can use this app. Login here only works if you have been approved. If you have not been approved, use Online Playlists.
+          </p>
+          <AuthButton />
+        </div>
+      )}
 
       <div className="playlist-grid">
         {displayPlaylists && displayPlaylists.length > 0 ? displayPlaylists.map((playlist) => {

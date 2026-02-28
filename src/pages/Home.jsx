@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import AuthButton from "../components/AuthButton";
 import LogoutButton from "../components/LogoutButton";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
@@ -65,7 +64,8 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [totalSongs, setTotalSongs] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchMode, setSearchMode] = useState("user");
+  const [searchMode, setSearchMode] = useState("online");
+  const [hasProceededToPlaylists, setHasProceededToPlaylists] = useState(false);
   const [importedPlaylistName, setImportedPlaylistName] = useState('');
   const [konamiActive, setKonamiActive] = useState(false);
   const [debugModeActive, setDebugModeActive] = useState(false);
@@ -771,15 +771,21 @@ const Home = ({ accessToken, setAccessToken }) => {
           Debug mode {debugModeActive ? 'activated' : 'deactivated'}! Camera preview {debugModeActive ? 'enabled' : 'disabled'}.
         </div>
       )}
-      {(!accessToken && !sharedTierlist) ? (
+      {(!accessToken && !sharedTierlist && !hasProceededToPlaylists) ? (
         <div className="auth-container">
           <div className="spotify-attribution">
             <img src="/logo.png" alt="Logo" className="app-full-logo" />
             <p>Create a tier list from your favorite Spotify playlists.</p>
             <p>This application uses content from Spotify. By using this app, you agree to Spotify&apos;s terms of service.</p>
             <p>This application is not affiliated with, endorsed by, or in any way officially connected with Spotify AB.</p>
-            <p>Please log in with your Spotify account to create a tierlist.</p>
-            <AuthButton />
+            <p>Start by browsing online tierlists.</p>
+            <button
+              type="button"
+              className="auth-button auth-button-primary"
+              onClick={() => setHasProceededToPlaylists(true)}
+            >
+              View playlists
+            </button>
             <div className="app-attribution">
               <p>A third-party tool for Spotify</p>
             </div>
@@ -818,7 +824,7 @@ const Home = ({ accessToken, setAccessToken }) => {
         <div className="playlist-selector-container">
 
           <PlaylistSelector 
-            accessToken={accessToken} 
+            accessToken={accessToken}
             onSelect={handlePlaylistSelect} 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
