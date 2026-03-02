@@ -19,9 +19,11 @@
   width: 100%;
   padding: 10px;
   margin: 0;
-  border: 1px solid #ddd;
+  border: 1px solid #333;
   border-radius: 4px;
   font-size: 16px;
+  background-color: #282828;
+  color: #ffffff;
 }
 
 .search-mode-toggle {
@@ -162,10 +164,11 @@
   cursor: pointer;
 }
 
-.sort-select:focus {
+.search-input:focus {
   outline: none;
   border-color: #1db954;
   box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.25);
+  background-color: #333333;
 }
 
 .owner-filter-select {
@@ -599,7 +602,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: transparent;
 }
 
 .modal-preview-square {
@@ -610,6 +613,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #1db954;
+  border-radius: 8px;
 }
 
 .modal-preview img {
