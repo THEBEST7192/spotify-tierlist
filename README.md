@@ -11,6 +11,7 @@ I have not recived extended qouta yet, so I will have to manually approve accoun
 - Connect with your Spotify account
 - Browse and select from your playlists
 - Search playlists by name or description
+- Import playlists from CSV files (e.g., from Chosic Spotify playlist analyzer)
 - Drag and drop songs into different tiers
 - Create custom tiers for your tierlist
 - Export your tier list as an image
@@ -57,9 +58,16 @@ Then, open `.env.local` and add your API credentials:
 VITE_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
 VITE_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
 LASTFM_API_KEY=YOUR_LASTFM_API_KEY
+MONGODB_USER=YOUR_MONGODB_USER
+MONGODB_PASSWORD=YOUR_MONGODB_PASSWORD
+MONGODB_HOST=YOUR_MONGODB_HOST
+MONGODB_CLIENT_NAME=YOUR_MONGODB_CLIENT_NAME
+MONGODB_DB=YOUR_MONGODB_DB
+VITE_API_BASE_URL=  # Not needed for local dev (auto-detects http://localhost:3001). Leave empty for same-domain prod (uses relative /api). Set to full backend URL for separate deployments
+VITE_BACKEND_TIMEOUT_MS=25000  # Optional, default 25000ms
 ```
 
-The `VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. The `LASTFM_API_KEY` is for the backend server.
+The `VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. The `LASTFM_API_KEY`, MongoDB vars, and `VITE_API_BASE_URL` are used by the backend server.
 
 The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://127.0.0.1:3000` in the Spotify developer console and in the environment file.
 

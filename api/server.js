@@ -163,7 +163,30 @@ app.get('/api/similar-artists', async (req, res) => {
   }
 });
 
-// Error handling middleware
+// Get Spotify oEmbed endpoint
+app.get('/api/oembed', async (req, res) => {
+  try {
+    const { trackId } = req.query;
+    
+    if (!trackId) {
+      return res.status(400).json({ error: 'Missing trackId parameter' });
+    }
+
+    const oembedUrl = `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${trackId}`;
+    const response = await axios.get(oembedUrl, {
+      headers: {
+        'User-Agent': process.env.USER_AGENT
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching oEmbed:', error.message);
+    res.status(500).json({ 
+      error: 'Failed to fetch oEmbed data',
+      details: error.response?.data || error.message 
+    });
+  }
+});
 app.use((err, req, res, _next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
 import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist } from "../utils/backendApi";
 import AuthButton from "./AuthButton";
+import CSVImportSelector from "./CSVImportSelector";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -131,7 +132,8 @@ const PlaylistSelector = ({
   searchMode,
   setSearchMode,
   onSelectLocalTierlist,
-  onSelectOnlineTierlist
+  onSelectOnlineTierlist,
+  onSelectImported
 }) => {
   const OWNER_FILTER_STORAGE_KEY = "playlistSelector.onlineOwnerFilter";
   const ONLINE_SORT_STORAGE_KEY = "playlistSelector.onlineSortOption";
@@ -861,6 +863,12 @@ const PlaylistSelector = ({
           Local Playlists
         </button>
         <button 
+          className={`toggle-btn ${searchMode === "import" ? "active" : ""}`}
+          onClick={() => handleSearchModeChange("import")}
+        >
+          Import Playlist (CSV)
+        </button>
+        <button 
           className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
           onClick={() => handleSearchModeChange("user")}
         >
@@ -966,6 +974,10 @@ const PlaylistSelector = ({
           </p>
           <AuthButton />
         </div>
+      )}
+
+      {searchMode === "import" && (
+        <CSVImportSelector onSelectImported={onSelectImported} />
       )}
 
       <div className="playlist-grid">

@@ -141,4 +141,21 @@ export const getUserTierlists = async (spotifyUserId) => {
   return response.data;
 };
 
+/**
+ * Fetch Spotify oEmbed data for a track
+ * @param {string} trackId - Spotify track ID
+ * @returns {Promise<Object>} oEmbed response data
+ */
+export const getOEmbed = async (trackId) => {
+  try {
+    const response = await backendApi.get('/api/oembed', {
+      params: { trackId }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching oEmbed:', error);
+    throw error;
+  }
+};
+
 export default backendApi;

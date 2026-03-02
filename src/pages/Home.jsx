@@ -330,6 +330,34 @@ const Home = ({ accessToken, setAccessToken }) => {
     navigate(`/tierlists/${shortId}`);
   };
 
+  const handleSelectImported = ({ name, description, tracks }) => {
+    const localId = genLocalId();
+    const tierlistData = {
+      tierListName: name,
+      description,
+      state: {
+        tierListName: name,
+        description,
+        tierOrder: ["S", "A", "B", "C", "D"],
+        S: [],
+        A: [],
+        B: [],
+        C: [],
+        D: []
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    localStorage.setItem(`tierlist:local:${localId}`, JSON.stringify(tierlistData));
+    navigate(`/local/${localId}`, {
+      state: {
+        fromPlaylistSelect: true,
+        selectedPlaylist: { id: `imported-${localId}`, name },
+        playlistTracks: tracks
+      }
+    });
+  };
+
   const handleSongGroupSelect = async (option) => {
     if (!pendingPlaylist) return;
 
@@ -832,6 +860,7 @@ const Home = ({ accessToken, setAccessToken }) => {
             setSearchMode={setSearchMode}
             onSelectLocalTierlist={handleLocalTierlistSelect}
             onSelectOnlineTierlist={handleOnlineTierlistSelect}
+            onSelectImported={handleSelectImported}
           />
           <div className="app-attribution">
             <p>A third-party tool for Spotify</p>
