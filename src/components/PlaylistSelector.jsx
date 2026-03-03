@@ -163,6 +163,8 @@ const PlaylistSelector = ({
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const [uploadDisplayLabel, setUploadDisplayLabel] = useState("");
   const [editIsPublic, setEditIsPublic] = useState(true);
+  const [editTierlistName, setEditTierlistName] = useState("");
+  const [editTierlistDescription, setEditTierlistDescription] = useState("");
   const konamiIndex = useRef(0);
   const debugModeIndex = useRef(0);
   const searchInputRef = useRef(null);
@@ -471,7 +473,7 @@ const PlaylistSelector = ({
           normalized.push({
             id: list.shortId,
             name: list.tierListName || "Untitled Tierlist",
-            description: list.isPublic ? "Online public tierlist" : "Online private tierlist",
+            description: list.description || (list.isPublic ? "Online public tierlist" : "Online private tierlist"),
             coverImage,
             owner: { display_name: list.username || "Unknown" },
             _shortId: list.shortId,
@@ -530,7 +532,7 @@ const PlaylistSelector = ({
     }
   };
 
-  const updateLocalTierlistImage = useCallback((localId, imageUrl) => {
+  const updateLocalTierlistImage = useCallback((localId, imageUrl, name = null, description = null) => {
     if (typeof window === 'undefined') return;
     const storageKey = `tierlist:local:${localId}`;
     try {
@@ -548,13 +550,30 @@ const PlaylistSelector = ({
           delete saved.state.coverImage;
         }
       }
+      if (name !== null) {
+        saved.tierListName = name;
+        if (saved.state) {
+          saved.state.tierListName = name;
+        }
+      }
+      if (description !== null) {
+        saved.description = description;
+        if (saved.state) {
+          saved.state.description = description;
+        }
+      }
       window.localStorage.setItem(storageKey, JSON.stringify(saved));
       setLocalTierlists(prev => prev.map(list => (
-        list?._localId === localId ? { ...list, coverImage: imageUrl || '' } : list
+        list?._localId === localId ? { 
+          ...list, 
+          coverImage: imageUrl || list.coverImage,
+          name: name !== null ? name : list.name,
+          description: description !== null ? description : list.description
+        } : list
       )));
       return true;
     } catch (err) {
-      console.error('Failed to update local tierlist image', err);
+      console.error('Failed to update local tierlist', err);
       return false;
     }
   }, []);
@@ -575,7 +594,7 @@ const PlaylistSelector = ({
     return null;
   }, [spotifyUserId]);
 
-  const updateOnlineTierlistImage = useCallback(async (playlist, imageUrl, nextIsPublic = null) => {
+  const updateOnlineTierlistImage = useCallback(async (playlist, imageUrl, nextIsPublic = null, name = null, description = null) => {
     if (!playlist?._shortId) return false;
     const userId = await ensureSpotifyUserId();
     if (!userId) return false;
@@ -587,24 +606,31 @@ const PlaylistSelector = ({
     if (typeof nextIsPublic === 'boolean') {
       payload.isPublic = nextIsPublic;
     }
+    if (name !== null) {
+      payload.tierListName = name;
+    }
+    if (description !== null) {
+      payload.description = description;
+    }
     try {
-      await updateTierlist(playlist._shortId, payload);
+      console.log('Updating online tierlist with payload:', payload);
+      const response = await updateTierlist(playlist._shortId, payload);
+      console.log('Backend response:', response);
       setOnlineTierlists(prev => prev.map(list => (
         list?._shortId === playlist._shortId
           ? {
               ...list,
-              coverImage: imageUrl || '',
+              coverImage: imageUrl || list.coverImage,
               isPublic: typeof payload.isPublic === 'boolean' ? payload.isPublic : list.isPublic,
-              description: typeof payload.isPublic === 'boolean'
-                ? (payload.isPublic ? 'Online public tierlist' : 'Online private tierlist')
-                : list.description
+              name: name !== null ? name : list.name,
+              description: description !== null ? description : list.description
             }
           : list
       )));
       return true;
     } catch (err) {
-      console.error('Failed to update online tierlist cover', err);
-      setError('Failed to update online cover image.');
+      console.error('Failed to update online tierlist', err);
+      setError('Failed to update online tierlist.');
       return false;
     } finally {
       setCoverUpdatingId(null);
@@ -648,6 +674,8 @@ const PlaylistSelector = ({
     setEditModalError(null);
     setUploadDisplayLabel("");
     setEditIsPublic(true);
+    setEditTierlistName("");
+    setEditTierlistDescription("");
   }, []);
 
   const openEditModal = useCallback((playlist, context) => {
@@ -658,6 +686,8 @@ const PlaylistSelector = ({
     setEditImageUrl(baseImage);
     const isPublicFlag = typeof playlist.isPublic === 'boolean' ? playlist.isPublic : true;
     setEditIsPublic(isPublicFlag);
+    setEditTierlistName(playlist.name || "");
+    setEditTierlistDescription(playlist.description || "");
     setEditModalError(null);
     setUploadDisplayLabel(baseImage ? 'Using existing cover' : 'No image selected');
     setIsEditModalOpen(true);
@@ -810,15 +840,30 @@ const PlaylistSelector = ({
     setEditModalError(null);
     setEditModalSubmitting(true);
     const normalizedValue = editImageUrl || null;
+    const nameValue = editTierlistName.trim() || null;
+    const descriptionValue = editTierlistDescription.trim() || null;
+    
+    // Add length validation
+    if (nameValue && nameValue.length > 100) {
+      setEditModalError('Tierlist name must be 100 characters or less.');
+      setEditModalSubmitting(false);
+      return;
+    }
+    if (descriptionValue && descriptionValue.length > 300) {
+      setEditModalError('Description must be 300 characters or less.');
+      setEditModalSubmitting(false);
+      return;
+    }
+    
     let success = false;
     try {
       if (editModalContext === 'local' && editModalPlaylist._localId) {
-        success = updateLocalTierlistImage(editModalPlaylist._localId, normalizedValue);
+        success = updateLocalTierlistImage(editModalPlaylist._localId, normalizedValue, nameValue, descriptionValue);
       } else if (editModalContext === 'online' && editModalPlaylist._shortId) {
-        success = await updateOnlineTierlistImage(editModalPlaylist, normalizedValue, editIsPublic);
+        success = await updateOnlineTierlistImage(editModalPlaylist, normalizedValue, editIsPublic, nameValue, descriptionValue);
       }
     } catch (err) {
-      console.error('Failed to persist cover change', err);
+      console.error('Failed to persist tierlist changes', err);
       success = false;
     } finally {
       setEditModalSubmitting(false);
@@ -827,9 +872,9 @@ const PlaylistSelector = ({
     if (success) {
       resetEditModalState();
     } else {
-      setEditModalError('Failed to update cover image. Please try again.');
+      setEditModalError('Failed to update tierlist. Please try again.');
     }
-  }, [editModalPlaylist, editModalContext, editImageUrl, editIsPublic, isModalBusy, resetEditModalState, updateLocalTierlistImage, updateOnlineTierlistImage]);
+  }, [editModalPlaylist, editModalContext, editImageUrl, editTierlistName, editTierlistDescription, editIsPublic, isModalBusy, resetEditModalState, updateLocalTierlistImage, updateOnlineTierlistImage]);
 
   const handleEditCoverClick = useCallback((playlist, event) => {
     event.stopPropagation();
@@ -1089,13 +1134,47 @@ const PlaylistSelector = ({
             className="modal-close-button"
             onClick={handleModalClose}
             disabled={isModalBusy}
-            aria-label="Close edit cover modal"
+            aria-label="Close edit tierlist modal"
           >
-            ×
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
           </button>
-          <h3>Edit cover image</h3>
+          <h3>Edit tierlist</h3>
           <p className="modal-subtitle">{editModalPlaylist?.name || 'Untitled playlist'}</p>
           <form onSubmit={handleEditModalSubmit} className="cover-edit-form">
+            <div className="modal-text-control">
+              <label className="modal-label" htmlFor="tierlist-name">Tierlist Name</label>
+              <input
+                id="tierlist-name"
+                type="text"
+                value={editTierlistName}
+                onChange={(e) => setEditTierlistName(e.target.value)}
+                disabled={isModalBusy}
+                className="modal-input"
+                placeholder="Enter tierlist name"
+                maxLength={100}
+              />
+              <div className="modal-char-count">
+                {editTierlistName.length}/100
+              </div>
+            </div>
+            <div className="modal-text-control">
+              <label className="modal-label" htmlFor="tierlist-description">Description</label>
+              <textarea
+                id="tierlist-description"
+                value={editTierlistDescription}
+                onChange={(e) => setEditTierlistDescription(e.target.value)}
+                disabled={isModalBusy}
+                className="modal-input modal-textarea"
+                placeholder="Enter description (optional)"
+                rows={3}
+                maxLength={300}
+              />
+              <div className="modal-char-count">
+                {editTierlistDescription.length}/300
+              </div>
+            </div>
             <div className="modal-upload-control">
               <label className="modal-label" htmlFor="cover-image-upload-display">Upload a new cover</label>
               <div className="modal-input-with-upload">
@@ -1191,7 +1270,7 @@ const PlaylistSelector = ({
                 className="modal-button primary"
                 disabled={isModalBusy}
               >
-                {isModalBusy ? 'Saving…' : 'Save cover'}
+                {isModalBusy ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </form>
