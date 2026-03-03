@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import Papa from "papaparse";
 import SongGroupModal from "./SongGroupModal";
-import { getOEmbed } from '../utils/backendApi';
+import { getBatchOEmbed } from '../utils/backendApi';
 import "./CSVImportSelector.css";
 
 const CSVImportSelector = ({ onSelectImported }) => {
@@ -15,19 +15,9 @@ const CSVImportSelector = ({ onSelectImported }) => {
   const [error, setError] = useState("");
   const [showSongGroupModal, setShowSongGroupModal] = useState(false);
   const [totalSongs, setTotalSongs] = useState(0);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef(null);
 
-  const fetchAlbumCover = useCallback(async (trackId) => {
-    try {
-      const data = await getOEmbed(trackId);
-      return data.thumbnail_url || null;
-    } catch (err) {
-      console.error("Failed to fetch cover for track", trackId, err);
-      return null;
-    }
-  }, []);
-
+  
   const parseCSVBasic = useCallback(async (csvText) => {
     return new Promise((resolve, reject) => {
       Papa.parse(csvText, {
@@ -61,22 +51,37 @@ const CSVImportSelector = ({ onSelectImported }) => {
   }, []);
 
   const fetchCoversForTracks = useCallback(async (tracks) => {
-    setProgress({ current: 0, total: tracks.length });
-    const updatedTracks = [];
-    for (const track of tracks) {
-      const cover = await fetchAlbumCover(track.id);
-      updatedTracks.push({
+    // Extract track IDs for batch request
+    const trackIds = tracks.map(track => track.id);
+    
+    try {
+      // Use batch API for maximum performance
+      const batchResponse = await getBatchOEmbed(trackIds);
+      const results = batchResponse.results;
+      
+      // Create a map of trackId -> thumbnail_url for quick lookup
+      const coverMap = {};
+      results.forEach(result => {
+        if (result.success && result.thumbnail_url) {
+          coverMap[result.trackId] = result.thumbnail_url;
+        }
+      });
+      
+      // Update tracks with covers
+      const updatedTracks = tracks.map(track => ({
         ...track,
         album: {
           ...track.album,
-          images: cover ? [{ url: cover, width: 300, height: 300 }] : []
+          images: coverMap[track.id] ? [{ url: coverMap[track.id], width: 300, height: 300 }] : []
         }
-      });
-      setProgress(prev => ({ ...prev, current: prev.current + 1 }));
+      }));
+      
+      return updatedTracks;
+    } catch (error) {
+      console.error('Failed to fetch batch oEmbed data:', error);
+      throw error;
     }
-    setProgress({ current: 0, total: 0 });
-    return updatedTracks;
-  }, [fetchAlbumCover]);
+  }, []);
 
   const handleFileChange = useCallback(async (event) => {
     const selectedFile = event.target.files[0];
@@ -219,18 +224,9 @@ const CSVImportSelector = ({ onSelectImported }) => {
         accept=".csv"
         style={{ display: 'none' }}
       />
-      {(progress.total > 0 && isLoading) ? (
-        <div className="progress-bar">
-          <p>Loading album covers... {progress.current}/{progress.total}</p>
-          <div className="progress-container">
-            <div className="progress-fill" style={{ width: `${(progress.current / progress.total) * 100}%` }}></div>
-          </div>
-        </div>
-      ) : selectedTracks.length > 0 && !isLoading ? (
-        <div className="progress-bar">
-          <p>Loaded {selectedTracks.length} tracks</p>
-        </div>
-      ) : null}
+      {selectedTracks.length > 0 && !isLoading && (
+        <p>Loaded {selectedTracks.length} tracks</p>
+      )}
       {error && <p className="error">{error}</p>}
       {tracksParsed.length > 0 && (
         <div className="import-form">

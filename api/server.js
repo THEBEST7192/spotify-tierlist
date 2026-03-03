@@ -163,27 +163,51 @@ app.get('/api/similar-artists', async (req, res) => {
   }
 });
 
-// Get Spotify oEmbed endpoint
-app.get('/api/oembed', async (req, res) => {
+// Batch oEmbed endpoint for fetching multiple track covers
+app.post('/api/oembed/batch', async (req, res) => {
   try {
-    const { trackId } = req.query;
+    const { trackIds } = req.body;
     
-    if (!trackId) {
-      return res.status(400).json({ error: 'Missing trackId parameter' });
+    if (!trackIds || !Array.isArray(trackIds) || trackIds.length === 0) {
+      return res.status(400).json({ error: 'Missing or invalid trackIds array' });
     }
 
-    const oembedUrl = `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${trackId}`;
-    const response = await axios.get(oembedUrl, {
-      headers: {
-        'User-Agent': process.env.USER_AGENT
+    if (trackIds.length > 100) {
+      return res.status(400).json({ error: 'Maximum 100 track IDs allowed per request' });
+    }
+
+    // Fetch oEmbed data for all tracks in parallel
+    const promises = trackIds.map(async (trackId) => {
+      try {
+        const oembedUrl = `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${trackId}`;
+        const response = await axios.get(oembedUrl, {
+          headers: {
+            'User-Agent': process.env.USER_AGENT
+          }
+        });
+        return {
+          trackId,
+          thumbnail_url: response.data.thumbnail_url || null,
+          success: true
+        };
+      } catch (error) {
+        console.error(`Error fetching oEmbed for track ${trackId}:`, error.message);
+        return {
+          trackId,
+          thumbnail_url: null,
+          success: false,
+          error: error.message
+        };
       }
     });
-    res.json(response.data);
+
+    const results = await Promise.all(promises);
+    res.json({ results });
   } catch (error) {
-    console.error('Error fetching oEmbed:', error.message);
+    console.error('Error fetching batch oEmbed:', error.message);
     res.status(500).json({ 
-      error: 'Failed to fetch oEmbed data',
-      details: error.response?.data || error.message 
+      error: 'Failed to fetch batch oEmbed data',
+      details: error.message 
     });
   }
 });

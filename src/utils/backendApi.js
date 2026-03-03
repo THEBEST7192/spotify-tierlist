@@ -142,18 +142,16 @@ export const getUserTierlists = async (spotifyUserId) => {
 };
 
 /**
- * Fetch Spotify oEmbed data for a track
- * @param {string} trackId - Spotify track ID
- * @returns {Promise<Object>} oEmbed response data
+ * Fetch Spotify oEmbed data for multiple tracks in batch
+ * @param {Array<string>} trackIds - Array of Spotify track IDs (max 100)
+ * @returns {Promise<Object>} Batch oEmbed response data
  */
-export const getOEmbed = async (trackId) => {
+export const getBatchOEmbed = async (trackIds) => {
   try {
-    const response = await backendApi.get('/api/oembed', {
-      params: { trackId }
-    });
+    const response = await backendApi.post('/api/oembed/batch', { trackIds });
     return response.data;
   } catch (error) {
-    console.error('Error fetching oEmbed:', error);
+    console.error('Error fetching batch oEmbed:', error);
     throw error;
   }
 };
