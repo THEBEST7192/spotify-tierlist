@@ -457,14 +457,14 @@
 .cover-edit-modal {
   background: #121212;
   border-radius: 12px;
-  width: min(800px, 100%);
+  width: min(1000px, 100%);
   max-width: 95vw;
   max-height: 85vh;
   padding: 20px 24px 24px;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   overflow-y: auto;
   font-family: inherit;
@@ -560,10 +560,102 @@
   gap: 6px;
 }
 
+.cover-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-form-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.modal-form-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-form-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .modal-textarea {
   resize: none;
   min-height: 60px;
   font-family: inherit;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.modal-button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.modal-button {
+  padding: 20px 40px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  min-width: 200px;
+  flex: 1;
+  width: 100%;
+}
+
+.modal-button.primary {
+  background: #1db954;
+  color: white;
+}
+
+.modal-button.primary:hover:not(:disabled) {
+  background: #1ed760;
+}
+
+.modal-button.secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.modal-button.secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.modal-button.danger {
+  background: #e74c3c;
+  color: white;
+}
+
+.modal-button.danger:hover:not(:disabled) {
+  background: #c0392b;
+}
+
+.modal-button.refresh {
+  background: #1e90ff;
+  color: white;
+}
+
+.modal-button.refresh:hover:not(:disabled) {
+  background: #0066cc;
+}
+
+.modal-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .modal-char-count {
@@ -708,69 +800,6 @@
   font-size: 14px;
 }
 
-.modal-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.modal-spacer {
-  flex: 1;
-}
-
-.modal-button {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 20px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
-  font-family: inherit;
-}
-
-.modal-button.primary {
-  background: #1db954;
-  color: #fff;
-}
-
-.modal-button.secondary {
-  background: transparent;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-}
-
-.modal-button.ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.modal-button.danger {
-  background: transparent;
-  color: #ff6b6b;
-  border: 1px solid rgba(255, 107, 107, 0.7);
-}
-
-.modal-button.danger:hover:not(:disabled) {
-  background: rgba(255, 107, 107, 0.16);
-  border-color: #ff6b6b;
-  color: #ffb3b3;
-}
-
-.modal-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.modal-button.primary:hover:not(:disabled),
-.modal-button.secondary:hover:not(:disabled),
-.modal-button.ghost:hover:not(:disabled) {
-  background: #169743;
-  border-color: #169743;
-  color: #fff;
-  opacity: 1;
-}
-
 @media (max-width: 1024px) {
   .playlist-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -780,6 +809,11 @@
     width: min(700px, 100%);
     max-width: 92vw;
     padding: 22px 24px 26px;
+  }
+
+  .modal-form-content {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 
@@ -800,9 +834,7 @@
     width: 100%;
     max-width: 100vw;
     max-height: 100vh;
-    border-radius: 0;
-    padding: 20px 16px 24px;
-    margin: 0;
+    padding: 16px 20px 20px;
   }
 
   .cover-edit-modal-overlay {
@@ -831,18 +863,24 @@
   }
 
   .modal-actions {
+    display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .modal-button {
+  .modal-button-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     width: 100%;
-    padding: 14px 20px;
-    font-size: 16px;
   }
 
-  .modal-spacer {
-    display: none;
+  .modal-button {
+    width: 100% !important;
+    padding: 20px 32px;
+    font-size: 16px;
+    min-width: unset !important;
+    flex: none !important;
   }
 
   .modal-preview {

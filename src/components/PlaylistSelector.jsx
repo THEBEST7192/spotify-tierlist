@@ -887,6 +887,20 @@ const PlaylistSelector = ({
     openEditModal({ ...playlist }, context);
   }, [openEditModal]);
 
+  const handleDeleteTierlist = useCallback(() => {
+    if (!editModalPlaylist || !editModalContext || isModalBusy) return;
+    
+    if (editModalContext === 'local' && editModalPlaylist._localId) {
+      handleDeleteLocalTierlist(editModalPlaylist, null, () => {
+        handleModalClose();
+      });
+    } else if (editModalContext === 'online' && editModalPlaylist._shortId && editModalPlaylist.isOwnerSelf) {
+      handleDeleteOnlineTierlist(editModalPlaylist, null, () => {
+        handleModalClose();
+      });
+    }
+  }, [editModalPlaylist, editModalContext, isModalBusy, handleDeleteLocalTierlist, handleDeleteOnlineTierlist, handleModalClose]);
+
   const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || '/assets/placeholder.png';
 
   return (
@@ -1142,143 +1156,146 @@ const PlaylistSelector = ({
           </button>
           <h3>Edit tierlist</h3>
           <p className="modal-subtitle">{editModalPlaylist?.name || 'Untitled playlist'}</p>
-          <form onSubmit={handleEditModalSubmit} className="cover-edit-form">
-            <div className="modal-text-control">
-              <label className="modal-label" htmlFor="tierlist-name">Tierlist Name</label>
-              <input
-                id="tierlist-name"
-                type="text"
-                value={editTierlistName}
-                onChange={(e) => setEditTierlistName(e.target.value)}
+          {editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf && (
+            <div className="modal-privacy-toggle" role="group" aria-label="Tierlist visibility">
+              <span className="modal-label">Visibility</span>
+              <button
+                type="button"
+                className={`privacy-toggle ${editIsPublic ? 'public' : 'private'}`}
+                onClick={handleModalPrivacyToggle}
                 disabled={isModalBusy}
-                className="modal-input"
-                placeholder="Enter tierlist name"
-                maxLength={100}
-              />
-              <div className="modal-char-count">
-                {editTierlistName.length}/100
-              </div>
-            </div>
-            <div className="modal-text-control">
-              <label className="modal-label" htmlFor="tierlist-description">Description</label>
-              <textarea
-                id="tierlist-description"
-                value={editTierlistDescription}
-                onChange={(e) => setEditTierlistDescription(e.target.value)}
-                disabled={isModalBusy}
-                className="modal-input modal-textarea"
-                placeholder="Enter description (optional)"
-                rows={3}
-                maxLength={300}
-              />
-              <div className="modal-char-count">
-                {editTierlistDescription.length}/300
-              </div>
-            </div>
-            <div className="modal-upload-control">
-              <label className="modal-label" htmlFor="cover-image-upload-display">Upload a new cover</label>
-              <div className="modal-input-with-upload">
-                <input
-                  id="cover-image-upload-display"
-                  type="text"
-                  value={uploadDisplayLabel || 'No image selected'}
-                  readOnly
-                  disabled={isModalBusy}
-                  className="modal-input"
+              >
+                <img
+                  src={editIsPublic ? '/assets/public.svg' : '/assets/private.svg'}
+                  alt={editIsPublic ? 'Public tierlist' : 'Private tierlist'}
                 />
-                <button
-                  type="button"
-                  className="modal-upload-button"
-                  onClick={handleUploadButtonClick}
-                  disabled={isModalBusy}
-                >
-                  <img src="/assets/upload.svg" alt="" aria-hidden="true" />
-                  <span>Upload</span>
-                </button>
-              </div>
-              <input
-                id="cover-image-upload"
-                ref={fileUploadInputRef}
-                type="file"
-                accept="image/*"
-                className="modal-file-input-hidden"
-                onChange={handleFileUploadChange}
-                disabled={isModalBusy}
-              />
-              <p className="modal-helper-text">Uploads are capped at 100KB; larger images are automatically resized to fit.</p>
+                <span>{editIsPublic ? 'Public (anyone with the link can view)' : 'Private (only you can view)'}</span>
+              </button>
             </div>
-            <div className="modal-preview">
-              <div className="modal-preview-square">
-                <img src={modalPreviewUrl} alt="Cover preview" />
-              </div>
-            </div>
-            {editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf && (
-              <div className="modal-privacy-toggle" role="group" aria-label="Tierlist visibility">
-                <span className="modal-label">Visibility</span>
-                <button
-                  type="button"
-                  className={`privacy-toggle ${editIsPublic ? 'public' : 'private'}`}
-                  onClick={handleModalPrivacyToggle}
-                  disabled={isModalBusy}
-                >
-                  <img
-                    src={editIsPublic ? '/assets/public.svg' : '/assets/private.svg'}
-                    alt={editIsPublic ? 'Public tierlist' : 'Private tierlist'}
+          )}
+          <form onSubmit={handleEditModalSubmit} className="cover-edit-form">
+            <div className="modal-form-content">
+              <div className="modal-form-left">
+                <div className="modal-upload-control">
+                  <label className="modal-label" htmlFor="cover-image-upload-display">Upload a new cover</label>
+                  <div className="modal-input-with-upload">
+                    <input
+                      id="cover-image-upload-display"
+                      type="text"
+                      value={uploadDisplayLabel || 'No image selected'}
+                      readOnly
+                      disabled={isModalBusy}
+                      className="modal-input"
+                    />
+                    <button
+                      type="button"
+                      className="modal-upload-button"
+                      onClick={handleUploadButtonClick}
+                      disabled={isModalBusy}
+                    >
+                      <img src="/assets/upload.svg" alt="" aria-hidden="true" />
+                      <span>Upload</span>
+                    </button>
+                  </div>
+                  <input
+                    id="cover-image-upload"
+                    ref={fileUploadInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="modal-file-input-hidden"
+                    onChange={handleFileUploadChange}
+                    disabled={isModalBusy}
                   />
-                  <span>{editIsPublic ? 'Public (anyone with the link can view)' : 'Private (only you can view)'}</span>
-                </button>
+                  <p className="modal-helper-text">Uploads are capped at 100KB; larger images are automatically resized to fit.</p>
+                </div>
+                <div className="modal-preview">
+                  <div className="modal-preview-square">
+                    <img src={modalPreviewUrl} alt="Cover preview" />
+                  </div>
+                </div>
               </div>
-            )}
-            {editModalError && <div className="modal-error">{editModalError}</div>}
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="modal-button secondary"
-                onClick={handleModalReset}
-                disabled={isModalBusy}
-              >
-                Reset to default
-              </button>
-              {((editModalContext === 'local' && editModalPlaylist?._localId) ||
-                (editModalContext === 'online' && editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf)) && (
-                <button
-                  type="button"
-                  className="modal-button danger"
-                  onClick={(event) => {
-                    if (editModalContext === 'local' && editModalPlaylist?._localId) {
-                      handleDeleteLocalTierlist(editModalPlaylist, event, resetEditModalState);
-                    } else if (editModalContext === 'online' && editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf) {
-                      handleDeleteOnlineTierlist(editModalPlaylist, event, resetEditModalState);
-                    }
-                  }}
-                  disabled={isModalBusy || !!deletingId}
-                >
-                  Delete tierlist
-                </button>
-              )}
-              <div className="modal-spacer" />
-              <button
-                type="button"
-                className="modal-button ghost"
-                onClick={handleModalClose}
-                disabled={isModalBusy}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="modal-button primary"
-                disabled={isModalBusy}
-              >
-                {isModalBusy ? 'Saving…' : 'Save changes'}
-              </button>
+              <div className="modal-form-right">
+                <div className="modal-text-control">
+                  <label className="modal-label" htmlFor="tierlist-name">Tierlist Name</label>
+                  <input
+                    id="tierlist-name"
+                    type="text"
+                    value={editTierlistName}
+                    onChange={(e) => setEditTierlistName(e.target.value)}
+                    disabled={isModalBusy}
+                    className="modal-input"
+                    placeholder="Enter tierlist name"
+                    maxLength={100}
+                  />
+                  <div className="modal-char-count">
+                    {editTierlistName.length}/100
+                  </div>
+                </div>
+                <div className="modal-text-control">
+                  <label className="modal-label" htmlFor="tierlist-description">Description</label>
+                  <textarea
+                    id="tierlist-description"
+                    value={editTierlistDescription}
+                    onChange={(e) => setEditTierlistDescription(e.target.value)}
+                    disabled={isModalBusy}
+                    className="modal-input modal-textarea"
+                    placeholder="Enter description (optional)"
+                    rows={5}
+                    maxLength={300}
+                  />
+                  <div className="modal-char-count">
+                    {editTierlistDescription.length}/300
+                  </div>
+                  <div className="modal-actions">
+                    <div className="modal-button-row">
+                      {((editModalContext === 'local' && editModalPlaylist?._localId) ||
+                        (editModalContext === 'online' && editModalPlaylist?._shortId && editModalPlaylist?.isOwnerSelf)) && (
+                        <button
+                          type="button"
+                          className="modal-button danger"
+                          onClick={handleDeleteTierlist}
+                          disabled={isModalBusy}
+                        >
+                          Delete tierlist
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="modal-button refresh"
+                        onClick={handleModalReset}
+                        disabled={isModalBusy}
+                      >
+                        Reset to default
+                      </button>
+                    </div>
+                    <div className="modal-button-row">
+                      <button
+                        type="button"
+                        className="modal-button secondary"
+                        onClick={handleModalClose}
+                        disabled={isModalBusy}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="modal-button primary"
+                        disabled={isModalBusy}
+                      >
+                        {isModalBusy ? 'Saving…' : 'Save changes'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+            {editModalError && <div className="modal-error">{editModalError}</div>}
           </form>
         </div>
       </div>
     )}
-    </>
-  );
+  </>
+);
 };
 
 export default PlaylistSelector;
