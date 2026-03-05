@@ -627,12 +627,12 @@
 }
 
 .modal-button.secondary {
-  background: #6c757d;
+  background: #333;
   color: white;
 }
 
 .modal-button.secondary:hover:not(:disabled) {
-  background: #5a6268;
+  background: #444;
 }
 
 .modal-button.danger {

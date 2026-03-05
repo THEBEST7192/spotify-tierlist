@@ -8,21 +8,32 @@
   z-index: 1000;
 }
 .modal-box {
-  background: #181818;
+  background: #121212;
   color: #fff;
-  border-radius: 10px;
-  padding: 2rem;
+  border-radius: 12px;
+  padding: 20px 24px 24px;
   width: 520px;
   max-width: 90vw;
   min-width: 320px;
+  max-height: 90vh;
   box-sizing: border-box;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.4);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.modal-content {
+  overflow-y: auto;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding-right: 0.5rem;
+  margin-right: -0.5rem;
 }
 .modal-box button {
-  background: #1db954;
+  background: #1DB954;
   color: #fff;
   border: none;
   border-radius: 5px;
@@ -33,8 +44,91 @@
   transition: background 0.2s;
 }
 .modal-box button:hover {
-  background: #169743;
+  background: #1ed760;
 }
+.modal-box button:disabled {
+  background: #333;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.modal-box .modal-close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  background: transparent !important;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  line-height: 1;
+}
+
+.modal-box .modal-close-button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ff4444;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.button-group .select-range-btn {
+  flex: 2;
+  background: #1DB954;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.button-group .select-range-btn:hover:not(:disabled) {
+  background: #1ed760;
+}
+
+.button-group .select-range-btn:disabled {
+  background: #333;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-group .select-range-btn:active:not(:disabled) {
+  background: #1db954;
+  transform: translateY(1px);
+}
+
+.button-group .close-btn {
+  flex: 1;
+  background: #333;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.button-group .close-btn:hover {
+  background: #444;
+}
+
+.button-group .close-btn:active {
+  background: #555;
+  transform: translateY(1px);
+}
+
 .close-btn {
   background: #333;
   color: #fff;
