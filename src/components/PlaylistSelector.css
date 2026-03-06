@@ -796,7 +796,7 @@
 
 .desktop-search-layout {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
   width: 100%;
 }
@@ -808,22 +808,25 @@
 }
 
 .desktop-search-input {
-  flex: 1;
+  flex: 2;
   margin: 0;
 }
 
 .desktop-filters {
+  flex: 1;
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
 }
 
 .desktop-filters .sort-select {
-  min-width: 160px;
+  flex: 1;
+  min-width: 80px;
 }
 
 .desktop-filters .owner-filter-select {
-  min-width: 180px;
+  flex: 2;
+  min-width: 100px;
 }
 
 @media (max-width: 768px) {
