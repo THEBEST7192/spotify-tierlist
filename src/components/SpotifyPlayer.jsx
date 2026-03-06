@@ -15,7 +15,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   const [playerPlayState, setPlayerPlayState] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(false);
   const [, setIsFirefoxETP] = useState(false);
   const iframeContainerRef = useRef(null);
   const controllerRef = useRef(null);
@@ -286,10 +285,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   };
 
   useEffect(() => {
-    // Check for mobile browsers
-    const userAgent = navigator.userAgent.toLowerCase();
-    setIsMobile(/android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent));
-    
     // Check for Firefox with Enhanced Tracking Protection
     // We'll use a global error event listener to catch the specific error message
     const isFirefox = typeof window.InstallTrigger !== 'undefined';
@@ -321,12 +316,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
       console.error = originalConsoleError;
     };
   }, []);
-
-  useEffect(() => {
-    if (isMobile) {
-      alert('For best experience, please enable Desktop Mode in your mobile browser settings.');
-    }
-  }, [isMobile]);
 
   useEffect(() => {
     const container = iframeContainerRef.current;

@@ -909,30 +909,58 @@ const PlaylistSelector = ({
       <h2>Select a Playlist</h2>
       
       <div className="search-mode-toggle">
-        <button 
-          className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("online")}
-        >
-          Online Playlists
-        </button>
-        <button 
-          className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("local")}
-        >
-          Local Playlists
-        </button>
-        <button 
-          className={`toggle-btn ${searchMode === "import" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("import")}
-        >
-          Import Playlist (CSV)
-        </button>
-        <button 
-          className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
-          onClick={() => handleSearchModeChange("user")}
-        >
-          My Playlists
-        </button>
+        <div className="desktop-mode-toggle">
+          <button 
+            className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("online")}
+          >
+            Online Playlists
+          </button>
+          <button 
+            className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("local")}
+          >
+            Local Playlists
+          </button>
+          <button 
+            className={`toggle-btn ${searchMode === "import" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("import")}
+          >
+            Import Playlist (CSV)
+          </button>
+          <button 
+            className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("user")}
+          >
+            My Playlists
+          </button>
+        </div>
+        <div className="mobile-mode-toggle">
+          <button 
+            className={`toggle-btn ${searchMode === "online" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("online")}
+          >
+            Online
+          </button>
+          <button 
+            className={`toggle-btn ${searchMode === "local" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("local")}
+          >
+            Local
+          </button>
+          <button 
+            className={`toggle-btn ${searchMode === "import" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("import")}
+          >
+            Import
+          </button>
+          <button 
+            className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
+            onClick={() => handleSearchModeChange("user")}
+          >
+            My Playlists
+          </button>
+        </div>
       </div>
 
       {searchMode === "user" && (
@@ -955,10 +983,10 @@ const PlaylistSelector = ({
       
       {searchMode === "local" && (
         <div className="search-input-wrapper">
-          <div className="local-search-container">
+          <div className="desktop-search-layout">
             <input
               type="text"
-              className="search-input local-search-input"
+              className="search-input desktop-search-input"
               placeholder="Search your local tierlists..."
               value={localSearchQuery}
               onKeyDown={(e) => {
@@ -968,7 +996,7 @@ const PlaylistSelector = ({
               }}
               onChange={(e) => setLocalSearchQuery(e.target.value)}
             />
-            <div className="inline-controls local-inline-controls">
+            <div className="desktop-filters">
               <select
                 className="sort-select"
                 value={localSortOption}
@@ -981,14 +1009,38 @@ const PlaylistSelector = ({
               </select>
             </div>
           </div>
+          <div className="mobile-search-filters">
+            <input
+              type="text"
+              className="search-input mobile-search-input"
+              placeholder="Search your local tierlists..."
+              value={localSearchQuery}
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                  checkKonamiCode(e.key.toLowerCase());
+                }
+              }}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+            />
+            <select
+              className="mobile-filter-select"
+              value={localSortOption}
+              onChange={(e) => setLocalSortOption(e.target.value)}
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
+          </div>
         </div>
       )}
       {searchMode === "online" && (
         <div className="search-input-wrapper">
-          <div className="online-search-container">
+          <div className="desktop-search-layout">
             <input
               type="text"
-              className="search-input online-search-input"
+              className="search-input desktop-search-input"
               placeholder="Search online tierlists..."
               value={onlineSearchQuery}
               onKeyDown={(e) => {
@@ -998,7 +1050,7 @@ const PlaylistSelector = ({
               }}
               onChange={(e) => setOnlineSearchQuery(e.target.value)}
             />
-            <div className="inline-controls online-inline-controls">
+            <div className="desktop-filters">
               <select
                 className="sort-select owner-filter-select"
                 value={onlineOwnerFilter}
@@ -1019,6 +1071,39 @@ const PlaylistSelector = ({
                 <option value="oldest">Oldest</option>
               </select>
             </div>
+          </div>
+          <div className="mobile-search-filters">
+            <input
+              type="text"
+              className="search-input mobile-search-input"
+              placeholder="Search online tierlists..."
+              value={onlineSearchQuery}
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                  checkKonamiCode(e.key.toLowerCase());
+                }
+              }}
+              onChange={(e) => setOnlineSearchQuery(e.target.value)}
+            />
+            <select
+              className="mobile-filter-select"
+              value={onlineOwnerFilter}
+              onChange={(e) => setOnlineOwnerFilter(e.target.value)}
+            >
+              <option value="mine">Only My Tierlists</option>
+              <option value="others">Others&apos; Tierlists</option>
+              <option value="all">All Tierlists</option>
+            </select>
+            <select
+              className="mobile-filter-select"
+              value={onlineSortOption}
+              onChange={(e) => setOnlineSortOption(e.target.value)}
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
           </div>
         </div>
       )}

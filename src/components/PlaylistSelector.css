@@ -33,6 +33,15 @@
   width: 100%;
 }
 
+.desktop-mode-toggle {
+  display: flex;
+  gap: 0;
+}
+
+.mobile-mode-toggle {
+  display: none;
+}
+
 .toggle-btn {
   padding: 10px 20px;
   border: none;
@@ -114,25 +123,6 @@
   flex: 1;
 }
 
-.online-search-container,
-.local-search-container {
-  position: relative;
-}
-
-.inline-controls {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px 0 16px;
-  background-color: #333;
-  border-radius: 0 4px 4px 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
-}
-
 .online-inline-controls .online-toggle {
   display: inline-flex;
   align-items: center;
@@ -154,14 +144,14 @@
 }
 
 .sort-select {
-  background-color: #444;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  padding: 6px 28px 6px 10px;
+  padding: 10px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background-color: #282828;
+  color: #ffffff;
   font-size: 14px;
-  appearance: none;
   cursor: pointer;
+  appearance: none;
 }
 
 .search-input:focus {
@@ -173,19 +163,6 @@
 
 .owner-filter-select {
   min-width: 180px;
-}
-
-.online-search-input {
-  padding-right: 360px;
-}
-
-.local-search-input {
-  padding-right: 190px;
-}
-
-.local-inline-controls {
-  justify-content: flex-end;
-  padding: 0 12px 0 16px;
 }
 
 .search-button {
@@ -817,11 +794,85 @@
   }
 }
 
+.desktop-search-layout {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+
+.mobile-search-filters {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.desktop-search-input {
+  flex: 1;
+  margin: 0;
+}
+
+.desktop-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.desktop-filters .sort-select {
+  min-width: 160px;
+}
+
+.desktop-filters .owner-filter-select {
+  min-width: 180px;
+}
+
 @media (max-width: 768px) {
+  .desktop-mode-toggle {
+    display: none;
+  }
+
+  .mobile-mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .mobile-mode-toggle .toggle-btn {
+    border-radius: 4px;
+    margin: 0;
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .desktop-search-layout {
+    display: none;
+  }
+
+  .mobile-search-filters {
+    display: flex;
+  }
+
+  .mobile-search-input {
+    width: 100%;
+    padding: 10px;
+    margin: 0;
+  }
+
+  .mobile-filter-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background-color: #282828;
+    color: #ffffff;
+    font-size: 14px;
+  }
+
   .playlist-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .public-search-container {
     flex-direction: column;
   }

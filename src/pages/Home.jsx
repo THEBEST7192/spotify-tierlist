@@ -777,9 +777,13 @@ const Home = ({ accessToken, setAccessToken }) => {
     <div className="home-container">
 
       <header className="app-header">
-        <h1>TuneTier a Tierlist Maker for Spotify</h1>
-        <div className="header-controls">
+        <div className="header-title">
           <img src="/logo.png" alt="Logo" className="app-header-logo" />
+          <h1>
+            {window.innerWidth <= 768 ? 'TuneTier' : 'TuneTier a Tierlist Maker for Spotify'}
+          </h1>
+        </div>
+        <div className="header-controls">
           {accessToken && (
             <>
               <UserProfile accessToken={accessToken} />
