@@ -6,6 +6,10 @@ import { fileURLToPath } from 'url';
 import { MongoClient, ServerApiVersion } from 'mongodb';
 import { createTierlistsRouter } from './routes/tierlists.js';
 import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
+import { ensureUserIndexes } from './db/ensureUserIndexes.js';
+import { createAuthRouter } from './routes/auth.js';
+import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
+import { createAuthMiddleware } from './middleware/auth.js';
 
 // Load environment variables (only for local development)
 if (process.env.NODE_ENV !== 'production') {
@@ -42,6 +46,7 @@ async function initMongoConnection() {
     const db = mongoClient.db(MONGODB_DB);
     await db.command({ ping: 1 });
     await ensureTierlistIndexes(db);
+    await ensureUserIndexes(db);
     app.locals.mongoClient = mongoClient;
     app.locals.db = db;
   } catch (err) {
@@ -55,24 +60,41 @@ async function initMongoConnection() {
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-app.use('/api/tierlists', async (req, res, next) => {
+async function ensureDb(req, res, next) {
   try {
     if (!app.locals.db) {
       await initMongoConnection();
     }
 
     const db = app.locals.db;
-
     if (!db) {
       return res.status(503).json({ error: 'Database not connected' });
     }
 
-    const router = createTierlistsRouter(db);
-    return router(req, res, next);
+    req.db = db;
+    return next();
   } catch (err) {
     console.error('Error ensuring MongoDB connection:', err);
     return res.status(503).json({ error: 'Database not connected' });
   }
+}
+
+app.use('/api/auth', ensureDb, (req, res, next) => {
+  const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
+  const router = createAuthRouter(req.db, { requireAuth, optionalAuth });
+  return router(req, res, next);
+});
+
+app.use('/api/spotify', ensureDb, (req, res, next) => {
+  const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
+  const router = createSpotifyAccountsRouter(req.db, { requireAuth, optionalAuth });
+  return router(req, res, next);
+});
+
+app.use('/api/tierlists', ensureDb, (req, res, next) => {
+  const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
+  const router = createTierlistsRouter(req.db, { optionalAuth, requireAuth });
+  return router(req, res, next);
 });
 
 // Health check endpoint

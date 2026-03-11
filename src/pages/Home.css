@@ -129,69 +129,6 @@
   color: #666;
 }
 
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background-color: #191414; /* Spotify black */
-  color: white;
-  margin-bottom: 2rem;
-  font-size: 0.9rem;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.header-title h1 {
-  margin: 0;
-  font-size: 1.7rem;
-}
-
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.spotify-logo {
-  height: 24px;
-  width: auto;
-  margin-right: 10px;
-}
-
-.spotify-attribution {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.spotify-full-logo {
-  height: 80px;
-  margin-bottom: 20px;
-  object-fit: contain;
-  background-color: transparent;
-}
-
-.app-header-logo {
-  height: 40px;
-  width: auto;
-  margin-right: 10px;
-}
-
-.app-full-logo {
-  height: 100px;
-  margin-bottom: 10px;
-  object-fit: contain;
-  background-color: transparent;
-}
-
 .auth-container {
   display: flex;
   flex-direction: column;
@@ -211,6 +148,29 @@
   font-size: 1.0rem;
 }
 
+.spotify-attribution {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.spotify-full-logo {
+  height: 80px;
+  margin-bottom: 20px;
+  object-fit: contain;
+  background-color: transparent;
+}
+
+.app-full-logo {
+  height: 100px;
+  margin-bottom: 10px;
+  object-fit: contain;
+  background-color: transparent;
+}
+
 /* Spotify's primary colors */
 :root {
   --spotify-green: #1DB954;
@@ -218,7 +178,6 @@
 }
 
 /* Use Spotify colors for buttons and accents */
-.back-button,
 button.auth-button {
   background-color: var(--spotify-green);
   color: white;
@@ -234,7 +193,6 @@ button.auth-button {
   margin-top: 10px;
 }
 
-.back-button:hover,
 button.auth-button:hover {
   background-color: #1ed760;
   transform: scale(1.05);
@@ -244,6 +202,23 @@ button.auth-button:hover {
   margin-top: 8px;
 }
 
+.tierlist-container {
+  margin-top: 20px;
+}
+
+.back-button {
+  background-color: #1DB954;
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.back-button:hover {
+  background-color: #1ed760;
+}
 
 .app-attribution {
   margin-top: 20px;

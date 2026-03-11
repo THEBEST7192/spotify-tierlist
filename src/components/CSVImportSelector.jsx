@@ -92,7 +92,7 @@ const CSVImportSelector = ({ onSelectImported }) => {
     }
     setFile(selectedFile);
     const baseName = selectedFile.name.replace(/\.csv$/i, '');
-    const cleanName = baseName.replace(/[-_\.\s]+/g, ' ').trim();
+    const cleanName = baseName.replace(/[-_\s.]+/g, ' ').trim();
     setPlaylistName(cleanName);
     setError("");
     setIsLoading(true);

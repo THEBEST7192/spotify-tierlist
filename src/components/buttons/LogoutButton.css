@@ -3,7 +3,7 @@
   color: white;
   border: 1px solid #b3b3b3; /* Spotify light gray */
   border-radius: 30px;
-  padding: 8px 20px;
+  padding: 9px 20px;
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
@@ -11,6 +11,7 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-left: 10px;
+  box-sizing: border-box;
 }
 
 .logout-button:hover {
@@ -21,4 +22,4 @@
 .logout-button:focus {
   outline: none;
   box-shadow: 0 0 0 2px rgba(179, 179, 179, 0.3);
-} 
+}

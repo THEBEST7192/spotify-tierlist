@@ -260,7 +260,8 @@ const TierList = ({
   debugMode = false,
   initialTierlist = null,
   storageKey = null,
-  playlistImages = []
+  playlistImages = [],
+  tuneTierUser = null
 }) => {
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
@@ -277,7 +278,7 @@ const TierList = ({
   const [focusedSongId, setFocusedSongId] = useState(null);
   const [focusedTierId, setFocusedTierId] = useState(null);
   const [pickedUpSongId, setPickedUpSongId] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [, setCurrentUser] = useState(null);
   const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
   const [uploadedTierlist, setUploadedTierlist] = useState(null);
   const [uploadingTierlist, setUploadingTierlist] = useState(false);
@@ -951,15 +952,22 @@ const TierList = ({
     setUploadingTierlist(true);
 
     try {
-      let user = currentUser;
-      if (!user) {
-        const userResponse = await getCurrentUser();
-        user = userResponse.data;
-        setCurrentUser(user);
+      if (!tuneTierUser) {
+        throw new Error('Please log in to your account before uploading tierlists');
       }
 
-      if (!user || !user.id) {
-        throw new Error('Unable to determine Spotify user ID');
+      let spotifyUserId = null;
+      let spotifyDisplayName = null;
+      try {
+        const userResponse = await getCurrentUser();
+        spotifyUserId = userResponse?.data?.id || null;
+        spotifyDisplayName = userResponse?.data?.display_name || null;
+        if (userResponse?.data) {
+          setCurrentUser(userResponse.data);
+        }
+      } catch {
+        spotifyUserId = null;
+        spotifyDisplayName = null;
       }
 
       const isUpdate = Boolean(uploadedTierlist?.shortId);
@@ -975,8 +983,8 @@ const TierList = ({
       };
 
       const payload = {
-        spotifyUserId: user.id,
-        username: user.display_name || user.id,
+        ...(spotifyUserId ? { spotifyUserId } : {}),
+        username: spotifyDisplayName || tuneTierUser.username,
         tierListName: resolvedTierListName,
         coverImage,
         tiers,

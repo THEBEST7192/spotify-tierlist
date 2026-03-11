@@ -16,6 +16,7 @@ export function generateShortId() {
  * This does not insert into Mongo, just shapes the data.
  */
 export function buildTierListDocument({
+  ownerUserId,
   spotifyUserId,
   username,
   tierListName,
@@ -26,10 +27,15 @@ export function buildTierListDocument({
   isPublic = true
 }) {
   const now = new Date();
-  const spotifyUserHash = hashSpotifyUserId(spotifyUserId);
+  const spotifyUserHash = spotifyUserId ? hashSpotifyUserId(spotifyUserId) : null;
+
+  if (!ownerUserId) {
+    throw new Error('ownerUserId is required');
+  }
 
   return {
-    spotifyUserHash,
+    ownerUserId,
+    ...(spotifyUserHash ? { spotifyUserHash } : {}),
     username,
     tierListName,
     coverImage,   // base64 string or external URL

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist } from "../utils/backendApi";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, transferTierlistOwnership } from "../utils/backendApi";
 import AuthButton from "./AuthButton";
 import CSVImportSelector from "./CSVImportSelector";
 import "./PlaylistSelector.css";
@@ -133,7 +133,8 @@ const PlaylistSelector = ({
   setSearchMode,
   onSelectLocalTierlist,
   onSelectOnlineTierlist,
-  onSelectImported
+  onSelectImported,
+  tuneTierUser
 }) => {
   const OWNER_FILTER_STORAGE_KEY = "playlistSelector.onlineOwnerFilter";
   const ONLINE_SORT_STORAGE_KEY = "playlistSelector.onlineSortOption";
@@ -143,6 +144,7 @@ const PlaylistSelector = ({
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [localTierlists, setLocalTierlists] = useState([]);
   const [onlineTierlists, setOnlineTierlists] = useState([]);
+  const [refreshTrigger] = useState(0);
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [onlineSearchQuery, setOnlineSearchQuery] = useState("");
   const [localSortOption, setLocalSortOption] = useState("name-asc");
@@ -150,7 +152,7 @@ const PlaylistSelector = ({
   const [onlineOwnerFilter, setOnlineOwnerFilter] = useState("all");
   const [, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [spotifyUserId, setSpotifyUserId] = useState(null);
+  const [spotifyUserId, _setSpotifyUserId] = useState(null);
   const [coverUpdatingId, setCoverUpdatingId] = useState(null);
   const [privacyUpdatingId, setPrivacyUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -236,10 +238,22 @@ const PlaylistSelector = ({
 
   useEffect(() => {
     const fetchFirstPage = async () => {
+      console.log("fetchFirstPage - Auth state:", { 
+        hasTuneTierUser: !!tuneTierUser, 
+        hasAccessToken: !!accessToken,
+        tuneTierUsername: tuneTierUser?.username 
+      });
+      
       try {
+        // Only fetch Spotify playlists if we have an access token
+        if (!accessToken) {
+          console.log("No Spotify access token available, skipping Spotify playlist fetch");
+          return;
+        }
+        
         const userResponse = await getCurrentUser();
         const userId = userResponse.data.id;
-        setSpotifyUserId(userId);
+        _setSpotifyUserId(userId);
         const limit = 50;
         const response = await getUserPlaylists({ limit, offset: 0 });
         const items = Array.isArray(response?.data?.items) ? response.data.items : [];
@@ -248,15 +262,27 @@ const PlaylistSelector = ({
         setFilteredPlaylists(owned);
         setOwnedOffset(items.length);
         setHasMoreOwned(!!response?.data?.next);
+        console.log("Fetched Spotify playlists:", owned.length);
       } catch (err) {
         console.error("Error fetching playlists:", err);
+        // Don't show error to user if it's just missing access token
+        if (!accessToken || err.message?.includes('No access token')) {
+          return;
+        }
       }
     };
     fetchFirstPage();
-  }, []);
+  }, [accessToken, tuneTierUser]);
 
   const loadMoreOwned = useCallback(async () => {
     if (!hasMoreOwned || loadingMoreOwned) return;
+    
+    // Only fetch Spotify playlists if we have an access token
+    if (!accessToken) {
+      console.log("No Spotify access token available, skipping load more");
+      return;
+    }
+    
     try {
       setLoadingMoreOwned(true);
       const limit = 50;
@@ -274,10 +300,14 @@ const PlaylistSelector = ({
       setHasMoreOwned(!!response?.data?.next && items.length > 0);
     } catch (err) {
       console.error("Error loading more playlists:", err);
+      // Don't show error if it's just missing access token
+      if (!accessToken || err.message?.includes('No access token')) {
+        return;
+      }
     } finally {
       setLoadingMoreOwned(false);
     }
-  }, [hasMoreOwned, loadingMoreOwned, ownedOffset, playlists, searchMode, searchQuery, spotifyUserId]);
+  }, [hasMoreOwned, loadingMoreOwned, ownedOffset, playlists, searchMode, searchQuery, spotifyUserId, accessToken]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -444,23 +474,35 @@ const PlaylistSelector = ({
     if (searchMode !== "online") return;
 
     let cancelled = false;
-
     const loadOnlineTierlists = async () => {
+      if (cancelled) return;
       setIsLoading(true);
       setError(null);
       try {
-        let userId = null;
-        try {
-          const userResponse = await getCurrentUser();
-          userId = userResponse && userResponse.data && userResponse.data.id;
-        } catch {
-          userId = null;
+        const publicListsPromise = getPublicTierlists();
+        let userListsPromise = Promise.resolve([]);
+        
+        console.log("fetchOnlineTierlists - Auth state:", { 
+          hasTuneTierUser: !!tuneTierUser, 
+          hasAccessToken: !!accessToken,
+          tuneTierUsername: tuneTierUser?.username 
+        });
+        
+        // Always fetch user tierlists - backend will handle both local and Spotify auth
+        if (tuneTierUser || accessToken) {
+          // console.log("Fetching tierlists for authenticated user(s)");
+          userListsPromise = getUserTierlists();
+        } else {
+          // console.log("No authentication found, returning empty user lists");
         }
 
-        const publicListsPromise = getPublicTierlists();
-        const userListsPromise = userId ? getUserTierlists(userId) : Promise.resolve([]);
-
         const [publicLists, userLists] = await Promise.all([publicListsPromise, userListsPromise]);
+        
+        console.log("API Results:", { 
+          publicListsCount: publicLists.length, 
+          userListsCount: userLists.length,
+          userListsSample: userLists.slice(0, 2).map(l => ({ name: l.tierListName, owner: l.username }))
+        });
 
         const seen = new Set();
         const normalized = [];
@@ -474,13 +516,22 @@ const PlaylistSelector = ({
             id: list.shortId,
             name: list.tierListName || "Untitled Tierlist",
             description: list.description || (list.isPublic ? "Online public tierlist" : "Online private tierlist"),
-            coverImage,
-            owner: { display_name: list.username || "Unknown" },
+            coverImage: coverImage,
+            owner: {
+              name: list.username,
+              display_name: list.username,
+              id: list.ownerUserId,
+              spotifyUserHash: list.spotifyUserHash
+            },
             _shortId: list.shortId,
             _kind: "online-tierlist",
             isPublic: !!list.isPublic,
             isOwnerSelf,
-            createdAt: createdAtValue
+            createdAt: createdAtValue,
+            // Include the original ownership fields for transfer detection
+            spotifyUserHash: list.spotifyUserHash,
+            ownerUserId: list.ownerUserId,
+            username: list.username
           });
         };
 
@@ -491,7 +542,11 @@ const PlaylistSelector = ({
 
         // Then add other public tierlists (duplicates are skipped by shortId)
         if (Array.isArray(publicLists)) {
-          publicLists.forEach((list) => pushNormalized(list, false));
+          publicLists.forEach((list) => {
+            // Check if this public list is actually owned by the current user
+            const isOwnedByUser = userLists.some(userList => userList.shortId === list.shortId);
+            pushNormalized(list, isOwnedByUser);
+          });
         }
 
         if (!cancelled) {
@@ -514,7 +569,7 @@ const PlaylistSelector = ({
     return () => {
       cancelled = true;
     };
-  }, [searchMode]);
+  }, [searchMode, tuneTierUser, accessToken, refreshTrigger]);
 
   const handlePlaylistClick = (playlist) => {
     if (searchMode === "local" && playlist && playlist._localId && typeof onSelectLocalTierlist === "function") {
@@ -578,29 +633,14 @@ const PlaylistSelector = ({
     }
   }, []);
 
-  const ensureSpotifyUserId = useCallback(async () => {
-    if (spotifyUserId) return spotifyUserId;
-    try {
-      const response = await getCurrentUser();
-      const id = response?.data?.id;
-      if (id) {
-        setSpotifyUserId(id);
-        return id;
-      }
-    } catch (err) {
-      console.error('Failed to fetch Spotify user', err);
-    }
-    setError('Unable to verify Spotify account for cover changes.');
-    return null;
-  }, [spotifyUserId]);
-
   const updateOnlineTierlistImage = useCallback(async (playlist, imageUrl, nextIsPublic = null, name = null, description = null) => {
     if (!playlist?._shortId) return false;
-    const userId = await ensureSpotifyUserId();
-    if (!userId) return false;
+    if (!tuneTierUser) {
+      setError('Please log in to your account to edit online tierlists.');
+      return false;
+    }
     setCoverUpdatingId(playlist._shortId);
     const payload = {
-      spotifyUserId: userId,
       coverImage: imageUrl || ''
     };
     if (typeof nextIsPublic === 'boolean') {
@@ -635,16 +675,18 @@ const PlaylistSelector = ({
     } finally {
       setCoverUpdatingId(null);
     }
-  }, [ensureSpotifyUserId]);
+  }, [tuneTierUser]);
 
   const handleTogglePrivacy = useCallback(async (playlist, event) => {
     event?.stopPropagation?.();
     if (!playlist?._shortId || !playlist.isOwnerSelf || privacyUpdatingId) return;
-    const userId = await ensureSpotifyUserId();
-    if (!userId) return;
+    if (!tuneTierUser) {
+      setError('Please log in to your account to edit online tierlists.');
+      return;
+    }
     setPrivacyUpdatingId(playlist._shortId);
     try {
-      const updatedDoc = await toggleTierlistPrivacy(playlist._shortId, userId);
+      const updatedDoc = await toggleTierlistPrivacy(playlist._shortId);
       setOnlineTierlists(prev => {
         const newList = prev.map(list => {
           if (list?._shortId === playlist._shortId) {
@@ -664,7 +706,7 @@ const PlaylistSelector = ({
     } finally {
       setPrivacyUpdatingId(null);
     }
-  }, [ensureSpotifyUserId, privacyUpdatingId]);
+  }, [tuneTierUser, privacyUpdatingId]);
 
   const resetEditModalState = useCallback(() => {
     setIsEditModalOpen(false);
@@ -703,21 +745,13 @@ const PlaylistSelector = ({
         return JSON.parse(raw);
       }
       if (playlist._shortId) {
-        let options;
-        if (playlist.isOwnerSelf) {
-          const userId = await ensureSpotifyUserId();
-          if (!userId) {
-            return null;
-          }
-          options = { spotifyUserId: userId };
-        }
-        return await getTierlist(playlist._shortId, options);
+        return await getTierlist(playlist._shortId);
       }
     } catch (err) {
       console.error('Failed to load tierlist data for reset', err);
     }
     return null;
-  }, [ensureSpotifyUserId]);
+  }, []);
 
   const computeDefaultCoverFromPlaylist = useCallback(async (playlist) => {
     const tierlistData = await fetchTierlistDataForReset(playlist);
@@ -788,12 +822,14 @@ const PlaylistSelector = ({
     if (!playlist?._shortId || !playlist.isOwnerSelf || deletingId) return;
     const confirmed = window.confirm(`Delete online tierlist "${playlist.name || 'Untitled'}"? This cannot be undone.`);
     if (!confirmed) return;
-    const userId = await ensureSpotifyUserId();
-    if (!userId) return;
+    if (!tuneTierUser) {
+      setError('Please log in to your account to delete online tierlists.');
+      return;
+    }
     const shortId = playlist._shortId;
     setDeletingId(shortId);
     try {
-      await deleteTierlist(shortId, userId);
+      await deleteTierlist(shortId);
       setOnlineTierlists(prev => prev.filter(list => list?._shortId !== shortId));
       if (typeof onDeleted === 'function') {
         onDeleted();
@@ -804,7 +840,7 @@ const PlaylistSelector = ({
     } finally {
       setDeletingId(null);
     }
-  }, [deletingId, ensureSpotifyUserId]);
+  }, [deletingId, tuneTierUser]);
 
   const handleFileUploadChange = useCallback(async (event) => {
     const input = event.target;
@@ -886,6 +922,131 @@ const PlaylistSelector = ({
     }
     openEditModal({ ...playlist }, context);
   }, [openEditModal]);
+
+  const handleTransferOwnership = useCallback(async (playlist) => {
+    if (!playlist._shortId || !tuneTierUser || !accessToken) {
+      return;
+    }
+    
+    // Detect ownership correctly: local playlist lacks spotifyUserHash, spotify playlist has it
+    // Check the actual fields available in the playlist object
+    const hasSpotifyHash = playlist.spotifyUserHash !== undefined && playlist.spotifyUserHash !== null;
+    const hasOwnerUserId = playlist.ownerUserId !== undefined && playlist.ownerUserId !== null;
+    
+    const isSpotifyOwned = hasSpotifyHash && !hasOwnerUserId;
+    const isLocalOwned = hasOwnerUserId && !hasSpotifyHash;
+    
+    // Debug: Log ownership detection
+    // console.log('Ownership detection:', {
+    //   isSpotifyOwned,
+    //   isLocalOwned,
+    //   hasSpotifyHash,
+    //   hasOwnerUserId,
+    //   spotifyUserHash: playlist.spotifyUserHash,
+    //   ownerUserId: playlist.ownerUserId,
+    //   ownerObject: playlist.owner,
+    //   allPlaylistKeys: Object.keys(playlist)
+    // });
+    
+    const isOwnedByCurrentUser = playlist.isOwnerSelf;
+    if (!isSpotifyOwned && !isLocalOwned && isOwnedByCurrentUser) {
+      // If we can't determine ownership from fields, don't proceed
+      return;
+    } else if (!isSpotifyOwned && !isLocalOwned) {
+      return;
+    }
+    
+    // Create dynamic confirmation message based on transfer direction
+    let direction, targetName, currentOwnerName;
+    
+    // Debug: Log the owner object specifically and its contents
+    // console.log('Transfer playlist owner object:', playlist.owner);
+    // console.log('Owner object keys:', playlist.owner ? Object.keys(playlist.owner) : 'No owner object');
+    // console.log('Owner name:', playlist.owner?.name);
+    // console.log('Full playlist object keys:', Object.keys(playlist));
+    
+    // Get current owner name from playlist data - use owner object structure
+    if (playlist.owner && typeof playlist.owner === 'object' && playlist.owner.display_name && typeof playlist.owner.display_name === 'string' && playlist.owner.display_name.trim()) {
+      currentOwnerName = playlist.owner.display_name;
+    } else if (playlist.username && typeof playlist.username === 'string' && playlist.username.trim()) {
+      currentOwnerName = playlist.username;
+    } else if (playlist.owner && typeof playlist.owner === 'string') {
+      currentOwnerName = playlist.owner;
+    } else {
+      currentOwnerName = 'Unknown';
+    }
+    
+    // console.log('Detected owner name:', currentOwnerName);
+    
+    if (isSpotifyOwned) {
+      direction = 'from Spotify to your TuneTier account';
+      targetName = tuneTierUser.username;
+    } else {
+      direction = 'from your TuneTier account to Spotify';
+      // Get actual Spotify username from auth data
+      targetName = 'your Spotify account'; // Will be updated below
+    }
+    
+    // Get Spotify username from auth data for better target name
+    if (!isSpotifyOwned && accessToken) {
+      // Get actual Spotify username from API
+      try {
+        const { getSpotifyUserInfo } = await import('../utils/backendApi.js');
+        const spotifyUserInfo = await getSpotifyUserInfo();
+        if (spotifyUserInfo && spotifyUserInfo.displayName) {
+          targetName = spotifyUserInfo.displayName;
+          // console.log('Using Spotify username from API:', targetName);
+        } else {
+          // console.log('No Spotify user info available from API');
+        }
+      } catch (err) {
+        // console.log('Could not get Spotify username from API:', err);
+      }
+    }
+    
+    const confirmed = window.confirm(`Transfer "${playlist.name}" ${direction}? This will change the displayed creator from "${currentOwnerName}" to "${targetName}".`);
+    if (!confirmed) {
+      return;
+    }
+    
+    try {
+      console.log('Attempting transfer...');
+      const result = await Promise.race([
+        transferTierlistOwnership(playlist._shortId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Transfer timeout')), 10000))
+      ]);
+      
+      console.log('Transfer successful:', result);
+      
+      // Update the online tierlists state to show new ownership immediately
+      setOnlineTierlists(prev => prev.map(p => 
+        p.id === playlist._shortId 
+          ? { 
+              ...p, 
+              username: result.username,
+              ownerUserId: result.ownerUserId,
+              spotifyUserHash: result.spotifyUserHash,
+              owner: {
+                ...p.owner,
+                name: result.username,
+                display_name: result.username,
+                id: result.ownerUserId,
+                spotifyUserHash: result.spotifyUserHash
+              },
+              // Keep isOwnerSelf as true since user owns both accounts
+              isOwnerSelf: true
+            }
+          : p
+      ));
+      
+      // No need to refresh from database - we already have the updated data
+      // The UI will show the new username immediately
+    } catch (err) {
+      console.error('Failed to transfer ownership:', err);
+      console.error('Error details:', err.message, err.stack);
+      setError('Failed to transfer ownership. Please try again.');
+    }
+  }, [tuneTierUser, accessToken]);
 
   const handleDeleteTierlist = useCallback(() => {
     if (!editModalPlaylist || !editModalContext || isModalBusy) return;
@@ -1195,6 +1356,21 @@ const PlaylistSelector = ({
                     <img src={playlist.isPublic ? '/assets/public.svg' : '/assets/private.svg'} alt="" aria-hidden="true" />
                   </button>
                 ) : null}
+                {/* Transfer ownership button - only show when both auths are present */}
+                {searchMode === 'online' && playlist._shortId && tuneTierUser && accessToken && playlist.isOwnerSelf && (
+                  <button
+                    type="button"
+                    className="playlist-transfer-button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleTransferOwnership(playlist);
+                    }}
+                    title={playlist.ownerUserId ? "Transfer to Spotify account" : "Transfer to TuneTier account"}
+                    aria-label="Transfer ownership"
+                  >
+                    ⇄
+                  </button>
+                )}
                 <img
                   src={imageUrl}
                   alt={playlist.name || 'Playlist'}

@@ -3,7 +3,7 @@ import TierList from "../components/TierList";
 import { getValidAccessToken } from "../utils/SpotifyAuth";
 import { getPlaylistTracks } from "../utils/spotifyApi";
 
-const TierListPage = ({ playlist }) => {
+const TierListPage = ({ playlist, tuneTierUser = null }) => {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -70,7 +70,7 @@ const TierListPage = ({ playlist }) => {
 
   return (
     <div className="tierlist-page">
-      <TierList songs={songs} accessToken={validAccessToken} />
+      <TierList songs={songs} accessToken={validAccessToken} tuneTierUser={tuneTierUser} />
     </div>
   );
 };

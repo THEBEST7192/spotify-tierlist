@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { getCurrentUser } from '../utils/spotifyApi';
 import './UserProfile.css';
 
-const UserProfile = () => {
+const UserProfile = ({ tuneTierUser = null }) => {
   const [userData, setUserData] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (tuneTierUser) return; // If tuneTierUser is provided, don't fetch Spotify data
+
     const fetchUserData = async () => {
       try {
         const response = await getCurrentUser();
@@ -18,11 +20,26 @@ const UserProfile = () => {
     };
 
     fetchUserData();
-  }, []);
+  }, [tuneTierUser]);
+
+  if (tuneTierUser) {
+    // Display TuneTier user
+    const firstLetter = tuneTierUser.username ? tuneTierUser.username.charAt(0).toUpperCase() : '?';
+
+    return (
+      <div className="user-profile">
+        <div className="user-avatar-placeholder">
+          {firstLetter}
+        </div>
+        <span className="user-name">{tuneTierUser.username}</span>
+      </div>
+    );
+  }
 
   if (error) return null;
   if (!userData) return null;
 
+  // Display Spotify user
   const firstLetter = userData.display_name ? userData.display_name.charAt(0).toUpperCase() : '?';
 
   return (

@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import LogoutButton from "../components/LogoutButton";
+import Header from "../components/Header";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
-import UserProfile from "../components/UserProfile";
 import SongGroupModal from "../components/SongGroupModal";
-import { getPlaylistTracks, getCurrentUser } from "../utils/spotifyApi";
+import { getPlaylistTracks } from "../utils/spotifyApi";
 import { getTierlist } from "../utils/backendApi";
 
 import "./Home.css";
@@ -54,7 +53,7 @@ const buildSharedTierlistError = (error) => {
 
 const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 
-const Home = ({ accessToken, setAccessToken }) => {
+const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -72,12 +71,17 @@ const Home = ({ accessToken, setAccessToken }) => {
   const [showKonamiMessage, setShowKonamiMessage] = useState(false);
   const [showDebugMessage, setShowDebugMessage] = useState(false);
   const [sharedTierlist, setSharedTierlist] = useState(null);
-  const [spotifyUserId, setSpotifyUserId] = useState(null);
   const [loadingColor, setLoadingColor] = useState('#1DB954'); // Initial color
   const [dotCount, setDotCount] = useState(0); // Initial dot count
   const { shortId, songId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const canUseOnlineTierlists = !!tuneTierUser;
+
+  useEffect(() => {
+    // Allow online tierlists to be viewed even without login
+  }, [canUseOnlineTierlists, searchMode]);
 
   const genLocalId = useCallback(() => {
     return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
@@ -125,20 +129,26 @@ const Home = ({ accessToken, setAccessToken }) => {
     sessionStorage.clear();
     
     // Reset state
-    setAccessToken(null);
-    setSelectedPlaylist(null);
-    setPlaylistTracks([]);
-    setSpotifyUserId(null);
+    if (accessToken) {
+      // Only clear Spotify-related state if logged into Spotify
+      setAccessToken(null);
+      setSelectedPlaylist(null);
+      setPlaylistTracks([]);
+      
+      // Open Spotify logout in a new window/tab
+      const spotifyLogoutWindow = window.open('https://accounts.spotify.com/logout', '_blank');
+      
+      // Close the window after a short delay
+      setTimeout(() => {
+        if (spotifyLogoutWindow) {
+          spotifyLogoutWindow.close();
+        }
+      }, 2000);
+    }
     
-    // Open Spotify logout in a new window/tab
-    const spotifyLogoutWindow = window.open('https://accounts.spotify.com/logout', '_blank');
-    
-    // Close the window after a short delay
-    setTimeout(() => {
-      if (spotifyLogoutWindow) {
-        spotifyLogoutWindow.close();
-      }
-    }, 1000);
+    // Always clear TuneTier auth state
+    setAuthToken(null);
+    setTuneTierUser(null);
   };
 
   // Function to toggle Konami code
@@ -223,27 +233,7 @@ const Home = ({ accessToken, setAccessToken }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const ensureSpotifyUserId = useCallback(async () => {
-    if (spotifyUserId) {
-      return spotifyUserId;
-    }
-
-    try {
-      const response = await getCurrentUser();
-      const id = response?.data?.id;
-      if (id) {
-        setSpotifyUserId(id);
-        return id;
-      }
-    } catch (err) {
-      console.error('Failed to fetch Spotify user', err);
-    }
-
-    return null;
-  }, [spotifyUserId]);
-
-  // Handle playlist selection
-  const handlePlaylistSelect = async (playlist) => {
+  const handlePlaylistSelect = useCallback(async (playlist) => {
     try {
       // console.log('[Home] handlePlaylistSelect', {
       //   playlistId: playlist?.id,
@@ -320,7 +310,7 @@ const Home = ({ accessToken, setAccessToken }) => {
       setError(buildPlaylistLoadError(err, playlist?.name));
       setIsLoading(false);
     }
-  };
+  }, [navigate, konamiActive, importedPlaylistName, getLocalIdForPlaylist, getStoredLocalTierlistName, setImportedPlaylistName]);
 
   const handleLocalTierlistSelect = (localId) => {
     navigate(`/local/${localId}`);
@@ -626,38 +616,12 @@ const Home = ({ accessToken, setAccessToken }) => {
       setIsLoading(true);
       setError(null);
 
-      const initialOptions = spotifyUserId ? { spotifyUserId } : undefined;
-
-      const fetchTierlist = async (options) => {
-        return getTierlist(shortId, options);
-      };
-
       try {
-        const data = await fetchTierlist(initialOptions);
+        const data = await getTierlist(shortId);
         if (!isMounted) return;
         applyTierlistData(data);
       } catch (err) {
         if (!isMounted) return;
-        const status = err.response?.status;
-        if (status === 403 && !initialOptions) {
-          const resolvedSpotifyUserId = await ensureSpotifyUserId();
-          if (resolvedSpotifyUserId) {
-            try {
-              const retryData = await fetchTierlist({ spotifyUserId: resolvedSpotifyUserId });
-              if (!isMounted) return;
-              applyTierlistData(retryData);
-              return;
-            } catch (retryErr) {
-              console.error('Failed to retry loading shared tierlist:', retryErr);
-              setSharedTierlist(null);
-              setError(buildSharedTierlistError(retryErr));
-              return;
-            }
-          }
-        }
-
-        console.error('Failed to load shared tierlist:', err);
-        setSharedTierlist(null);
         setError(buildSharedTierlistError(err));
       } finally {
         if (isMounted) {
@@ -671,7 +635,7 @@ const Home = ({ accessToken, setAccessToken }) => {
     return () => {
       isMounted = false;
     };
-  }, [shortId, spotifyUserId, ensureSpotifyUserId]);
+  }, [shortId]);
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -776,22 +740,11 @@ const Home = ({ accessToken, setAccessToken }) => {
   return (
     <div className="home-container">
 
-      <header className="app-header">
-        <div className="header-title">
-          <img src="/logo.png" alt="Logo" className="app-header-logo" />
-          <h1>
-            {window.innerWidth <= 768 ? 'TuneTier' : 'TuneTier a Tierlist Maker for Spotify'}
-          </h1>
-        </div>
-        <div className="header-controls">
-          {accessToken && (
-            <>
-              <UserProfile accessToken={accessToken} />
-              <LogoutButton onLogout={handleLogout} />
-            </>
-          )}
-        </div>
-      </header>
+      <Header 
+        tuneTierUser={tuneTierUser} 
+        onLogout={handleLogout} 
+        onBack={() => navigate('/login')} 
+      />
       
       {showKonamiMessage && (
         <div className={`konami-message ${konamiActive ? 'active' : 'inactive'}`}>
@@ -819,7 +772,7 @@ const Home = ({ accessToken, setAccessToken }) => {
               View playlists
             </button>
             <div className="app-attribution">
-              <p>A third-party tool for Spotify</p>
+              <p>A third party-tool for Spotify</p>
             </div>
           </div>
         </div>
@@ -836,16 +789,9 @@ const Home = ({ accessToken, setAccessToken }) => {
             onImport={(name) => setImportedPlaylistName(name)}
             debugMode={debugModeActive}
             initialTierlist={sharedTierlist}
-            storageKey={
-              shortId
-                ? `shared:${shortId}`
-                : songId
-                ? `local:${songId}`
-                : (selectedPlaylist && typeof selectedPlaylist.id === 'string' && selectedPlaylist.id.startsWith('local-'))
-                ? `local:${selectedPlaylist.id.slice('local-'.length)}`
-                : (selectedPlaylist ? `local:${getLocalIdForPlaylist(selectedPlaylist.id)}` : '')
-            }
+            storageKey={selectedPlaylist?.id || null}
             playlistImages={selectedPlaylist?.images || []}
+            tuneTierUser={tuneTierUser}
           />
 
           <div className="app-attribution">
@@ -865,6 +811,7 @@ const Home = ({ accessToken, setAccessToken }) => {
             onSelectLocalTierlist={handleLocalTierlistSelect}
             onSelectOnlineTierlist={handleOnlineTierlistSelect}
             onSelectImported={handleSelectImported}
+            tuneTierUser={tuneTierUser}
           />
           <div className="app-attribution">
             <p>A third-party tool for Spotify</p>
