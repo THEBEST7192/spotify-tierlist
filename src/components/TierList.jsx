@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import html2canvas from "html2canvas";
 import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/spotifyApi';
@@ -263,6 +264,8 @@ const TierList = ({
   playlistImages = [],
   tuneTierUser = null
 }) => {
+  const navigate = useNavigate();
+  
   // State for custom tiers
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [tierOrder, setTierOrder] = useState(DEFAULT_TIER_ORDER);
@@ -387,6 +390,11 @@ const TierList = ({
     const hydrated = hydrateTierlist(initialTierlist, { silent: true });
     if (hydrated) {
       lastHydratedRef.current = identifier;
+      
+      // For online tierlists, ensure uploadedTierlist is set with online metadata
+      if (initialTierlist.shortId || initialTierlist.onlineShortId) {
+        setUploadedTierlist(initialTierlist);
+      }
     }
   }, [initialTierlist, hydrateTierlist]);
 
@@ -398,22 +406,45 @@ const TierList = ({
     setInferredCoverImage('');
   }, [storageKey]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!storageKey || typeof window === 'undefined') return;
+    
+    // Skip localStorage hydration if initialTierlist data exists (from import/navigation)
+    if (initialTierlist) {
+      return;
+    }
+    
+    // Also skip if we're on a local route and have importedTierlistData in navigation state
+    const isLocalRoute = window.location.pathname.includes('/local/');
+    if (isLocalRoute && window.history?.state?.initialTierlist) {
+      return;
+    }
+    
     try {
-      const raw = localStorage.getItem(`tierlist:${storageKey}`);
-      if (!raw) return;
+      const isLocalRoute = window.location.pathname.includes('/local/');
+      const isOnlineTierlist = window.location.pathname.includes('/tierlists/');
+      const storageKeyFormat = isLocalRoute ? `tierlist:local:${storageKey}` : `tierlist:${storageKey}`;
+      const raw = localStorage.getItem(storageKeyFormat);
+      if (!raw) {
+        return;
+      }
       const saved = JSON.parse(raw);
-      if (!saved || !saved.tiers || !saved.tierOrder || !saved.state) return;
+      if (!saved || !saved.tiers || !saved.tierOrder || !saved.state) {
+        return;
+      }
       hydratedStateRef.current = saved.state;
-      // console.log('[TierList] hydrated from storage', {
-      //   storageKey,
-      //   tiers: Object.keys(saved.state || {}).length
-      // });
       hydrateTierlist(saved, { silent: true });
+      
+      // For online tierlists, ensure the uploadedTierlist state preserves online metadata
+      if (isOnlineTierlist && (saved.onlineShortId || saved.shortId)) {
+        setUploadedTierlist(saved);
+      }
+      
     hydratedFromStorageRef.current = true;
-  } catch { void 0; }
-}, [storageKey, hydrateTierlist]);
+  } catch (err) {
+    console.error('[TierList] Error loading from localStorage:', err);
+  }
+}, [storageKey, hydrateTierlist, initialTierlist]);
   
   // State for the tier list
   // State for the currently playing track
@@ -494,8 +525,21 @@ const TierList = ({
       return;
     }
 
+    // If we have initialTierlist data, skip this effect to preserve imported data
+    if (initialTierlist) {
+      return;
+    }
+
     // If we just did a manual import, skip this effect to preserve imported data
     if (manualImportRef.current) {
+      return;
+    }
+
+    // If state already contains tier data (from localStorage), preserve it
+    const hasExistingTierData = Object.keys(state || {}).some(key => 
+      key !== 'tierListName' && key !== 'coverImage' && Array.isArray(state[key])
+    );
+    if (hasExistingTierData) {
       return;
     }
 
@@ -607,14 +651,20 @@ const TierList = ({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [songs, checkForUnavailableSongs, storageKey, isInitialSyncComplete, state]);
+  }, [songs, checkForUnavailableSongs, storageKey, isInitialSyncComplete, initialTierlist]);
 
   useEffect(() => {
     if (!storageKey || typeof window === 'undefined' || !isInitialSyncComplete) return;
-    const storageEntryKey = `tierlist:${storageKey}`;
+    const isLocalRoute = window.location.pathname.includes('/local/');
+    const storageEntryKey = isLocalRoute ? `tierlist:local:${storageKey}` : `tierlist:${storageKey}`;
     const now = Date.now();
 
     let createdAt = now;
+    let onlineShortId = null;
+    let onlineUsername = null;
+    let onlineOwnerUserId = null;
+    let isOnlineTierlist = false;
+
     try {
       const existingRaw = localStorage.getItem(storageEntryKey);
       if (existingRaw) {
@@ -622,26 +672,50 @@ const TierList = ({
         if (typeof existing?.createdAt === 'number') {
           createdAt = existing.createdAt;
         }
+
+        // Check if this is an online tierlist and preserve metadata
+        onlineShortId = existing.onlineShortId || existing.shortId;
+        onlineUsername = existing.onlineUsername || existing.username;
+        onlineOwnerUserId = existing.onlineOwnerUserId || existing.ownerUserId;
+        isOnlineTierlist = existing.isOnlineTierlist || !!onlineShortId;
+
+        // If this has online reference and user is logged in, sync changes
+        if (onlineShortId && tuneTierUser && tuneTierUser.username === existing.onlineUsername) {
+          // Sync to online tierlist
+          const syncPayload = {
+            tierListName: playlistName,
+            description: existing.description || '',
+            state,
+            coverImage: resolvedCoverImage,
+            isPublic: existing.isPublic !== false
+          };
+
+          console.log('Syncing to online tierlist:', onlineShortId, syncPayload);
+          updateTierlist(onlineShortId, syncPayload).catch(err => {
+            console.warn('Failed to sync changes to online tierlist:', err);
+          });
+        }
       }
-    } catch { /* ignore */ }
+    } catch { void 0; }
 
     const payload = {
-      shortId: uploadedTierlist?.shortId || initialTierlist?.shortId || null,
+      tierListName: playlistName,
       tiers,
       tierOrder,
       state,
-      tierListName: (typeof state?.tierListName === 'string' && state.tierListName.trim())
-        ? state.tierListName
-        : playlistName,
       coverImage: resolvedCoverImage,
       createdAt,
-      updatedAt: now,
-      lastModified: now
+      lastModified: now,
+      // Preserve online tierlist metadata
+      onlineShortId,
+      onlineUsername,
+      onlineOwnerUserId,
+      isOnlineTierlist
     };
     try {
       localStorage.setItem(storageEntryKey, JSON.stringify(payload));
     } catch { void 0; }
-  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete, resolvedCoverImage]);
+  }, [storageKey, tiers, tierOrder, state, uploadedTierlist, initialTierlist, playlistName, isInitialSyncComplete, resolvedCoverImage, tuneTierUser]);
 
   // Update state when tierOrder changes
   useEffect(() => {
@@ -939,9 +1013,67 @@ const TierList = ({
 
   // Handler for importing tierlist JSON
   const handleImport = (imported) => {
-    const hydrated = hydrateTierlist(imported, { silent: false });
-    if (!hydrated) {
-      console.error('Invalid import JSON format');
+    // Create a new local tierlist with imported content
+    if (typeof window !== 'undefined') {
+      const localId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      
+      // Use imported state content or fallback to empty tiers
+      const importedState = imported.state || {};
+      const tierOrder = imported.tierOrder || ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
+      
+      // Build state with imported tier content
+      const importedTierState = {};
+      tierOrder.forEach(tierName => {
+        importedTierState[tierName] = importedState[tierName] || [];
+      });
+      
+      // Preserve non-tier properties from imported state
+      Object.keys(importedState).forEach(key => {
+        if (!tierOrder.includes(key)) {
+          importedTierState[key] = importedState[key];
+        }
+      });
+      
+      const tierlistData = {
+        tierListName: imported.state?.tierListName || imported.tierListName || 'Imported Tierlist',
+        description: imported.description || imported.state?.description || '',
+        tiers: imported.tiers || {
+          S: { color: "#FF7F7F", label: "S" },
+          A: { color: "#FFBF7F", label: "A" },
+          B: { color: "#FFFF7F", label: "B" },
+          C: { color: "#7FFF7F", label: "C" },
+          D: { color: "#7FBFFF", label: "D" },
+          E: { color: "#BF7FFF", label: "E" },
+          F: { color: "#FF7FBF", label: "F" },
+          Unranked: { color: "#E0E0E0", label: "Unranked" }
+        },
+        tierOrder: tierOrder,
+        state: {
+          ...importedTierState,
+          tierListName: imported.state?.tierListName || imported.tierListName || 'Imported Tierlist',
+          description: imported.description || imported.state?.description || '',
+          tierOrder: tierOrder
+        },
+        coverImage: imported.coverImage || imported.state?.coverImage || '',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      
+      localStorage.setItem(`tierlist:local:${localId}`, JSON.stringify(tierlistData));
+      
+      // Navigate to the new tierlist with imported data to prevent flashing
+      navigate(`/local/${localId}`, {
+        state: {
+          fromPlaylistSelect: true,
+          selectedPlaylist: { id: localId, name: tierlistData.tierListName },
+          playlistTracks: [],
+          importedPlaylistName: tierlistData.tierListName,
+          // Pass the complete tierlist data to prevent flashing
+          initialTierlist: tierlistData
+        }
+      });
+    } else {
+      console.error('[TierList] Window not available for JSON import');
     }
   };
 
@@ -970,7 +1102,7 @@ const TierList = ({
         spotifyDisplayName = null;
       }
 
-      const isUpdate = Boolean(uploadedTierlist?.shortId);
+      const isUpdate = Boolean(uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId);
       const resolvedTierListName = state.tierListName || playlistName || 'My Spotify Tierlist';
       const existingCoverImage = typeof state?.coverImage === 'string' && state.coverImage.trim()
         ? state.coverImage.trim()
@@ -994,7 +1126,7 @@ const TierList = ({
       };
 
       const response = isUpdate
-        ? await updateTierlist(uploadedTierlist.shortId, payload)
+        ? await updateTierlist(uploadedTierlist.shortId || uploadedTierlist.onlineShortId, payload)
         : await createTierlist(payload);
 
       const resolvedResponse = response || uploadedTierlist;
@@ -1010,6 +1142,29 @@ const TierList = ({
         tierListName: resolvedTierListName,
         ...(coverImage ? { coverImage } : {})
       }));
+
+      // Update localStorage copy for online tierlists to maintain sync
+      if (storageKey && typeof window !== 'undefined') {
+        try {
+          const isOnlineTierlist = window.location.pathname.includes('/tierlists/');
+          if (isOnlineTierlist && resolvedResponse.shortId) {
+            // Create updated local copy with online metadata
+            const updatedLocalCopy = {
+              ...resolvedResponse,
+              // Preserve original online reference metadata
+              onlineShortId: resolvedResponse.shortId,
+              onlineUsername: uploadedTierlist?.onlineUsername || uploadedTierlist?.username || resolvedResponse.username,
+              onlineOwnerUserId: uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId || resolvedResponse.ownerUserId,
+              isOnlineTierlist: true,
+              isPublic: resolvedResponse.isPublic !== false
+            };
+            
+            localStorage.setItem(`tierlist:${resolvedResponse.shortId}`, JSON.stringify(updatedLocalCopy));
+          }
+        } catch (err) {
+          console.warn('Failed to update local copy of online tierlist:', err);
+        }
+      }
 
       const shareUrl = resolvedResponse?.shortId && typeof window !== 'undefined'
         ? `${window.location.origin}/tierlists/${resolvedResponse.shortId}`

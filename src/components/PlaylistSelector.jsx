@@ -265,6 +265,11 @@ const PlaylistSelector = ({
         console.log("Fetched Spotify playlists:", owned.length);
       } catch (err) {
         console.error("Error fetching playlists:", err);
+        // Handle 429 rate limit errors gracefully
+        if (err?.response?.status === 429) {
+          console.warn("Spotify API rate limited, skipping Spotify playlists but continuing with TuneTier");
+          return;
+        }
         // Don't show error to user if it's just missing access token
         if (!accessToken || err.message?.includes('No access token')) {
           return;
@@ -300,6 +305,11 @@ const PlaylistSelector = ({
       setHasMoreOwned(!!response?.data?.next && items.length > 0);
     } catch (err) {
       console.error("Error loading more playlists:", err);
+      // Handle 429 rate limit errors gracefully
+      if (err?.response?.status === 429) {
+        console.warn("Spotify API rate limited while loading more playlists, continuing with TuneTier");
+        return;
+      }
       // Don't show error if it's just missing access token
       if (!accessToken || err.message?.includes('No access token')) {
         return;
@@ -315,54 +325,116 @@ const PlaylistSelector = ({
       const lists = [];
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
-        if (!key || !key.startsWith("tierlist:local:")) continue;
-        const parts = key.split(":");
-        if (parts.length < 3) continue;
-        const localId = parts[2];
-        const raw = window.localStorage.getItem(key);
-        if (!raw) continue;
-        let saved;
-        try {
-          saved = JSON.parse(raw);
-        } catch {
-          continue;
-        }
-        const name =
-          (saved && (saved.tierListName || (saved.state && saved.state.tierListName))) ||
-          "Local Tierlist";
-        const timestampSources = [
-          saved?.updatedAt,
-          saved?.createdAt,
-          saved?.lastModified,
-          saved?.state?.updatedAt,
-          saved?.state?.createdAt,
-          saved?.state?.lastModified
-        ];
-        const firstTimestamp = timestampSources.find((value) => value);
-        let createdAt = 0;
-        if (typeof firstTimestamp === 'number') {
-          createdAt = firstTimestamp;
-        } else if (typeof firstTimestamp === 'string') {
-          createdAt = Date.parse(firstTimestamp) || 0;
-        }
+        if (!key) continue;
+        
+        // Handle local tierlists
+        if (key.startsWith("tierlist:local:")) {
+          const parts = key.split(":");
+          if (parts.length < 3) continue;
+          const localId = parts[2];
+          const raw = window.localStorage.getItem(key);
+          if (!raw) continue;
+          let saved;
+          try {
+            saved = JSON.parse(raw);
+          } catch {
+            continue;
+          }
+          const name =
+            (saved && (saved.tierListName || (saved.state && saved.state.tierListName))) ||
+            "Local Tierlist";
+          const timestampSources = [
+            saved?.updatedAt,
+            saved?.createdAt,
+            saved?.lastModified,
+            saved?.state?.updatedAt,
+            saved?.state?.createdAt,
+            saved?.state?.lastModified
+          ];
+          const firstTimestamp = timestampSources.find((value) => value);
+          let createdAt = 0;
+          if (typeof firstTimestamp === 'number') {
+            createdAt = firstTimestamp;
+          } else if (typeof firstTimestamp === 'string') {
+            createdAt = Date.parse(firstTimestamp) || 0;
+          }
 
-        const coverImage = saved?.coverImage
-          || saved?.state?.coverImage
-          || saved?.images?.[0]?.url
-          || saved?.state?.images?.[0]?.url
-          || '';
+          const coverImage = saved?.coverImage
+            || saved?.state?.coverImage
+            || saved?.images?.[0]?.url
+            || saved?.state?.images?.[0]?.url
+            || '';
 
-        const playlistLike = {
-          id: localId,
-          name,
-          description: "Local tierlist",
-          coverImage,
-          owner: { display_name: "You (local)" },
-          _localId: localId,
-          _kind: "local-tierlist",
-          createdAt
-        };
-        lists.push(playlistLike);
+          const playlistLike = {
+            id: localId,
+            name,
+            description: "Local tierlist",
+            coverImage,
+            owner: { display_name: "You (local)" },
+            _localId: localId,
+            _kind: "local-tierlist",
+            createdAt
+          };
+          lists.push(playlistLike);
+        }
+        // Handle online tierlists stored locally
+        else if (key.startsWith("tierlist:") && !key.startsWith("tierlist:local:")) {
+          const parts = key.split(":");
+          if (parts.length < 2) continue;
+          const shortId = parts[1];
+          const raw = window.localStorage.getItem(key);
+          if (!raw) continue;
+          let saved;
+          try {
+            saved = JSON.parse(raw);
+          } catch {
+            continue;
+          }
+          
+          // Only include if this is actually an online tierlist with proper metadata
+          if (!saved.isOnlineTierlist && !saved.shortId && !saved.onlineShortId) {
+            continue;
+          }
+          
+          const name =
+            (saved && (saved.tierListName || (saved.state && saved.state.tierListName))) ||
+            "Online Tierlist";
+          const timestampSources = [
+            saved?.updatedAt,
+            saved?.createdAt,
+            saved?.lastModified,
+            saved?.state?.updatedAt,
+            saved?.state?.createdAt,
+            saved?.state?.lastModified
+          ];
+          const firstTimestamp = timestampSources.find((value) => value);
+          let createdAt = 0;
+          if (typeof firstTimestamp === 'number') {
+            createdAt = firstTimestamp;
+          } else if (typeof firstTimestamp === 'string') {
+            createdAt = Date.parse(firstTimestamp) || 0;
+          }
+
+          const coverImage = saved?.coverImage
+            || saved?.state?.coverImage
+            || saved?.images?.[0]?.url
+            || saved?.state?.images?.[0]?.url
+            || '';
+
+          const playlistLike = {
+            id: shortId,
+            name,
+            description: `Online tierlist by ${saved?.onlineUsername || saved?.username || saved?.owner?.display_name || 'Unknown'}`,
+            coverImage,
+            owner: { display_name: saved?.onlineUsername || saved?.username || saved?.owner?.display_name || 'Unknown' },
+            _localId: shortId, // Use shortId as localId for navigation
+            _kind: "online-tierlist-local-copy",
+            _shortId: saved.shortId || saved.onlineShortId,
+            createdAt,
+            isOnlineTierlist: true
+          };
+          lists.push(playlistLike);
+        }
       }
       lists.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       setLocalTierlists(lists);
@@ -554,6 +626,14 @@ const PlaylistSelector = ({
         }
       } catch (err) {
         console.error("Error loading online tierlists:", err);
+        // Handle 429 rate limit errors gracefully - don't block TuneTier playlists
+        if (err?.response?.status === 429) {
+          console.warn("Rate limited while loading online tierlists, showing cached data if available");
+          if (!cancelled) {
+            setError("Rate limited - showing available playlists");
+          }
+          return;
+        }
         if (!cancelled) {
           setError("Failed to load online tierlists");
         }
@@ -573,6 +653,12 @@ const PlaylistSelector = ({
 
   const handlePlaylistClick = (playlist) => {
     if (searchMode === "local" && playlist && playlist._localId && typeof onSelectLocalTierlist === "function") {
+      // For online tierlist local copies, navigate to the online tierlist route
+      if (playlist.isOnlineTierlist && playlist._shortId && typeof onSelectOnlineTierlist === "function") {
+        onSelectOnlineTierlist(playlist._shortId);
+        return;
+      }
+      // For regular local tierlists, use the normal local route
       onSelectLocalTierlist(playlist._localId);
       return;
     }
@@ -797,14 +883,21 @@ const PlaylistSelector = ({
   }, [editModalPlaylist, isModalBusy]);
 
   const handleDeleteLocalTierlist = useCallback((playlist, event, onDeleted) => {
-    event?.stopPropagation?.();
+    event?.stopPropagation();
     if (!playlist?._localId || typeof window === 'undefined' || deletingId) return;
     const confirmed = window.confirm(`Delete local tierlist "${playlist.name || 'Untitled'}"? This cannot be undone.`);
     if (!confirmed) return;
     const localId = playlist._localId;
     setDeletingId(localId);
     try {
-      window.localStorage.removeItem(`tierlist:local:${localId}`);
+      // Handle both local tierlists and online tierlists stored locally
+      if (playlist.isOnlineTierlist) {
+        // Online tierlists stored locally use key format: tierlist:${shortId}
+        window.localStorage.removeItem(`tierlist:${localId}`);
+      } else {
+        // Regular local tierlists use key format: tierlist:local:${localId}
+        window.localStorage.removeItem(`tierlist:local:${localId}`);
+      }
       setLocalTierlists(prev => prev.filter(list => list?._localId !== localId));
       if (typeof onDeleted === 'function') {
         onDeleted();

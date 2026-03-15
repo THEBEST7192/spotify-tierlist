@@ -32,7 +32,9 @@ const TierListJSONExportImport = ({
           }
         }));
       } else {
-        minifiedState[tier] = state[tier]; // Preserve non-array properties like tierListName
+        if (tier !== 'coverImage') {
+          minifiedState[tier] = state[tier];
+        }
       }
     }
 
@@ -74,7 +76,9 @@ const TierListJSONExportImport = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
+        console.log('JSON file content preview:', event.target.result.substring(0, 200) + '...');
         const imported = JSON.parse(event.target.result);
+        console.log('Parsed JSON data:', imported);
         onImport(imported);
       } catch (err) {
         console.error('Failed to import JSON:', err);

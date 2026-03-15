@@ -66,6 +66,7 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
   const [searchMode, setSearchMode] = useState("online");
   const [hasProceededToPlaylists, setHasProceededToPlaylists] = useState(false);
   const [importedPlaylistName, setImportedPlaylistName] = useState('');
+  const [importedTierlistData, setImportedTierlistData] = useState(null);
   const [konamiActive, setKonamiActive] = useState(false);
   const [debugModeActive, setDebugModeActive] = useState(false);
   const [showKonamiMessage, setShowKonamiMessage] = useState(false);
@@ -325,15 +326,29 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     const tierlistData = {
       tierListName: name,
       description,
+      tiers: {
+        S: { color: "#FF7F7F", label: "S" },
+        A: { color: "#FFBF7F", label: "A" },
+        B: { color: "#FFFF7F", label: "B" },
+        C: { color: "#7FFF7F", label: "C" },
+        D: { color: "#7FBFFF", label: "D" },
+        E: { color: "#BF7FFF", label: "E" },
+        F: { color: "#FF7FBF", label: "F" },
+        Unranked: { color: "#E0E0E0", label: "Unranked" }
+      },
+      tierOrder: ["S", "A", "B", "C", "D", "E", "F", "Unranked"],
       state: {
         tierListName: name,
         description,
-        tierOrder: ["S", "A", "B", "C", "D"],
+        tierOrder: ["S", "A", "B", "C", "D", "E", "F", "Unranked"],
         S: [],
         A: [],
         B: [],
         C: [],
-        D: []
+        D: [],
+        E: [],
+        F: [],
+        Unranked: tracks.map(track => ({ content: track, id: `track-${track.id}-${Math.random().toString(36).slice(2, 10)}` }))
       },
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -342,7 +357,7 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     navigate(`/local/${localId}`, {
       state: {
         fromPlaylistSelect: true,
-        selectedPlaylist: { id: `imported-${localId}`, name },
+        selectedPlaylist: { id: localId, name: tierlistData.tierListName },
         playlistTracks: tracks
       }
     });
@@ -598,7 +613,7 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
 
     let isMounted = true;
 
-    const applyTierlistData = (data) => {
+    const applyTierlistData = async (data) => {
       setSharedTierlist(data);
       const name = data?.state?.tierListName || data?.tierListName || 'Shared Spotify Tierlist';
       setImportedPlaylistName(name);
@@ -610,6 +625,48 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
       setPlaylistTracks([]);
       setPendingPlaylist(null);
       setShowSongGroupModal(false);
+
+      // Create local editable copy for online tierlists
+      if (shortId && !window.location.pathname.includes('/local/')) {
+        try {
+          // Extract all songs from the tierlist state
+          const tierState = data?.state || {};
+          const tierOrder = data?.tierOrder || Object.keys(tierState).filter(key => Array.isArray(tierState[key]));
+          const allSongs = [];
+
+          // Collect all songs from all tiers
+          tierOrder.forEach(tierName => {
+            const tierSongs = tierState[tierName] || [];
+            tierSongs.forEach(songEntry => {
+              const song = songEntry?.content || songEntry;
+              if (song && song.id) {
+                allSongs.push({
+                  ...song,
+                  dragId: `track-${song.id}-${Math.random().toString(36).slice(2, 10)}`
+                });
+              }
+            });
+          });
+
+          // Store the online tierlist data for editing at /tierlists/ID
+          const onlineTierlistData = {
+            ...data,
+            onlineShortId: shortId,
+            onlineUsername: data?.username,
+            onlineOwnerUserId: data?.ownerUserId,
+            isOnlineTierlist: true,
+            isPublic: data?.isPublic
+          };
+          
+          // Save to localStorage using the shortId key
+          localStorage.setItem(`tierlist:${shortId}`, JSON.stringify(onlineTierlistData));
+
+          // Stay at /tierlists/shortId - don't navigate to local copy
+          setSharedTierlist(data);
+        } catch (err) {
+          console.error('Failed to create local copy for online tierlist:', err);
+        }
+      }
     };
 
     const loadSharedTierlist = async () => {
@@ -643,6 +700,7 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
       setSelectedPlaylist(null);
       setPlaylistTracks([]);
       setImportedPlaylistName('');
+      setImportedTierlistData(null);
       setPendingPlaylist(null);
       setShowSongGroupModal(false);
     }
@@ -650,6 +708,36 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
 
   useEffect(() => {
     if (!songId) {
+      return;
+    }
+
+    // Handle navigation state from imports
+    if (location.state?.fromPlaylistSelect) {
+      const isImport = location.state.fromPlaylistSelect && location.state.selectedPlaylist?.name;
+      const fallbackName = location.state.selectedPlaylist?.name || 'Local Spotify Tierlist';
+      const nameFromState = isImport ? fallbackName : null;
+      
+      if (nameFromState) {
+        setImportedPlaylistName(nameFromState);
+        setSelectedPlaylist(prev => prev || { ...location.state.selectedPlaylist, name: nameFromState });
+      }
+      
+      if (Array.isArray(location.state.playlistTracks)) {
+        setPlaylistTracks(location.state.playlistTracks);
+      }
+      
+      // Extract initialTierlist from navigation state for JSON imports
+      if (location.state?.initialTierlist) {
+        setImportedTierlistData(location.state.initialTierlist);
+      }
+      
+      setPendingPlaylist(null);
+      setShowSongGroupModal(false);
+      return;
+    }
+
+    // Don't override if we're coming from an import (but we handled it above)
+    if (location.state?.fromPlaylistSelect) {
       return;
     }
 
@@ -678,8 +766,10 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
 
     const navState = location.state;
     if (navState?.fromPlaylistSelect) {
-      const fallbackName = navState.importedPlaylistName || navState.selectedPlaylist?.name || 'Local Spotify Tierlist';
-      const nameFromState = storedName || fallbackName;
+      // For imports, prioritize the navigation state name over stored name
+      const isImport = navState.fromPlaylistSelect && navState.selectedPlaylist?.name;
+      const fallbackName = navState.selectedPlaylist?.name || 'Local Spotify Tierlist';
+      const nameFromState = isImport ? fallbackName : (storedName || fallbackName);
       setImportedPlaylistName(nameFromState);
       if (navState.selectedPlaylist) {
         setSelectedPlaylist(prev => prev || { ...navState.selectedPlaylist, name: nameFromState });
@@ -788,8 +878,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
             playlistName={importedPlaylistName || selectedPlaylist.name}
             onImport={(name) => setImportedPlaylistName(name)}
             debugMode={debugModeActive}
-            initialTierlist={sharedTierlist}
-            storageKey={selectedPlaylist?.id || null}
+            initialTierlist={sharedTierlist || importedTierlistData}
+            storageKey={shortId || songId || selectedPlaylist?.id || null}
             playlistImages={selectedPlaylist?.images || []}
             tuneTierUser={tuneTierUser}
           />

@@ -10,10 +10,22 @@ import { ensureUserIndexes } from './db/ensureUserIndexes.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
 import { createAuthMiddleware } from './middleware/auth.js';
+import { verifyAccessToken } from './utils/jwtUtils.js';
 
 // Load environment variables (only for local development)
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config({ path: '../.env.local' });
+}
+
+// Validate JWT_SECRET at startup
+try {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || typeof secret !== 'string' || secret.trim().length < 32) {
+    throw new Error('JWT_SECRET environment variable is required and must be at least 32 characters long');
+  }
+} catch (err) {
+  console.error('JWT_SECRET validation failed:', err.message);
+  process.exit(1);
 }
 
 const app = express();

@@ -58,11 +58,10 @@ export function createAuthMiddleware(db) {
             try {
               response = await makeSpotifyRequest();
             } catch (err) {
-              if (err.response?.status === 429 && err.response?.headers?.['retry-after']) {
-                const retryAfter = parseInt(err.response.headers['retry-after']);
-                console.log(`Rate limited, retrying after ${retryAfter} seconds...`);
-                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-                response = await makeSpotifyRequest(1);
+              // Dont retry on 429 rate limit errors and continue without Spotify data
+              if (err.response?.status === 429) {
+                console.warn('Spotify API rate limited, continuing without Spotify data');
+                return next();
               } else {
                 throw err;
               }

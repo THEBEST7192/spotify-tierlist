@@ -29,7 +29,8 @@ const TuneTierAuthPanel = ({ setAuthToken, tuneTierUser, setTuneTierUser }) => {
         .replace(/username is required/i, 'Username is required')
         .replace(/password is required/i, 'Password is required')
         .replace(/username already exists/i, 'Username already exists')
-        .replace(/failed to login/i, 'Failed to login');
+        .replace(/failed to login/i, 'Network Error')
+        .replace(/failed to register/i, 'Network Error');
       setError(readableError);
     }
   }, [mode, password, setAuthToken, setTuneTierUser, username]);
