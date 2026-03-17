@@ -1,5 +1,34 @@
 import express from 'express';
 import { buildTierListDocument, hashSpotifyUserId } from '../utils/tierlistUtils.js';
+import { ObjectId } from 'mongodb';
+
+async function getUserData(db, userId) {
+  if (!userId) return null;
+  const users = db.collection('users');
+  const user = await users.findOne({ _id: userId }, { 
+    projection: { username: 1, _id: 1 } 
+  });
+  return user;
+}
+
+async function batchGetUserData(db, userIds) {
+  if (!userIds || userIds.length === 0) return {};
+  const users = db.collection('users');
+  
+  // Convert string IDs to ObjectIds for MongoDB query
+  const objectIds = userIds.map(id => new ObjectId(id));
+  
+  const userDocs = await users.find({ 
+    _id: { $in: objectIds } 
+  }, { 
+    projection: { _id: 1, username: 1 } 
+  }).toArray();
+  
+  return userDocs.reduce((map, user) => {
+    map[String(user._id)] = user.username;
+    return map;
+  }, {});
+}
 
 function getLinkedSpotifyHashes(user) {
   if (!user || !user.linkedSpotifyAccounts) {
@@ -60,7 +89,6 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   router.post('/', requireAuthMiddleware, async (req, res) => {
     try {
       const {
-        username,
         tierListName,
         coverImage,
         tiers,
@@ -70,8 +98,8 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         spotifyUserId
       } = req.body;
 
-      if (!username || !tierListName) {
-        return res.status(400).json({ error: 'username and tierListName are required' });
+      if (!tierListName) {
+        return res.status(400).json({ error: 'tierListName is required' });
       }
 
       const maxRetries = 5;
@@ -80,7 +108,6 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         const doc = buildTierListDocument({
           ownerUserId: String(req.user._id),
           spotifyUserId,
-          username,
           tierListName,
           coverImage,
           tiers,
@@ -92,6 +119,11 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         try {
           const result = await collection.insertOne(doc);
           const saved = { ...doc, _id: result.insertedId };
+          
+          // Add username to response
+          const user = await getUserData(db, req.user._id);
+          saved.username = user?.username;
+          
           return res.status(201).json(saved);
         } catch (err) {
           if (err.code === 11000 && attempt < maxRetries - 1) {
@@ -130,14 +162,28 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
             isPublic: 1, 
             createdAt: 1, 
             updatedAt: 1,
-            username: 1,
             ownerUserId: 1,
             spotifyUserHash: 1
           }
         }
       ).sort({ createdAt: -1 }).limit(limitNum).maxTimeMS(10000); // 10 second timeout
       const lists = await cursor.toArray();
-      return res.json(lists);
+      
+      // Fetch usernames for TuneTier users using batch lookup
+      const userIds = [...new Set(lists
+        .filter(list => list.ownerUserId)
+        .map(list => list.ownerUserId)
+      )];
+      
+      const userMap = userIds.length > 0 ? await batchGetUserData(db, userIds) : {};
+      
+      // Add usernames to lists
+      const listsWithUsernames = lists.map(list => ({
+        ...list,
+        username: list.ownerUserId ? userMap[list.ownerUserId] : list.username
+      }));
+      
+      return res.json(listsWithUsernames);
     } catch (err) {
       console.error('Error fetching public tierlists:', err);
       return res.status(500).json({ error: 'Failed to fetch public tierlists' });
@@ -187,7 +233,6 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
           isPublic: 1, 
           createdAt: 1, 
           updatedAt: 1,
-          username: 1,
           ownerUserId: 1,
           spotifyUserHash: 1
         }
@@ -195,10 +240,18 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
       
       const lists = await cursor.toArray();
       
-      // Keep original owner text, don't override username
+      // Fetch usernames for TuneTier users using batch lookup
+      const userIds = [...new Set(lists
+        .filter(list => list.ownerUserId)
+        .map(list => list.ownerUserId)
+      )];
+      
+      const userMap = userIds.length > 0 ? await batchGetUserData(db, userIds) : {};
+      
+      // Add usernames to lists
       const finalLists = lists.map(list => ({
         ...list,
-        username: list.username
+        username: list.ownerUserId ? userMap[list.ownerUserId] : list.username
       }));
       
       return res.json(finalLists);
@@ -218,7 +271,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
       // Use lean query to find only needed fields
       const list = await collection.findOne(
         { shortId },
-        { projection: { shortId: 1, ownerUserId: 1, spotifyUserHash: 1, username: 1 } }
+        { projection: { shortId: 1, ownerUserId: 1, spotifyUserHash: 1 } }
       );
 
       if (!list) {
@@ -239,8 +292,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         }
         updateData = {
           ownerUserId: String(req.user._id),
-          spotifyUserHash: null,
-          username: req.user.username
+          spotifyUserHash: null
         };
       }
       // Transfer from TuneTier to Spotify
@@ -250,8 +302,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         }
         updateData = {
           ownerUserId: null,
-          spotifyUserHash: hashSpotifyUserId(req.spotifyUser.id),
-          username: req.spotifyUser.displayName
+          spotifyUserHash: hashSpotifyUserId(req.spotifyUser.id)
         };
       }
       // Already owned by both or neither - no transfer needed
@@ -273,8 +324,16 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         }
       );
 
-      // Return the updated document in expected format
-      return res.json(result.value || result);
+      // Add username to response if TuneTier owner
+      let response = result.value || result;
+      if (response.ownerUserId) {
+        const user = await getUserData(db, response.ownerUserId);
+        response.username = user?.username;
+      } else if (req.spotifyUser) {
+        response.username = req.spotifyUser.displayName;
+      }
+
+      return res.json(response);
     } catch (err) {
       console.error('Error transferring ownership:', err);
       return res.status(500).json({ error: 'Failed to transfer ownership' });
@@ -297,7 +356,14 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         return res.status(403).json({ error: 'Tierlist is private' });
       }
 
-      return res.json(list);
+      // Add username if this is a TuneTier user's tierlist
+      let listWithUsername = { ...list };
+      if (list.ownerUserId) {
+        const user = await getUserData(db, list.ownerUserId);
+        listWithUsername.username = user?.username;
+      }
+
+      return res.json(listWithUsername);
     } catch (err) {
       console.error('Error fetching tierlist:', err);
       return res.status(500).json({ error: 'Failed to fetch tierlist' });
@@ -310,9 +376,30 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   router.get('/user/:username/public', async (req, res) => {
     try {
       const { username } = req.params;
-      const cursor = collection.find({ username, isPublic: true }).sort({ createdAt: -1 });
+      
+      // Find user by username first
+      const user = await db.collection('users').findOne({ 
+        usernameLower: username.trim().toLowerCase() 
+      });
+      
+      if (!user) {
+        return res.json([]);
+      }
+      
+      // Then find tierlists by ownerUserId
+      const cursor = collection.find({ 
+        ownerUserId: String(user._id), 
+        isPublic: true 
+      }).sort({ createdAt: -1 });
       const lists = await cursor.toArray();
-      return res.json(lists);
+      
+      // Add username to response
+      const listsWithUsername = lists.map(list => ({
+        ...list,
+        username: user.username
+      }));
+      
+      return res.json(listsWithUsername);
     } catch (err) {
       console.error('Error fetching tierlists:', err);
       return res.status(500).json({ error: 'Failed to fetch tierlists' });
@@ -427,6 +514,29 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
     } catch (err) {
       console.error('Error toggling privacy:', err);
       return res.status(500).json({ error: 'Failed to toggle privacy' });
+    }
+  });
+
+  return router;
+}
+
+// Batch endpoint for username lookups
+export function createUsersBatchRouter(db) {
+  const router = express.Router();
+
+  router.post('/usernames', async (req, res) => {
+    try {
+      const { userIds } = req.body;
+      
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.json({});
+      }
+      
+      const userMap = await batchGetUserData(db, userIds);
+      return res.json(userMap);
+    } catch (err) {
+      console.error('Error batch fetching usernames:', err);
+      return res.status(500).json({ error: 'Failed to fetch usernames' });
     }
   });
 

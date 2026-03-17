@@ -18,7 +18,6 @@ export function generateShortId() {
 export function buildTierListDocument({
   ownerUserId,
   spotifyUserId,
-  username,
   tierListName,
   coverImage = '',
   tiers = [],
@@ -36,7 +35,6 @@ export function buildTierListDocument({
   return {
     ownerUserId,
     ...(spotifyUserHash ? { spotifyUserHash } : {}),
-    username,
     tierListName,
     coverImage,   // base64 string or external URL
     tiers,

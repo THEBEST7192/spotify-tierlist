@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, transferTierlistOwnership } from "../utils/backendApi";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, transferTierlistOwnership, batchGetUsernames } from "../utils/backendApi";
 import AuthButton from "./AuthButton";
 import CSVImportSelector from "./CSVImportSelector";
 import "./PlaylistSelector.css";
@@ -238,7 +238,7 @@ const PlaylistSelector = ({
 
   useEffect(() => {
     const fetchFirstPage = async () => {
-      console.log("fetchFirstPage - Auth state:", { 
+      console.log("[PlaylistSelector] fetchFirstPage - Auth state:", { 
         hasTuneTierUser: !!tuneTierUser, 
         hasAccessToken: !!accessToken,
         tuneTierUsername: tuneTierUser?.username 
@@ -247,7 +247,7 @@ const PlaylistSelector = ({
       try {
         // Only fetch Spotify playlists if we have an access token
         if (!accessToken) {
-          console.log("No Spotify access token available, skipping Spotify playlist fetch");
+          console.log("[PlaylistSelector] No Spotify access token available, skipping Spotify playlist fetch");
           return;
         }
         
@@ -323,11 +323,15 @@ const PlaylistSelector = ({
     if (typeof window === "undefined") return;
     try {
       const lists = [];
+      const ownerUserIds = new Set(); // Collect ownerUserIds for batch lookup
+      const usernameCache = new Map(); // Cache usernames to avoid repeated API calls
+      
+      // First pass: collect all tierlists and ownerUserIds
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
         if (!key) continue;
         
-        // Handle local tierlists
+        // Handle local tierlists (tierlist:local:localId)
         if (key.startsWith("tierlist:local:")) {
           const parts = key.split(":");
           if (parts.length < 3) continue;
@@ -337,6 +341,7 @@ const PlaylistSelector = ({
           let saved;
           try {
             saved = JSON.parse(raw);
+            console.log('[PlaylistSelector] Raw localStorage data for local playlist:', saved);
           } catch {
             continue;
           }
@@ -365,19 +370,35 @@ const PlaylistSelector = ({
             || saved?.state?.images?.[0]?.url
             || '';
 
+          // Check for cached username first, then ownerUserId
+          let displayUsername = null;
+          if (saved.cachedUsername) {
+            displayUsername = saved.cachedUsername;
+            console.log('[PlaylistSelector] Using cached username for playlist:', name, displayUsername);
+          } else {
+            const ownerId = saved.ownerUserId || saved.onlineOwnerUserId;
+            if (ownerId) {
+              console.log('[PlaylistSelector] Found ownerUserId in local playlist:', name, 'ownerUserId:', ownerId);
+              ownerUserIds.add(ownerId);
+            }
+          }
+
           const playlistLike = {
             id: localId,
             name,
-            description: "Local tierlist",
+            description: displayUsername ? `Local tierlist cloned from ${displayUsername}` : "Local tierlist",
             coverImage,
-            owner: { display_name: "You (local)" },
+            owner: { display_name: displayUsername || "You (local)" },
             _localId: localId,
             _kind: "local-tierlist",
-            createdAt
+            createdAt,
+            ownerUserId: saved.ownerUserId || saved.onlineOwnerUserId,
+            cachedUsername: displayUsername,
+            originalData: saved
           };
           lists.push(playlistLike);
         }
-        // Handle online tierlists stored locally
+        // Handle online tierlists stored locally (tierlist:shortId)
         else if (key.startsWith("tierlist:") && !key.startsWith("tierlist:local:")) {
           const parts = key.split(":");
           if (parts.length < 2) continue;
@@ -387,13 +408,31 @@ const PlaylistSelector = ({
           let saved;
           try {
             saved = JSON.parse(raw);
+            console.log('[PlaylistSelector] Raw localStorage data for online playlist:', saved);
           } catch {
             continue;
           }
           
-          // Only include if this is actually an online tierlist with proper metadata
-          if (!saved.isOnlineTierlist && !saved.shortId && !saved.onlineShortId) {
-            continue;
+          // Check for cached username first, then onlineUsername, then ownerUserId
+          let displayUsername = null;
+          if (saved.cachedUsername) {
+            displayUsername = saved.cachedUsername;
+            console.log('[PlaylistSelector] Using cached username for online playlist:', saved.tierListName, displayUsername);
+          } else if (saved.onlineUsername) {
+            displayUsername = saved.onlineUsername;
+            console.log('[PlaylistSelector] Using onlineUsername from online playlist:', saved.tierListName, displayUsername);
+            // Cache this username for future use
+            const updatedData = {
+              ...saved,
+              cachedUsername: displayUsername
+            };
+            localStorage.setItem(`tierlist:${shortId}`, JSON.stringify(updatedData));
+          } else {
+            const ownerId = saved.ownerUserId || saved.onlineOwnerUserId;
+            if (ownerId) {
+              console.log('[PlaylistSelector] Found ownerUserId in online playlist:', saved.tierListName, 'ownerUserId:', ownerId);
+              ownerUserIds.add(ownerId);
+            }
           }
           
           const name =
@@ -424,22 +463,80 @@ const PlaylistSelector = ({
           const playlistLike = {
             id: shortId,
             name,
-            description: `Online tierlist by ${saved?.onlineUsername || saved?.username || saved?.owner?.display_name || 'Unknown'}`,
+            description: displayUsername 
+              ? (saved.description 
+                ? `Online tierlist by ${displayUsername}: ${saved.description}`
+                : `Online tierlist by ${displayUsername}`)
+              : (saved.description 
+                ? `Online tierlist: ${saved.description}`
+                : `Online tierlist by Unknown`),
             coverImage,
-            owner: { display_name: saved?.onlineUsername || saved?.username || saved?.owner?.display_name || 'Unknown' },
-            _localId: shortId, // Use shortId as localId for navigation
+            owner: { display_name: displayUsername || "Unknown" },
+            _localId: shortId,
             _kind: "online-tierlist-local-copy",
             _shortId: saved.shortId || saved.onlineShortId,
             createdAt,
-            isOnlineTierlist: true
+            isOnlineTierlist: true,
+            ownerUserId: saved.ownerUserId || saved.onlineOwnerUserId,
+            cachedUsername: displayUsername,
+            originalData: saved
           };
           lists.push(playlistLike);
         }
       }
-      lists.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-      setLocalTierlists(lists);
+      
+      // Batch fetch usernames for all ownerUserIds
+      console.log('[PlaylistSelector] Found ownerUserIds:', Array.from(ownerUserIds));
+      if (ownerUserIds.size > 0) {
+        batchGetUsernames(Array.from(ownerUserIds))
+          .then(userMap => {
+            console.log('[PlaylistSelector] UserMap result:', userMap);
+            // Update playlists with fetched usernames and cache them
+            const updatedLists = lists.map(playlist => {
+              if (playlist.ownerUserId && userMap[playlist.ownerUserId] && !playlist.cachedUsername) {
+                const username = userMap[playlist.ownerUserId];
+                console.log('[PlaylistSelector] Updating playlist:', playlist.name, 'with username:', username);
+                
+                // Cache the username in localStorage for future use
+                if (playlist.originalData) {
+                  const updatedData = {
+                    ...playlist.originalData,
+                    cachedUsername: username
+                  };
+                  const storageKey = playlist._kind === "local-tierlist" 
+                    ? `tierlist:local:${playlist._localId}`
+                    : `tierlist:${playlist._localId}`;
+                  localStorage.setItem(storageKey, JSON.stringify(updatedData));
+                }
+                
+                return {
+                  ...playlist,
+                  owner: { display_name: username },
+                  description: playlist._kind === "local-tierlist" 
+                    ? `Local tierlist cloned from ${username}`
+                    : `Online tierlist by ${username}`,
+                  cachedUsername: username
+                };
+              }
+              return playlist;
+            });
+            updatedLists.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            setLocalTierlists(updatedLists);
+          })
+          .catch(error => {
+            console.error('[PlaylistSelector] Error fetching usernames:', error);
+            // Still set the lists even if username lookup fails
+            lists.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            setLocalTierlists(lists);
+          });
+      } else {
+        console.log('[PlaylistSelector] No ownerUserIds found, setting lists directly');
+        // No ownerUserIds to lookup, set lists directly
+        lists.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        setLocalTierlists(lists);
+      }
     } catch (e) {
-      console.error("Error loading local tierlists:", e);
+      console.error('[PlaylistSelector] Error loading local tierlists:', e);
     }
   }, []);
 
@@ -554,7 +651,7 @@ const PlaylistSelector = ({
         const publicListsPromise = getPublicTierlists();
         let userListsPromise = Promise.resolve([]);
         
-        console.log("fetchOnlineTierlists - Auth state:", { 
+        console.log("[PlaylistSelector] fetchOnlineTierlists - Auth state:", { 
           hasTuneTierUser: !!tuneTierUser, 
           hasAccessToken: !!accessToken,
           tuneTierUsername: tuneTierUser?.username 
@@ -570,7 +667,7 @@ const PlaylistSelector = ({
 
         const [publicLists, userLists] = await Promise.all([publicListsPromise, userListsPromise]);
         
-        console.log("API Results:", { 
+        console.log("[PlaylistSelector] API Results:", { 
           publicListsCount: publicLists.length, 
           userListsCount: userLists.length,
           userListsSample: userLists.slice(0, 2).map(l => ({ name: l.tierListName, owner: l.username }))

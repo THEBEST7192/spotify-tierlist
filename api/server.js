@@ -9,6 +9,7 @@ import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
 import { ensureUserIndexes } from './db/ensureUserIndexes.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
+import { createUsersBatchRouter } from './routes/tierlists.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 import { verifyAccessToken } from './utils/jwtUtils.js';
 
@@ -106,6 +107,11 @@ app.use('/api/spotify', ensureDb, (req, res, next) => {
 app.use('/api/tierlists', ensureDb, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createTierlistsRouter(req.db, { optionalAuth, requireAuth });
+  return router(req, res, next);
+});
+
+app.use('/api/users', ensureDb, (req, res, next) => {
+  const router = createUsersBatchRouter(req.db);
   return router(req, res, next);
 });
 

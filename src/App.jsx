@@ -63,6 +63,17 @@ function App() {
     return () => { cancelled = true; };
   }, [authToken]);
 
+  // Handle user updates from UserSettings
+  useEffect(() => {
+    window.onUserUpdate = (updatedUser) => {
+      setTuneTierUser(updatedUser);
+    };
+    
+    return () => {
+      window.onUserUpdate = null;
+    };
+  }, []);
+
   if (isLoading) {
     return <div className="loading">Loading...</div>;
   }

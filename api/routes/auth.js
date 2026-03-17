@@ -87,6 +87,71 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
     return res.json({ user: sanitizeUser(req.user) });
   });
 
+  router.put('/me', requireAuth, async (req, res) => {
+    try {
+      const { username, password } = req.body || {};
+      const userId = req.user._id;
+      
+      // Validate username if provided
+      if (username !== undefined) {
+        const normalized = normalizeUsername(username);
+        if (!normalized) {
+          return res.status(400).json({ error: 'username is required' });
+        }
+        
+        // Check if new username already exists (and isn't the current user)
+        const existingUser = await users.findOne({ 
+          usernameLower: normalized,
+          _id: { $ne: userId }
+        });
+        if (existingUser) {
+          return res.status(409).json({ error: 'username already exists' });
+        }
+        
+        // Update username
+        await users.updateOne(
+          { _id: userId },
+          { 
+            $set: { 
+              username: username.trim(),
+              usernameLower: normalized,
+              updatedAt: new Date()
+            }
+          }
+        );
+      }
+      
+      // Validate password if provided
+      if (password !== undefined) {
+        if (typeof password !== 'string' || password.length < 6) {
+          return res.status(400).json({ error: 'password must be at least 6 characters' });
+        }
+        
+        // Update password
+        const passwordHash = await hashPassword(password);
+        await users.updateOne(
+          { _id: userId },
+          { 
+            $set: { 
+              passwordHash,
+              updatedAt: new Date()
+            }
+          }
+        );
+      }
+      
+      // Return updated user
+      const updatedUser = await users.findOne({ _id: userId });
+      return res.json({ user: sanitizeUser(updatedUser) });
+    } catch (err) {
+      console.error('Error updating user:', err);
+      if (err?.code === 11000) {
+        return res.status(409).json({ error: 'username already exists' });
+      }
+      return res.status(500).json({ error: 'failed to update user' });
+    }
+  });
+
   // GET current Spotify user info
   router.get('/spotify/me', optionalAuth, (req, res) => {
     try {

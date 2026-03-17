@@ -36,7 +36,8 @@
     "eject": "react-scripts eject",
     "dev": "vite",
     "server": "cd api && npm start",
-    "server:dev": "cd api && npm run dev"
+    "server:dev": "cd api && npm run dev",
+    "migrate:tierlists": "node api/scripts/migrateTierlistOwner.js"
   },
   "eslintConfig": {
     "extends": [

@@ -199,6 +199,18 @@ export const getMe = async () => {
   return response.data;
 };
 
+export const updateUser = async ({ username, password }) => {
+  const response = await backendApi.put('/api/auth/me', { username, password });
+  return response.data;
+};
+
+export const batchGetUsernames = async (userIds) => {
+  // console.log('[API] Making batch username request for user IDs:', userIds);
+  const response = await backendApi.post('/api/users/usernames', { userIds });
+  // console.log('[API] Batch username response:', response.data);
+  return response.data;
+};
+
 export const transferTierlistOwnership = async (shortId) => {
   const response = await backendApi.post(`/api/tierlists/${shortId}/transfer`);
   return response.data;
