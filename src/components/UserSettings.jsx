@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { updateUser, getMe } from '../utils/backendApi';
+import { useNavigate } from 'react-router-dom';
+import { updateUser, deleteAccount } from '../utils/backendApi';
 import './UserSettings.css';
 
-const UserSettings = ({ tuneTierUser, onUserUpdate, onClose }) => {
+const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -10,6 +12,8 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
   useEffect(() => {
     if (tuneTierUser) {
@@ -27,7 +31,7 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose }) => {
       const updateData = {};
       
       // Validate and add username if changed
-      if (username !== tuneTierUser.username) {
+      if (username !== (tuneTierUser?.username || '')) {
         if (!username.trim()) {
           setError('Username is required');
           setIsLoading(false);
@@ -85,7 +89,31 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose }) => {
     }
   };
 
-  const hasChanges = username !== tuneTierUser.username || password || confirmPassword || currentPassword;
+  const handleDeleteAccount = async () => {
+    if (!tuneTierUser || deleteConfirmation !== tuneTierUser.username) {
+      setError('Username confirmation does not match');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      await deleteAccount();
+      if (onLogout) {
+        onLogout();
+      }
+      // Navigate to login page after successful deletion
+      navigate('/login');
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      setError(err.response?.data?.error || 'Failed to delete account');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const hasChanges = username !== (tuneTierUser?.username || '') || password || confirmPassword || currentPassword;
 
   return (
     <div className="modal-overlay">
@@ -167,7 +195,49 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose }) => {
               >
                 {isLoading ? 'Saving...' : 'Save Changes'}
               </button>
+              <button 
+                type="button" 
+                className="delete-button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isLoading}
+              >
+                Delete Account
+              </button>
             </div>
+            
+            {showDeleteConfirm && (
+              <div className="delete-confirm">
+                <p>Confirm deletion by typing your username: <strong>{tuneTierUser?.username || ''}</strong></p>
+                <input
+                  type="text"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="Type username to confirm"
+                  className="delete-confirm-input"
+                />
+                <div className="delete-confirm-actions">
+                  <button 
+                    type="button" 
+                    className="cancel-button" 
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeleteConfirmation('');
+                    }}
+                    disabled={isLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button" 
+                    className="delete-button"
+                    onClick={handleDeleteAccount}
+                    disabled={isLoading || deleteConfirmation !== (tuneTierUser?.username || '')}
+                  >
+                    {isLoading ? 'Deleting...' : 'Delete Forever'}
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         </div>
       </div>

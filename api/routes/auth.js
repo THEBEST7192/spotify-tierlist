@@ -8,6 +8,13 @@ function sanitizeUser(user) {
   return rest;
 }
 
+function getLinkedSpotifyHashes(user) {
+  if (!user || !user.linkedSpotifyAccounts) {
+    return new Set();
+  }
+  return new Set(user.linkedSpotifyAccounts.map(account => account.spotifyUserHash));
+}
+
 export function createAuthRouter(db, { requireAuth, optionalAuth }) {
   const router = express.Router();
   const users = db.collection('users');
@@ -152,7 +159,35 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
     }
   });
 
-  // GET current Spotify user info
+  router.delete('/me', requireAuth, async (req, res) => {
+    try {
+      const userId = req.user._id;
+      
+      // First, delete all tierlists associated user
+      const tierlists = db.collection('tierlists');
+      const linked = Array.from(getLinkedSpotifyHashes(req.user));
+      await tierlists.deleteMany({
+        $or: [
+          { ownerUserId: String(userId) },
+          ...(linked.length ? [{ spotifyUserHash: { $in: linked } }] : [])
+        ]
+      });
+      
+      // Then delete the user account
+      const result = await users.deleteOne({ _id: userId });
+      
+      if (result.deletedCount === 0) {
+        return res.status(404).json({ error: 'user not found' });
+      }
+      
+      return res.json({ message: 'account deleted successfully' });
+    } catch (err) {
+      console.error('Error deleting user account:', err);
+      return res.status(500).json({ error: 'failed to delete account' });
+    }
+  });
+  
+  // GET current Spotify user info  
   router.get('/spotify/me', optionalAuth, (req, res) => {
     try {
       if (req.spotifyUser) {

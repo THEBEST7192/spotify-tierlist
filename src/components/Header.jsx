@@ -87,6 +87,7 @@ const Header = ({ tuneTierUser, onLogout, onBack }) => {
           tuneTierUser={tuneTierUser}
           onUserUpdate={handleUserUpdate}
           onClose={() => setShowUserSettings(false)}
+          onLogout={onLogout}
         />
       )}
     </>

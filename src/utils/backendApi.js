@@ -204,6 +204,11 @@ export const updateUser = async ({ username, password }) => {
   return response.data;
 };
 
+export const deleteAccount = async () => {
+  const response = await backendApi.delete('/api/auth/me');
+  return response.data;
+};
+
 export const batchGetUsernames = async (userIds) => {
   // console.log('[API] Making batch username request for user IDs:', userIds);
   const response = await backendApi.post('/api/users/usernames', { userIds });
