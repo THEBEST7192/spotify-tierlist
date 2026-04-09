@@ -1254,7 +1254,6 @@ const TierList = ({
     console.log('[TierList] handlePlayerClose called, hiding player');
     setIsPlayerVisible(false);
     setIsPlayerPlaying(false);
-    setCurrentTrack(null);
   };
 
   // Add event listener for cinema pose song movement
@@ -2252,7 +2251,7 @@ const TierList = ({
       </div>
 
       {/* Spotify Player */}
-      {isPlayerVisible && (
+      <div className={!isPlayerVisible ? 'hidden' : ''}>
         <SpotifyPlayer 
           trackId={currentTrack} 
           onTrackEnd={(...args) => { console.log('[TierList] SpotifyPlayer onTrackEnd prop called at', Date.now(), 'args:', args); handleTrackEnd(...args); }}
@@ -2261,7 +2260,7 @@ const TierList = ({
           onClose={handlePlayerClose}
           accessToken={accessToken}
         />
-      )}
+      </div>
     </div>
   );
 };

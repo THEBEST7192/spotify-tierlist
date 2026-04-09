@@ -330,16 +330,6 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
     if (controllerRef.current && playerPlayState) {
       controllerRef.current.togglePlay();
     }
-    setPlayerPlayState(false);
-    previousTrackRef.current = null;
-    setIsReady(false);
-    if (controllerRef.current) {
-      controllerRef.current.destroy();
-      controllerRef.current = null;
-    }
-    if (iframeContainerRef.current) {
-      iframeContainerRef.current.innerHTML = '';
-    }
     if (onPlayerStateChange) onPlayerStateChange(false);
     if (onClose) onClose();
   };
