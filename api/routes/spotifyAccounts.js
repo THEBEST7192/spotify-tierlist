@@ -3,8 +3,9 @@ import { hashSpotifyUserId } from '../utils/tierlistUtils.js';
 
 function sanitizeUser(user) {
   if (!user) return null;
-  const { passwordHash, ...rest } = user;
-  return rest;
+  const userCopy = { ...user };
+  delete userCopy.passwordHash;
+  return userCopy;
 }
 
 export function createSpotifyAccountsRouter(db, { requireAuth }) {

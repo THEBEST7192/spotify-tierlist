@@ -31,6 +31,12 @@
   background-color: #2A2A2A;
 }
 
+.discover-toggle.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .discover-toggle.wii-control-focused {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
@@ -94,7 +100,8 @@
 }
 
 .recommendation-button:disabled {
-  background-color: #666666;
+  background-color: #333333;
+  color: #777777;
   cursor: not-allowed;
 }
 
@@ -102,6 +109,15 @@
   color: #ff4444;
   margin: 10px 0;
   text-align: center;
+}
+
+.login-requirement-note {
+  color: #b3b3b3;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 0px;
+  margin-bottom: 0px;
+  font-style: normal;
 }
 
 .recommendations-list {
@@ -398,6 +414,12 @@
 
 .exploration-depth-slider:hover {
   background-color: #2A2A2A;
+}
+
+.exploration-depth-slider.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .exploration-depth-slider.wii-control-focused {

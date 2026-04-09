@@ -11,7 +11,6 @@ import { createAuthRouter } from './routes/auth.js';
 import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
 import { createUsersBatchRouter } from './routes/tierlists.js';
 import { createAuthMiddleware } from './middleware/auth.js';
-import { verifyAccessToken } from './utils/jwtUtils.js';
 
 // Load environment variables (only for local development)
 if (process.env.NODE_ENV !== 'production') {
@@ -41,6 +40,49 @@ const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD;
 const MONGODB_HOST = process.env.MONGODB_HOST;
 const MONGODB_CLIENT_NAME = process.env.MONGODB_CLIENT_NAME;
 const MONGODB_DB = process.env.MONGODB_DB;
+
+// Spotify API configuration
+let spotifyServerToken = null;
+let spotifyTokenExpiresAt = 0;
+
+async function getSpotifyServerToken() {
+  try {
+    if (spotifyServerToken && Date.now() < spotifyTokenExpiresAt) {
+      return spotifyServerToken;
+    }
+
+    // Support both VITE_ and regular env vars for backend
+    const clientId = process.env.SPOTIFY_CLIENT_ID || process.env.VITE_SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      console.warn('[Spotify Token] Missing credentials:', { 
+        hasClientId: !!clientId, 
+        hasClientSecret: !!clientSecret 
+      });
+      throw new Error('Spotify credentials not configured in backend');
+    }
+
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const response = await axios.post('https://accounts.spotify.com/api/token', 'grant_type=client_credentials', {
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+
+    spotifyServerToken = response.data.access_token;
+    spotifyTokenExpiresAt = Date.now() + (response.data.expires_in * 1000) - 60000; // 1 minute buffer
+    // console.log('[Spotify Token] Successfully obtained new server token');
+    return spotifyServerToken;
+  } catch (error) {
+    // console.error('[Spotify Token] Error obtaining token:', error.message);
+    if (error.response) {
+      // console.error('[Spotify Token] Error Response:', error.response.status, JSON.stringify(error.response.data));
+    }
+    throw error;
+  }
+}
 
 const MONGODB_URI = `mongodb+srv://${encodeURIComponent(MONGODB_USER)}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}/${MONGODB_DB}?retryWrites=true&w=majority&appName=${MONGODB_CLIENT_NAME}`;
 
@@ -198,6 +240,73 @@ app.get('/api/similar-artists', async (req, res) => {
     console.error('Error fetching similar artists:', error.message);
     res.status(500).json({ 
       error: 'Failed to fetch similar artists',
+      details: error.response?.data || error.message 
+    });
+  }
+});
+
+// Search Spotify for a track (Client Credentials Flow)
+app.get('/api/spotify/search', ensureDb, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) {
+      return res.status(400).json({ error: 'Missing search query' });
+    }
+
+    const db = req.db;
+    const cacheCollection = db.collection('spotify_search_cache');
+
+    // Check MongoDB cache first
+    const cachedResult = await cacheCollection.findOne({ query: q });
+    const CACHE_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    if (cachedResult && (Date.now() - cachedResult.timestamp < CACHE_EXPIRATION_MS)) {
+      // console.log(`[Spotify Proxy Search] Cache hit for: "${q}"`);
+      return res.json(cachedResult.data);
+    }
+
+    // console.log(`[Spotify Proxy Search] Query: "${q}"`);
+    const token = await getSpotifyServerToken();
+    const response = await axios.get('https://api.spotify.com/v1/search', {
+      params: {
+        q: q,
+        type: 'track',
+        limit: 1
+      },
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.data && response.data.tracks) {
+      // console.log(`[Spotify Proxy Search] Results found: ${response.data.tracks.items.length}`);
+      
+      // Update or insert into MongoDB cache
+      await cacheCollection.updateOne(
+        { query: q },
+        { 
+          $set: { 
+            data: response.data,
+            timestamp: Date.now()
+          } 
+        },
+        { upsert: true }
+      );
+    } else {
+      // console.log('[Spotify Proxy Search] Unexpected response structure from Spotify');
+    }
+    res.json(response.data);
+  } catch (error) {
+    // console.error('Error searching Spotify from backend:', error.message);
+    if (error.response) {
+      // console.error('Spotify API Error Response:', error.response.status, JSON.stringify(error.response.data));
+    }
+    const status = error.response?.status || 500;
+    const message = error.message === 'Spotify credentials not configured in backend' 
+      ? error.message 
+      : 'Failed to search Spotify from backend';
+    res.status(status).json({ 
+      error: message,
       details: error.response?.data || error.message 
     });
   }

@@ -98,6 +98,23 @@ export const getSimilarArtistsFromBackend = async (artist, limit = 10) => {
 };
 
 /**
+ * Search Spotify via backend API (Client Credentials Flow)
+ * @param {string} query - Spotify search query
+ * @returns {Promise<Object>} Spotify search response
+ */
+export const searchTracksFromBackend = async (query) => {
+  try {
+    const response = await backendApi.get('/api/spotify/search', {
+      params: { q: query }
+    });
+    return response;
+  } catch (error) {
+    console.error('Error searching tracks from backend:', error);
+    throw error;
+  }
+};
+
+/**
  * Check if backend API is available
  * @returns {Promise<boolean>} True if backend is available
  */

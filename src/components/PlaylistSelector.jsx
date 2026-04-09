@@ -324,7 +324,6 @@ const PlaylistSelector = ({
     try {
       const lists = [];
       const ownerUserIds = new Set(); // Collect ownerUserIds for batch lookup
-      const usernameCache = new Map(); // Cache usernames to avoid repeated API calls
       
       // First pass: collect all tierlists and ownerUserIds
       for (let i = 0; i < window.localStorage.length; i++) {
@@ -1189,8 +1188,8 @@ const PlaylistSelector = ({
         } else {
           // console.log('No Spotify user info available from API');
         }
-      } catch (err) {
-        // console.log('Could not get Spotify username from API:', err);
+      } catch {
+        // console.log('Could not get Spotify username from API');
       }
     }
     

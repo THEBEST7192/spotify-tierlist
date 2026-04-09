@@ -56,6 +56,7 @@ cp .env.example .env.local
 Then, open `.env.local` and add your API credentials:
 ```bash
 VITE_SPOTIFY_CLIENT_ID=YOUR_CLIENT_ID
+SPOTIFY_CLIENT_SECRET=YOUR_CLIENT_SECRET
 VITE_SPOTIFY_REDIRECT_URI=YOUR_REDIRECT_URI
 LASTFM_API_KEY=YOUR_LASTFM_API_KEY
 MONGODB_USER=YOUR_MONGODB_USER
@@ -70,7 +71,8 @@ VITE_BACKEND_TIMEOUT_MS=25000  # Optional, default 25000ms
 
 The `VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. The `LASTFM_API_KEY`, MongoDB vars, `JWT_SECRET`, and `VITE_API_BASE_URL` are used by the backend server.
 
-The client id and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://127.0.0.1:3000` in the Spotify developer console and in the environment file.
+The client id, client secret, and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://127.0.0.1:3000` in the Spotify developer console and in the environment file.
+The client secret is required for generating recommendations for TuneTier-only users via the backend proxy.
 
 The scope is handled in the [SpotifyAuth.js](src/utils/SpotifyAuth.js) file in the `getSpotifyAuthURL` function.
 

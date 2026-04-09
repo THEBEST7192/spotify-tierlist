@@ -651,7 +651,7 @@ const TierList = ({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [songs, checkForUnavailableSongs, storageKey, isInitialSyncComplete, initialTierlist]);
+  }, [songs, checkForUnavailableSongs, storageKey, isInitialSyncComplete, initialTierlist, state]);
 
   useEffect(() => {
     if (!storageKey || typeof window === 'undefined' || !isInitialSyncComplete) return;
@@ -2242,6 +2242,7 @@ const TierList = ({
             tierOrder={tierOrder}
             tiers={tiers}
             accessToken={accessToken} 
+            tuneTierUser={tuneTierUser}
             onPlayTrack={playTrack}
             onAddToTierlist={addSongToTierlist}
             currentTrackId={currentTrack}

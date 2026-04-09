@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { searchTracks } from '../utils/spotifyApi';
-import { getSimilarTracksFromBackend, getSimilarArtistsFromBackend } from '../utils/backendApi';
+import { 
+  getSimilarTracksFromBackend, 
+  getSimilarArtistsFromBackend, 
+  searchTracksFromBackend 
+} from '../utils/backendApi';
 import './RecommendationGenerator.css';
 import AddToPlaylist from './AddToPlaylist';
 
 // Constants for recommendation configuration
-const MAX_RECOMMENDATIONS = 200; // Maximum recommendations to display
+const MAX_RECOMMENDATIONS_SPOTIFY = 100; // Maximum recommendations for Spotify users
+const MAX_RECOMMENDATIONS_TUNETIER = 50; // Half limit for TuneTier users
+
+// Cache key for local storage
+const LOCAL_STORAGE_CACHE_KEY = 'spotify_track_id_cache';
 
 // Cache for API responses and assets
 const appCache = {
@@ -20,7 +28,51 @@ const appCache = {
   CACHE_EXPIRATION: 7 * 24 * 60 * 60 * 1000
 };
 
-const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying }) => {
+// Utility to load persistent cache
+const loadPersistentCache = () => {
+  try {
+    const cached = localStorage.getItem(LOCAL_STORAGE_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      const now = Date.now();
+      
+      // Convert object back to Map and filter expired items
+      Object.keys(parsed).forEach(key => {
+        const item = parsed[key];
+        if (now - item.timestamp < appCache.CACHE_EXPIRATION) {
+          appCache.spotifyTracks.set(key, item);
+        }
+      });
+      // console.log(`[CACHE] Loaded ${appCache.spotifyTracks.size} items from persistent storage`);
+    }
+  } catch (error) {
+    console.warn('[CACHE] Error loading persistent cache:', error);
+  }
+};
+
+// Utility to save persistent cache
+const savePersistentCache = () => {
+  try {
+    const data = {};
+    const now = Date.now();
+    
+    appCache.spotifyTracks.forEach((value, key) => {
+      // Only persist if not expired
+      if (now - value.timestamp < appCache.CACHE_EXPIRATION) {
+        data[key] = value;
+      }
+    });
+    
+    localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.warn('[CACHE] Error saving persistent cache:', error);
+  }
+};
+
+// Initial load
+loadPersistentCache();
+
+const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying, accessToken, tuneTierUser }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -30,6 +82,23 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
 
   // Utility to safely normalize tier entries coming from state (which can include metadata like tierListName)
   const ensureSongArray = (value) => (Array.isArray(value) ? value : []);
+
+  // Determine maximum recommendations based on user type
+  const getMaxRecommendations = () => {
+    // Robust check for a valid-looking access token string
+    const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
+
+    // If user is logged in with Spotify (has accessToken)
+    if (hasValidToken) {
+      return MAX_RECOMMENDATIONS_SPOTIFY;
+    }
+    // If user is logged in with TuneTier (has tuneTierUser but no Spotify accessToken)
+    if (tuneTierUser) {
+      return MAX_RECOMMENDATIONS_TUNETIER;
+    }
+    // Guest (no login) should have no recommendations
+    return 0;
+  };
 
   // ===== TIER WEIGHT SYSTEM ===== 
   // Calculate the weight of each tier based on position in tierOrder
@@ -81,10 +150,22 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
 
   // Get primary artist name from a tier song object
   const getPrimaryArtistName = (song) => {
+    // console.log('[RecommendationGenerator] getPrimaryArtistName for song:', song?.content?.name, 'artists:', song?.content?.artists);
     const artists = song?.content?.artists;
-    if (!Array.isArray(artists) || artists.length === 0) return null;
-    const name = artists[0]?.name;
-    return typeof name === 'string' && name.trim() ? name : null;
+    
+    // Standard Spotify structure
+    if (Array.isArray(artists) && artists.length > 0) {
+      const name = artists[0]?.name;
+      if (typeof name === 'string' && name.trim()) return name;
+    }
+    
+    // Fallback for different structures (e.g. from imports or older versions)
+    const artist = song?.content?.artist;
+    if (typeof artist === 'string' && artist.trim()) return artist;
+    
+    if (typeof artists === 'string' && artists.trim()) return artists;
+    
+    return null;
   };
 
   // Get similar artists from Last.fm API based on an artist
@@ -185,7 +266,19 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       }
       
       // Search for the artist on Spotify
-      const artistResponse = await searchTracks(`artist:${artistName}`);
+      const searchQuery = `artist:${artistName}`;
+      let artistResponse;
+      
+      // Robust check for a valid-looking access token string
+      const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
+      
+      if (hasValidToken) {
+        // User is logged into Spotify - use their token
+        artistResponse = await searchTracks(searchQuery);
+      } else {
+        // User is only logged into TuneTier - use backend search proxy
+        artistResponse = await searchTracksFromBackend(searchQuery);
+      }
       
       if (artistResponse.data.tracks.items.length > 0) {
         // Get the first few tracks from this artist (they're usually popular ones)
@@ -198,6 +291,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
           data: artistTracks,
           timestamp: Date.now()
         });
+        savePersistentCache();
         
         // Cache images if available
         artistTracks.forEach(track => {
@@ -309,6 +403,13 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
     setIsLoading(true);
     setError(null);
     try {
+      const maxRecs = getMaxRecommendations();
+      if (maxRecs === 0) {
+        setError('Please login with Spotify or TuneTier to get recommendations');
+        setIsLoading(false);
+        return;
+      }
+
       // Get weighted songs from tiers
       const weightedSongs = getWeightedSongs();
       if (weightedSongs.length === 0) {
@@ -328,9 +429,11 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       const existingSongKeys = new Set();
       Object.values(tierState).forEach(songs => {
         ensureSongArray(songs).forEach(song => {
-          if (song.content && song.content.id) {
-            existingSongIds.add(song.content.id);
-            const artistName = song.content?.artists?.[0]?.name?.toLowerCase();
+          if (song.content) {
+            if (song.content.id) {
+              existingSongIds.add(song.content.id);
+            }
+            const artistName = getPrimaryArtistName(song)?.toLowerCase();
             const trackName = song.content?.name?.toLowerCase();
             if (artistName && trackName) {
               existingSongKeys.add(`${artistName}###${trackName}`);
@@ -444,7 +547,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
           existingSongIds.add(spotifyId);
         }
 
-        const artistName = content?.artists?.[0]?.name;
+        const artistName = getPrimaryArtistName(song);
         const trackName = content?.name;
         if (artistName && trackName) {
           const artistKey = artistName.toLowerCase();
@@ -507,7 +610,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
     // Initial sorting of unique recommendations removed; final spotifyTracks sort handles full ordering
     
     // Process recommendations up to the limit
-    for (const rec of uniqueRecommendations.slice(0, MAX_RECOMMENDATIONS)) {
+    for (const rec of uniqueRecommendations.slice(0, getMaxRecommendations())) {
       try {
         // Create a cache key for this track search
         const searchCacheKey = `search:${rec.artist.toLowerCase()}:${rec.name.toLowerCase()}`;
@@ -527,7 +630,19 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
         
         // If no valid cache, search Spotify
         if (!spotifyTrack) {
-          const response = await searchTracks(`artist:${rec.artist} track:${rec.name}`);
+          const searchQuery = `artist:${rec.artist} track:${rec.name}`;
+          let response;
+          
+          // Robust check for a valid-looking access token string
+          const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
+          
+          if (hasValidToken) {
+            // User is logged into Spotify - use their token
+            response = await searchTracks(searchQuery);
+          } else {
+            // User is only logged into TuneTier - use backend search proxy
+            response = await searchTracksFromBackend(searchQuery);
+          }
           
           if (response.data.tracks.items.length > 0) {
             spotifyTrack = response.data.tracks.items[0];
@@ -596,6 +711,9 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       }
     }
     
+    // Save all new items to persistent cache
+    savePersistentCache();
+    
     // Collect all tracks into spotifyTracks
     tracksByArtist.forEach(tracks => spotifyTracks.push(...tracks));
     // ----- Final sorting of recommendations -----
@@ -629,7 +747,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       return b.adjustedScore - a.adjustedScore;
     });
     // Return limited number of recommendations
-    return spotifyTracks.slice(0, MAX_RECOMMENDATIONS);
+    return spotifyTracks.slice(0, getMaxRecommendations());
   };
 
   // Handle play button click
@@ -675,24 +793,28 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
   const areAllTracksAdded = recommendations.length > 0 && 
     recommendations.every(track => addedTracks.has(track.spotifyData.id));
 
+  const isGuest = !accessToken && !tuneTierUser;
+
   return (
     <div className="recommendation-container">
       <div className="recommendation-options">
-        <label className="discover-toggle">
+        <label className={`discover-toggle${isGuest ? ' disabled' : ''}`}>
           <input
             type="checkbox"
             checked={discoverNewArtists}
             onChange={() => setDiscoverNewArtists(!discoverNewArtists)}
+            disabled={isGuest}
           />
           <span className="toggle-label">Discover New Artists</span>
         </label>
-        <label className="exploration-depth-slider">
+        <label className={`exploration-depth-slider${isGuest ? ' disabled' : ''}`}>
           <input
             type="range"
             min="0"
             max="20"
             value={explorationDepth}
             onChange={(e) => setExplorationDepth(parseInt(e.target.value))}
+            disabled={isGuest}
           />
           <span className="slider-label">Exploration Depth: {explorationDepth}</span>
         </label>
@@ -701,10 +823,16 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       <button 
         className="recommendation-button" 
         onClick={generateRecommendations}
-        disabled={isLoading}
+        disabled={isLoading || isGuest}
       >
-        {isLoading ? 'Generating...' : 'Get Recommendations Based on Your Rankings'}
+        {isLoading ? 'Generating...' : (isGuest ? 'Login to Get Recommendations' : 'Get Recommendations Based on Your Rankings')}
       </button>
+
+      {isGuest && (
+        <div className="login-requirement-note">
+          A TuneTier account or Spotify login is required to generate recommendations.
+        </div>
+      )}
       
       {error && <div className="error-message">{error}</div>}
       
