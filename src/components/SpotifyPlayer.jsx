@@ -327,9 +327,16 @@ const SpotifyPlayer = ({ trackId, onTrackEnd, isPlaying, onPlayerStateChange, on
   }, [isExpanded, isReady]);
 
   const closePlayer = () => {
-    if (controllerRef.current && playerPlayState) {
-      controllerRef.current.togglePlay();
+    if (controllerRef.current) {
+      console.log('[SpotifyPlayer] Destroying controller on close');
+      controllerRef.current.destroy();
+      controllerRef.current = null;
     }
+    if (iframeContainerRef.current) {
+      iframeContainerRef.current.innerHTML = '';
+    }
+    setIsReady(false);
+    setPlayerPlayState(false);
     if (onPlayerStateChange) onPlayerStateChange(false);
     if (onClose) onClose();
   };

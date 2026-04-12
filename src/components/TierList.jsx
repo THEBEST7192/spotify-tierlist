@@ -1295,6 +1295,7 @@ const TierList = ({
     console.log('[TierList] handlePlayerClose called, hiding player');
     setIsPlayerVisible(false);
     setIsPlayerPlaying(false);
+    setCurrentTrack(null);
   };
 
   // Add event listener for cinema pose song movement
