@@ -317,9 +317,30 @@
   width: 100%;
 }
 
+.album-cover-placeholder-wrapper {
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.tierlist-song-placeholder {
+  width: 90px;
+  height: 90px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #121212;
+}
+
+.placeholder-svg-small {
+  width: 60px;
+  height: 60px;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
 .song-info {
   flex-grow: 1;
-  margin-left: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

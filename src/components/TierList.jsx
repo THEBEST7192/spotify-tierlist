@@ -6,6 +6,7 @@ import { getCurrentUser, createPlaylist, addTracksToPlaylist } from '../utils/sp
 import { createTierlist, updateTierlist } from '../utils/backendApi';
 import "./TierList.css";
 import RecommendationGenerator from "./RecommendationGenerator";
+import { PLACEHOLDER_COLORS } from '../constants';
 import SpotifyPlayer from "./SpotifyPlayer";
 import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
 import CinemaPoseDetector from './CinemaPoseDetector';
@@ -344,8 +345,30 @@ const TierList = ({
       manualImportRef.current = true;
     }
 
+    // Ensure all songs have a placeholderColor
+    const tierOrder = imported.tierOrder || DEFAULT_TIER_ORDER;
+    const processedState = { ...imported.state };
+    
+    tierOrder.forEach(tierName => {
+      if (Array.isArray(processedState[tierName])) {
+        processedState[tierName] = processedState[tierName].map(entry => {
+          const entryContent = entry?.content || entry;
+          if (entryContent && !entryContent.placeholderColor) {
+            return {
+              ...entry,
+              content: {
+                ...entryContent,
+                placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+              }
+            };
+          }
+          return entry;
+        });
+      }
+    });
+
     setTiers(imported.tiers);
-    setTierOrder(imported.tierOrder);
+    setTierOrder(tierOrder);
     const resolvedName = imported.tierListName || imported.state?.tierListName;
     const importedCover = imported.coverImage
       || imported.state?.coverImage
@@ -353,7 +376,7 @@ const TierList = ({
       || pickPreferredPlaylistImage(imported.state?.images)?.url
       || '';
     const stateWithName = {
-      ...imported.state,
+      ...processedState,
       ...(resolvedName && { tierListName: resolvedName })
     };
     const stateWithCover = importedCover
@@ -404,6 +427,7 @@ const TierList = ({
     manualImportRef.current = false;
     setIsInitialSyncComplete(false);
     setInferredCoverImage('');
+    lastHydratedRef.current = null; // Clear this to allow re-hydration on navigation
   }, [storageKey]);
 
     useEffect(() => {
@@ -546,11 +570,15 @@ const TierList = ({
     const incomingByDragId = new Map();
     const incomingByTrackId = new Map();
     songs.forEach(song => {
+      const songWithColor = {
+        ...song,
+        placeholderColor: song.placeholderColor || PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+      };
       if (song?.dragId) {
-        incomingByDragId.set(song.dragId, song);
+        incomingByDragId.set(song.dragId, songWithColor);
       }
       if (song?.id) {
-        incomingByTrackId.set(song.id, song);
+        incomingByTrackId.set(song.id, songWithColor);
       }
     });
 
@@ -1021,10 +1049,23 @@ const TierList = ({
       const importedState = imported.state || {};
       const tierOrder = imported.tierOrder || ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
       
-      // Build state with imported tier content
+      // Build state with imported tier content and ensure placeholderColor
       const importedTierState = {};
       tierOrder.forEach(tierName => {
-        importedTierState[tierName] = importedState[tierName] || [];
+        const tierSongs = importedState[tierName] || [];
+        importedTierState[tierName] = tierSongs.map(song => {
+          const songContent = song.content || song;
+          if (songContent && !songContent.placeholderColor) {
+            return {
+              ...song,
+              content: {
+                ...songContent,
+                placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+              }
+            };
+          }
+          return song;
+        });
       });
       
       // Preserve non-tier properties from imported state
@@ -2112,13 +2153,16 @@ const TierList = ({
                                 data-song-id={item.id}
                                 className={`song-card ${isPlaying ? 'playing' : ''} ${!isWiiUiMode && focusedSongId === item.id ? 'focused' : ''} ${pickedUpSongId === item.id ? 'picked-up' : ''}`}
                               >
-                                {song.album && song.album.images && song.album.images.length > 0 && (
+                                {song.album && song.album.images && song.album.images.length > 0 ? (
                                   <a 
-                                    href={`https://open.spotify.com/track/${song.id}`}
-                                    target="_blank"
+                                    href={song.id ? `https://open.spotify.com/track/${song.id}` : "#"}
+                                    target={song.id ? "_blank" : "_self"}
                                     rel="noopener noreferrer"
                                     className="album-cover-link"
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                      if (!song.id) e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
                                   >
                                     <img 
                                       src={song.album.images[song.album.images.length > 2 ? 2 : 0].url}
@@ -2126,6 +2170,19 @@ const TierList = ({
                                       className="album-cover" 
                                     />
                                   </a>
+                                ) : (
+                                  <div className="album-cover-placeholder-wrapper">
+                                    <div 
+                                      className="tierlist-song-placeholder"
+                                      style={{ backgroundColor: '#121212' }}
+                                    >
+                                      <svg viewBox="0 0 256 256" className="placeholder-svg-small">
+                                        <circle cx="127.5" cy="128.5" r="95.5" fill={song.placeholderColor || '#1DB954'}/>
+                                        <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
+                                        <circle cx="127.5" cy="128.5" r="7.95833" fill={song.placeholderColor || '#1DB954'}/>
+                                      </svg>
+                                    </div>
+                                  </div>
                                 )}
                                 <div className="song-info">
                                   <div className="song-name">{song.name}</div>

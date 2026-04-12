@@ -29,6 +29,7 @@ const TierListJSONExportImport = ({
               images: song.content.album.images
             },
             preview_url: song.content.preview_url,
+            placeholderColor: song.content.placeholderColor
           }
         }));
       } else {

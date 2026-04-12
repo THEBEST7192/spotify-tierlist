@@ -4,6 +4,7 @@ import Header from "../components/Header";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
 import SongGroupModal from "../components/SongGroupModal";
+import { PLACEHOLDER_COLORS } from '../constants';
 import { getPlaylistTracks } from "../utils/spotifyApi";
 import { getTierlist } from "../utils/backendApi";
 
@@ -222,11 +223,10 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
   }, [toggleKonamiCode, toggleDebugMode]);
 
   useEffect(() => {
-    const colors = ['#1DB954', '#FF6347', '#FFD700', '#6A5ACD', '#00CED1', '#FF69B4', '#FF4500', '#ADFF2F', '#8A2BE2', '#00FFFF'];
     let i = 0;
 
     const interval = setInterval(() => {
-      setLoadingColor(colors[i % colors.length]);
+      setLoadingColor(PLACEHOLDER_COLORS[i % PLACEHOLDER_COLORS.length]);
       setDotCount(i % 4);
       i = i + 1;
     }, 1000);
@@ -276,7 +276,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
           .filter(Boolean)
           .map((track, index) => ({
             ...track,
-            dragId: `track-${playlist.id}-${offset + index}`
+            dragId: `track-${playlist.id}-${offset + index}`,
+            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
           }));
         allTracks.push(...tracks);
         offset += limit;
@@ -348,7 +349,13 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
         D: [],
         E: [],
         F: [],
-        Unranked: tracks.map(track => ({ content: track, id: `track-${track.id}-${Math.random().toString(36).slice(2, 10)}` }))
+        Unranked: tracks.map(track => ({ 
+          content: {
+            ...track,
+            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+          }, 
+          id: `track-${track.id}-${Math.random().toString(36).slice(2, 10)}` 
+        }))
       },
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -385,7 +392,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
           .filter(Boolean)
           .map((track, index) => ({
             ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`
+            dragId: `track-${pendingPlaylist.id}-${index}`,
+            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
           }));
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
@@ -423,7 +431,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
           .filter(Boolean)
           .map((track, index) => ({
             ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`
+            dragId: `track-${pendingPlaylist.id}-${index}`,
+            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
           }));
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
@@ -461,7 +470,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
           .filter(Boolean)
           .map((track, index) => ({
             ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`
+            dragId: `track-${pendingPlaylist.id}-${index}`,
+            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
           }));
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
@@ -501,7 +511,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
           .filter(Boolean)
           .map((track, index) => ({
             ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`
+            dragId: `track-${pendingPlaylist.id}-${index}`,
+            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
           }));
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(tracks);
@@ -563,7 +574,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
         // Add dragId for each track
         selectedTracks = selectedTracks.slice(0, 100).map((track, index) => ({
           ...track,
-          dragId: `track-${pendingPlaylist.id}-${index}`
+          dragId: `track-${pendingPlaylist.id}-${index}`,
+          placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
         }));
         setSelectedPlaylist(pendingPlaylist);
         setPlaylistTracks(selectedTracks);
@@ -642,7 +654,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
               if (song && song.id) {
                 allSongs.push({
                   ...song,
-                  dragId: `track-${song.id}-${Math.random().toString(36).slice(2, 10)}`
+                  dragId: `track-${song.id}-${Math.random().toString(36).slice(2, 10)}`,
+                  placeholderColor: song.placeholderColor || PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
                 });
               }
             });
@@ -713,13 +726,14 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
 
     // Handle navigation state from imports
     if (location.state?.fromPlaylistSelect) {
+      setSharedTierlist(null); // Clear shared tierlist when importing/selecting a new one
       const isImport = location.state.fromPlaylistSelect && location.state.selectedPlaylist?.name;
       const fallbackName = location.state.selectedPlaylist?.name || 'Local Spotify Tierlist';
       const nameFromState = isImport ? fallbackName : null;
       
       if (nameFromState) {
         setImportedPlaylistName(nameFromState);
-        setSelectedPlaylist(prev => prev || { ...location.state.selectedPlaylist, name: nameFromState });
+        setSelectedPlaylist({ ...location.state.selectedPlaylist, name: nameFromState });
       }
       
       if (Array.isArray(location.state.playlistTracks)) {
@@ -729,6 +743,8 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
       // Extract initialTierlist from navigation state for JSON imports
       if (location.state?.initialTierlist) {
         setImportedTierlistData(location.state.initialTierlist);
+      } else {
+        setImportedTierlistData(null); // Clear previous imported data if not present
       }
       
       setPendingPlaylist(null);

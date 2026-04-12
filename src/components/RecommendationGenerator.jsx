@@ -7,6 +7,7 @@ import {
 } from '../utils/backendApi';
 import './RecommendationGenerator.css';
 import AddToPlaylist from './AddToPlaylist';
+import { PLACEHOLDER_COLORS } from '../constants';
 
 // Constants for recommendation configuration
 const MAX_RECOMMENDATIONS_SPOTIFY = 100; // Maximum recommendations for Spotify users
@@ -75,6 +76,8 @@ loadPersistentCache();
 const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying, accessToken, tuneTierUser }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAddingAll, setIsAddingAll] = useState(false);
+  const [resolvingTrackId, setResolvingTrackId] = useState(null); // Track which song is currently being resolved from Spotify
   const [error, setError] = useState(null);
   const [addedTracks, setAddedTracks] = useState(new Set());
   const [discoverNewArtists, setDiscoverNewArtists] = useState(false);
@@ -349,19 +352,22 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
           console.log(`[CACHE: LastFM Similar Tracks] Using cached data for ${artist} - ${track}`);
           
           // Map the cached tracks with the current song's weight
-          return cachedData.data.map(track => ({
-            source: { 
-              artist: artist, 
-              track: song.content.name,
-              AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
-              tier: song.tier
-            },
-            name: track.name,
-            artist: track.artist.name,
-            url: track.url,
-            // Score = source weight × matching value from Last.fm
-            score: song.AMOUNT_OF_SONGS * parseFloat(track.match)
-          }));
+          return cachedData.data.map(t => {
+            const artistName = typeof t.artist === 'string' ? t.artist : (t.artist?.name || 'Unknown Artist');
+            return {
+              source: { 
+                artist: artist, 
+                track: song.content.name,
+                AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
+                tier: song.tier
+              },
+              name: t.name,
+              artist: artistName,
+              url: t.url,
+              // Score = source weight × matching value from Last.fm
+              score: song.AMOUNT_OF_SONGS * parseFloat(t.match)
+            };
+          });
         }
       }
       
@@ -377,19 +383,22 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
         });
         
         // Return processed tracks
-        return response.similartracks.track.map(track => ({
-          source: { 
-            artist: artist, 
-            track: song.content.name,
-            AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
-            tier: song.tier
-          },
-          name: track.name,
-          artist: track.artist.name,
-          url: track.url,
-          // Score = source weight × matching value from Last.fm
-          score: song.AMOUNT_OF_SONGS * parseFloat(track.match)
-        }));
+        return response.similartracks.track.map(t => {
+          const artistName = typeof t.artist === 'string' ? t.artist : (t.artist?.name || 'Unknown Artist');
+          return {
+            source: { 
+              artist: artist, 
+              track: song.content.name,
+              AMOUNT_OF_SONGS: song.AMOUNT_OF_SONGS,
+              tier: song.tier
+            },
+            name: t.name,
+            artist: artistName,
+            url: t.url,
+            // Score = source weight × matching value from Last.fm
+            score: song.AMOUNT_OF_SONGS * parseFloat(t.match)
+          };
+        });
       }
       return [];
     } catch (error) {
@@ -525,6 +534,21 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
 
       setRecommendations(finalRecs);
       setIsLoading(false);
+
+      // Proactively resolve the first 10 tracks to get Spotify metadata (like album art)
+      const tracksToResolve = finalRecs.slice(0, 10);
+      tracksToResolve.forEach(async (track) => {
+        if (!track.spotifyData?.id) {
+          const spotifyData = await resolveSpotifyTrack(track);
+          if (spotifyData?.id) {
+            setRecommendations(prev => prev.map(r => 
+              (r.artist === track.artist && r.name === track.name) 
+                ? { ...r, spotifyData } 
+                : r
+            ));
+          }
+        }
+      });
     } catch (error) {
       console.error('Error generating recommendations:', error);
       setError('Failed to generate recommendations. Please try again later.');
@@ -535,20 +559,13 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
   // Process similar tracks to remove duplicates and find on Spotify
   const processRecommendations = async (similarTracks) => {
     // Track existing content to avoid duplicates
-    const existingSongIds = new Set();
     const existingSongNames = new Set();
     const existingArtists = new Set();
 
     Object.values(tierState).forEach(songs => {
       ensureSongArray(songs).forEach(song => {
-        const content = song?.content;
-        const spotifyId = content?.id;
-        if (spotifyId) {
-          existingSongIds.add(spotifyId);
-        }
-
         const artistName = getPrimaryArtistName(song);
-        const trackName = content?.name;
+        const trackName = song?.content?.name;
         if (artistName && trackName) {
           const artistKey = artistName.toLowerCase();
           const trackKey = trackName.toLowerCase();
@@ -560,168 +577,87 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       });
     });
 
-    // ----- Group and combine similar recommendations -----
-    const uniqueTracksMap = new Map(); // Using artist-track as key
+    // Group and combine similar recommendations
+    const uniqueTracksMap = new Map();
     
-    // Process each recommendation, combining duplicates
     similarTracks.forEach(rec => {
-      const key = `${rec.artist.toLowerCase()}-${rec.name.toLowerCase()}`;
+      const artistName = rec.artist || rec.artistName;
+      const trackName = rec.name;
+      if (!artistName || !trackName) return;
+
+      const key = `${artistName.toLowerCase()}###${trackName.toLowerCase()}`;
+      
+      // Check if track is already in the mongo db cache or local cache
+      const cacheKey = `search:${artistName.toLowerCase()}:${trackName.toLowerCase()}`;
+      const cached = appCache.spotifyTracks.get(cacheKey);
+      const spotifyDataFromCache = (cached && (Date.now() - cached.timestamp < appCache.CACHE_EXPIRATION)) ? cached.data : null;
       
       if (uniqueTracksMap.has(key)) {
-        // If we've seen this track before, update its entry
         const existing = uniqueTracksMap.get(key);
-        
-        // Increase score
         existing.score += rec.score;
         existing.recommendationCount = (existing.recommendationCount || 1) + 1;
         
-        // Merge sources arrays (not just rec.source)
+        // Update spotifyData if we found it in cache and don't have it yet
+        if (!existing.spotifyData && spotifyDataFromCache) {
+          existing.spotifyData = spotifyDataFromCache;
+        }
+
         if (rec.sources && Array.isArray(rec.sources)) {
           rec.sources.forEach(src => {
             if (!existing.sources.some(s => s.artist === src.artist && s.track === src.track)) {
               existing.sources.push(src);
             }
           });
-        } else if (rec.source) {
-          if (!existing.sources.some(s => s.artist === rec.source.artist && s.track === rec.source.track)) {
-            existing.sources.push(rec.source);
-          }
         }
-        
         uniqueTracksMap.set(key, existing);
       } else {
-        // First time seeing this track
-        // Ensure sources is always an array
         uniqueTracksMap.set(key, {
           ...rec,
+          artist: artistName,
+          name: trackName,
+          spotifyData: spotifyDataFromCache,
           sources: rec.sources && Array.isArray(rec.sources) ? [...rec.sources] : [rec.source],
-          recommendationCount: rec.recommendationCount || 1
+          recommendationCount: rec.recommendationCount || 1,
+          placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
         });
       }
     });
     
-    // Convert to array
+    // Filter out already ranked songs and group by artist
     const uniqueRecommendations = Array.from(uniqueTracksMap.values());
-    
-    // ----- Find tracks on Spotify -----
-    const spotifyTracks = [];
+    const finalTracks = [];
     const tracksByArtist = new Map();
-    
-    // Initial sorting of unique recommendations removed; final spotifyTracks sort handles full ordering
-    
-    // Process recommendations up to the limit
-    for (const rec of uniqueRecommendations.slice(0, getMaxRecommendations())) {
-      try {
-        // Create a cache key for this track search
-        const searchCacheKey = `search:${rec.artist.toLowerCase()}:${rec.name.toLowerCase()}`;
-        let spotifyTrack;
-        
-        // Check if we have a valid cached response
-        if (appCache.spotifyTracks.has(searchCacheKey)) {
-          const cachedData = appCache.spotifyTracks.get(searchCacheKey);
-          const now = Date.now();
-          
-          // If cache is still valid, use it
-          if (now - cachedData.timestamp < appCache.CACHE_EXPIRATION) {
-            console.log(`[CACHE: Spotify Search] Using cached data for: ${rec.artist} - ${rec.name}`);
-            spotifyTrack = cachedData.data;
-          }
-        }
-        
-        // If no valid cache, search Spotify
-        if (!spotifyTrack) {
-          const searchQuery = `artist:${rec.artist} track:${rec.name}`;
-          let response;
-          
-          // Robust check for a valid-looking access token string
-          const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
-          
-          if (hasValidToken) {
-            // User is logged into Spotify - use their token
-            response = await searchTracks(searchQuery);
-          } else {
-            // User is only logged into TuneTier - use backend search proxy
-            response = await searchTracksFromBackend(searchQuery);
-          }
-          
-          if (response.data.tracks.items.length > 0) {
-            spotifyTrack = response.data.tracks.items[0];
-            
-            // Cache the search result
-            appCache.spotifyTracks.set(searchCacheKey, {
-              data: spotifyTrack,
-              timestamp: Date.now()
-            });
-            
-            // Cache album images if available
-            if (spotifyTrack.album?.images?.length > 0) {
-              spotifyTrack.album.images.forEach(image => {
-                if (image.url) {
-                  appCache.imageCache.set(image.url, {
-                    data: image.url,
-                    timestamp: Date.now()
-                  });
-                }
-              });
-            }
-          }
-        }
-        
-        if (spotifyTrack) {
-          
-          // Skip if already in tierlist (by ID or by artist-track combination)
-          if (existingSongIds.has(spotifyTrack.id)) {
-            continue;
-          }
-          
-          // Skip different versions of the same song
-          if (spotifyTrack.artists?.[0]) {
-            const artistName = spotifyTrack.artists[0].name.toLowerCase();
-            const trackName = spotifyTrack.name.toLowerCase();
-            const trackKey = `${artistName}###${trackName}`;
-            
-            if (existingSongNames.has(trackKey)) {
-              continue;
-            }
-            
-            // Check if this is a new artist
-            const isNewArtist = !existingArtists.has(artistName);
-            
-            // Store by artist for diversity filtering
-            if (!tracksByArtist.has(artistName)) {
-              tracksByArtist.set(artistName, []);
-            }
-            
-            // Create track object with artist newness information
-            const trackWithMeta = {
-              ...rec,
-              spotifyData: spotifyTrack,
-              isNewArtist: isNewArtist,
-              // Boost score for new artists in discovery mode
-              adjustedScore: discoverNewArtists && isNewArtist 
-                ? rec.score * 1.5 // 50% boost for new artists
-                : rec.score
-            };
-            
-            tracksByArtist.get(artistName).push(trackWithMeta);
-          }
-        }
-      } catch (error) {
-        console.error(`Error finding track on Spotify: ${rec.name} - ${rec.artist}`, error);
+
+    uniqueRecommendations.forEach(rec => {
+      const artistKey = rec.artist.toLowerCase();
+      const trackKey = rec.name.toLowerCase();
+      const songKey = `${artistKey}###${trackKey}`;
+
+      if (existingSongNames.has(songKey)) return;
+
+      const isNewArtist = !existingArtists.has(artistKey);
+      
+      if (!tracksByArtist.has(artistKey)) {
+        tracksByArtist.set(artistKey, []);
       }
-    }
+      
+      const trackWithMeta = {
+        ...rec,
+        isNewArtist,
+        adjustedScore: discoverNewArtists && isNewArtist ? rec.score * 1.5 : rec.score
+      };
+      
+      tracksByArtist.get(artistKey).push(trackWithMeta);
+    });
     
-    // Save all new items to persistent cache
-    savePersistentCache();
-    
-    // Collect all tracks into spotifyTracks
-    tracksByArtist.forEach(tracks => spotifyTracks.push(...tracks));
-    // ----- Final sorting of recommendations -----
-    // Use recommendationCount, then best source tier, then adjustedScore
+    tracksByArtist.forEach(tracks => finalTracks.push(...tracks));
+
+    // Sort tracks
     const tierPriority = tierOrder.reduce((acc, tierName, idx) => {
       acc[tierName] = idx;
       return acc;
     }, {});
+
     const getBestTierPriority = (rec) => rec.sources.reduce(
       (min, s) => {
         const pr = tierPriority[s.tier];
@@ -729,69 +665,224 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
       },
       Infinity
     );
-    spotifyTracks.sort((a, b) => {
-      // 0. Bring currently held track to the top
-      if (a.spotifyData.id === currentTrackId && b.spotifyData.id !== currentTrackId) return -1;
-      if (b.spotifyData.id === currentTrackId && a.spotifyData.id !== currentTrackId) return 1;
-      // 1. By recommendation count (desc)
-      if (b.recommendationCount !== a.recommendationCount) {
-        return b.recommendationCount - a.recommendationCount;
-      }
-      // 2. By best source tier
-      const aTier = getBestTierPriority(a);
-      const bTier = getBestTierPriority(b);
-      if (aTier !== bTier) {
-        return aTier - bTier;
-      }
-      // 3. By adjustedScore (desc)
-      return b.adjustedScore - a.adjustedScore;
-    });
-    // Return limited number of recommendations
-    return spotifyTracks.slice(0, getMaxRecommendations());
+
+    return finalTracks.sort((a, b) => {
+      const countDiff = (b.recommendationCount || 1) - (a.recommendationCount || 1);
+      if (countDiff !== 0) return countDiff;
+
+      const tierDiff = getBestTierPriority(a) - getBestTierPriority(b);
+      if (tierDiff !== 0) return tierDiff;
+
+      return (b.adjustedScore || b.score) - (a.adjustedScore || a.score);
+    }).slice(0, getMaxRecommendations());
   };
 
-  // Handle play button click
-  const handlePlayClick = (trackId) => {
-    if (onPlayTrack) {
-      onPlayTrack(trackId);
+  // Handle playing a recommended track
+  const handlePlayTrack = async (track) => {
+    if (!onPlayTrack) return;
+    
+    // Check if we already have the spotify data
+    if (track.spotifyData?.id) {
+      onPlayTrack(track.spotifyData.id);
+      return;
+    }
+
+    // Resolve spotify data
+    setResolvingTrackId(`${track.artist}###${track.name}`);
+    const spotifyData = await resolveSpotifyTrack(track);
+    setResolvingTrackId(null);
+
+    if (spotifyData?.id) {
+      // Update the track in our state so we don't have to resolve it again
+      const updatedRecs = recommendations.map(r => 
+        (r.artist === track.artist && r.name === track.name) 
+          ? { ...r, spotifyData: spotifyData || r.spotifyData, resolved: true } 
+          : r
+      );
+      setRecommendations(updatedRecs);
+      onPlayTrack(spotifyData.id);
+    } else {
+      setError(`Could not find "${track.name}" by ${track.artist} on Spotify.`);
     }
   };
 
-  // Handle add to tierlist button click
-  const handleAddToTierlist = (track) => {
-    if (onAddToTierlist) {
-      onAddToTierlist(track.spotifyData);
-      // Track which songs have been added
-      setAddedTracks(prev => new Set([...prev, track.spotifyData.id]));
+  // Handle adding a track to the tierlist
+  const handleAddToTierlist = async (track) => {
+    if (!onAddToTierlist) return;
+
+    let spotifyData = track.spotifyData;
+    
+    if (!spotifyData?.id) {
+      setResolvingTrackId(`${track.artist}###${track.name}`);
+      spotifyData = await resolveSpotifyTrack(track);
+      setResolvingTrackId(null);
+      
+      // Update local state to mark as resolved
+      const updatedRecs = recommendations.map(r => 
+        (r.artist === track.artist && r.name === track.name) 
+          ? { ...r, spotifyData: spotifyData || r.spotifyData, resolved: true } 
+          : r
+      );
+      setRecommendations(updatedRecs);
+    }
+
+    if (spotifyData?.id) {
+      onAddToTierlist({
+        ...spotifyData,
+        placeholderColor: track.placeholderColor
+      });
+      
+      // Update added status
+      const newAddedTracks = new Set(addedTracks);
+      newAddedTracks.add(spotifyData.id);
+      setAddedTracks(newAddedTracks);
+    } else {
+      setError(`Could not find "${track.name}" by ${track.artist} on Spotify.`);
     }
   };
 
-  // Handle add all to tierlist button click
-  const handleAddAllToTierlist = () => {
-    if (!onAddToTierlist || recommendations.length === 0) return;
+  // Handle add all to tierlist button click (two-step process)
+  const handleAddAllToTierlist = async () => {
+    if (!onAddToTierlist || recommendations.length === 0 || isAddingAll) return;
     
-    // Get tracks that haven't been added yet
-    const tracksToAdd = recommendations.filter(track => 
-      !addedTracks.has(track.spotifyData.id)
-    );
+    setIsAddingAll(true);
+    try {
+      const updatedRecommendations = [...recommendations];
+      
+      // Step 1: Resolve all tracks if not already resolved
+      if (!allTracksResolved) {
+        for (let i = 0; i < updatedRecommendations.length; i++) {
+          const track = updatedRecommendations[i];
+          if (!track.spotifyData?.id && !track.resolved) {
+            setResolvingTrackId(`${track.artist}###${track.name}`);
+            const spotifyData = await resolveSpotifyTrack(track);
+            updatedRecommendations[i] = { 
+              ...track, 
+              spotifyData: spotifyData || track.spotifyData,
+              resolved: true
+            };
+          }
+        }
+        setRecommendations(updatedRecommendations);
+        setResolvingTrackId(null);
+        // After fetching all, we stop and wait for the user to click "Add all to tierlist"
+        return;
+      }
+
+      // Step 2: Add all tracks to the tierlist
+      const newAddedTracks = new Set(addedTracks);
+      updatedRecommendations.forEach(track => {
+        if (track.spotifyData?.id && !addedTracks.has(track.spotifyData.id)) {
+          onAddToTierlist({
+            ...track.spotifyData,
+            placeholderColor: track.placeholderColor
+          });
+          newAddedTracks.add(track.spotifyData.id);
+        }
+      });
+      
+      setAddedTracks(newAddedTracks);
+    } catch (err) {
+      console.error('Error in batch action:', err);
+      setError('An error occurred. Please try again.');
+    } finally {
+      setIsAddingAll(false);
+      setResolvingTrackId(null);
+    }
+  };
+
+  // Helper to resolve Spotify track data for a recommendation
+  const resolveSpotifyTrack = async (track) => {
+    // Already has spotify data
+    if (track.spotifyData?.id) return track.spotifyData;
+
+    const cacheKey = `search:${track.artist.toLowerCase()}:${track.name.toLowerCase()}`;
     
-    // Add each track to the tierlist
-    tracksToAdd.forEach(track => {
-      onAddToTierlist(track.spotifyData);
-    });
+    // Check cache
+    if (appCache.spotifyTracks.has(cacheKey)) {
+      const cached = appCache.spotifyTracks.get(cacheKey);
+      if (Date.now() - cached.timestamp < appCache.CACHE_EXPIRATION) {
+        return cached.data;
+      }
+    }
+
+    try {
+      const searchQuery = `artist:${track.artist} track:${track.name}`;
+      let response;
+      const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
+
+      if (hasValidToken) {
+        response = await searchTracks(searchQuery);
+      } else {
+        response = await searchTracksFromBackend(searchQuery);
+      }
+
+      if (response.data.tracks.items.length > 0) {
+        const spotifyTrack = response.data.tracks.items[0];
+        
+        // Update cache
+        appCache.spotifyTracks.set(cacheKey, {
+          data: spotifyTrack,
+          timestamp: Date.now()
+        });
+        savePersistentCache();
+        
+        return spotifyTrack;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error resolving Spotify track:', err);
+      return null;
+    }
+  };
+
+  // Helper to get album art URL
+  const getAlbumArtUrl = (track) => {
+    // 1. Check if we already resolved Spotify data (from proactive fetch, cache, or previous play)
+    if (track.spotifyData?.album?.images?.[0]?.url) {
+      return track.spotifyData.album.images[0].url;
+    }
+
+    // 2. Check if we have direct images from Spotify (from getTopTracksFromArtist)
+    if (track.images?.[0]?.url) {
+      return track.images[0].url;
+    }
+
+    // 3. Fallback to null (UI will use colored rings)
+    return null;
+  };
+
+  // Handle adding a track to a playlist (lazy)
+  const handleAddToPlaylistLazy = async (track) => {
+    let spotifyData = track.spotifyData;
     
-    // Update the addedTracks state to include all tracks
-    const newAddedTracks = new Set(addedTracks);
-    tracksToAdd.forEach(track => {
-      newAddedTracks.add(track.spotifyData.id);
-    });
-    
-    setAddedTracks(newAddedTracks);
+    if (!spotifyData?.id) {
+      setResolvingTrackId(`${track.artist}###${track.name}`);
+      spotifyData = await resolveSpotifyTrack(track);
+      setResolvingTrackId(null);
+      
+      // Update local state to mark as resolved
+      const updatedRecs = recommendations.map(r => 
+        (r.artist === track.artist && r.name === track.name) 
+          ? { ...r, spotifyData: spotifyData || r.spotifyData, resolved: true } 
+          : r
+      );
+      setRecommendations(updatedRecs);
+    }
+
+    if (!spotifyData?.id) {
+      setError(`Could not find "${track.name}" by ${track.artist} on Spotify.`);
+    }
+    // The AddToPlaylist component will now be rendered because spotifyData.id exists
   };
 
   // Check if all tracks have been added
   const areAllTracksAdded = recommendations.length > 0 && 
-    recommendations.every(track => addedTracks.has(track.spotifyData.id));
+    recommendations.every(track => track.spotifyData?.id && addedTracks.has(track.spotifyData.id));
+
+  // Check if all tracks have been resolved (either found on Spotify or marked as unresolvable)
+  const allTracksResolved = recommendations.length > 0 && 
+    recommendations.every(track => track.spotifyData?.id || track.resolved);
 
   const isGuest = !accessToken && !tuneTierUser;
 
@@ -844,12 +935,18 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
               <button
                 className={`add-all-to-tierlist-button ${areAllTracksAdded ? 'added' : ''}`}
                 onClick={handleAddAllToTierlist}
-                disabled={areAllTracksAdded}
+                disabled={areAllTracksAdded || isAddingAll}
               >
-                {areAllTracksAdded ? 'All Added to Tierlist' : 'Add All to Tierlist'}
+                {isAddingAll 
+                  ? (allTracksResolved ? 'Adding...' : 'Fetching...') 
+                  : (areAllTracksAdded 
+                      ? 'All Added to Tierlist' 
+                      : (allTracksResolved ? 'Add All to Tierlist' : 'Fetch All Data')
+                    )
+                }
               </button>
               <AddToPlaylist 
-                trackId={recommendations.map(track => track.spotifyData.id)}
+                trackId={recommendations.filter(t => t.spotifyData?.id).map(track => track.spotifyData.id)}
                 isSingleTrack={false}
               />
             </div>
@@ -858,69 +955,95 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
             Based on songs in your ranked tiers {discoverNewArtists ? 'with emphasis on new artists' : '(higher tiers have more influence)'}
           </p>
           <div className="recommendation-tracks">
-            {recommendations.map((track, index) => (
-              <div key={index} className={`recommendation-track ${track.isNewArtist ? 'new-artist' : ''}`}>
-                {track.spotifyData?.album?.images?.[0]?.url && (
-                  <img 
-                    src={track.spotifyData.album.images[0].url} 
-                    alt={`${track.name} album art`}
-                    className="recommendation-album-cover"
-                  />
-                )}
-                <div className="recommendation-info">
-                  <div className="recommendation-track-name">{track.name}</div>
-                  <div className="recommendation-artist-name">{track.artist}</div>
-                  <div className="recommendation-source">
-                    <span className="recommendation-source-label">Based on:</span> 
-                    {track.sources.length === 1 ? (
-                      <span className="source-details">
-                        {track.sources[0].track} by {track.sources[0].artist} (Tier: {track.sources[0].tier})
-                      </span>
+            {recommendations.map((track, index) => {
+              const albumArt = getAlbumArtUrl(track);
+              return (
+                <div key={index} className={`recommendation-track ${track.isNewArtist ? 'new-artist' : ''}`}>
+                  {albumArt ? (
+                    <img 
+                      src={albumArt} 
+                      alt={`${track.name} album art`}
+                      className="recommendation-album-cover"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div 
+                      className="recommendation-album-cover-placeholder"
+                      style={{ backgroundColor: '#121212' }}
+                    >
+                      <svg viewBox="0 0 256 256" className="placeholder-svg">
+                        <circle cx="127.5" cy="128.5" r="95.5" fill={track.placeholderColor || '#1DB954'}/>
+                        <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
+                        <circle cx="127.5" cy="128.5" r="7.95833" fill={track.placeholderColor || '#1DB954'}/>
+                      </svg>
+                    </div>
+                  )}
+                  <div className="recommendation-info">
+                    <div className="recommendation-track-name">{track.name}</div>
+                    <div className="recommendation-artist-name">{track.artist}</div>
+                    <div className="recommendation-source">
+                      <span className="recommendation-source-label">Based on:</span> 
+                      {track.sources.length === 1 ? (
+                        <span className="source-details">
+                          {track.sources[0].track} by {track.sources[0].artist} (Tier: {track.sources[0].tier})
+                        </span>
+                      ) : (
+                        <span className="source-details">
+                          {track.sources.length} songs including {track.sources[0].track} by {track.sources[0].artist}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="recommendation-actions">
+                    <button 
+                      className={`play-preview-button${track.spotifyData?.id && currentTrackId === track.spotifyData.id && isPlayerPlaying ? ' playing' : ''}`}
+                      onClick={() => handlePlayTrack(track)}
+                      aria-label={track.spotifyData?.id && currentTrackId === track.spotifyData.id && isPlayerPlaying ? 'Pause preview' : 'Play preview'}
+                      disabled={resolvingTrackId === `${track.artist}###${track.name}`}
+                    >
+                      {track.spotifyData?.id && currentTrackId === track.spotifyData.id && isPlayerPlaying ? (
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                          <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                          <path fill="currentColor" d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </button>
+                    <a 
+                      href={track.spotifyData?.external_urls?.spotify || `https://open.spotify.com/search/${encodeURIComponent(`${track.artist} ${track.name}`)}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="listen-button"
+                    >
+                      Listen on Spotify
+                    </a>
+                    <button
+                      className={`add-to-tierlist-button ${track.spotifyData?.id && addedTracks.has(track.spotifyData.id) ? 'added' : ''}`}
+                      onClick={() => handleAddToTierlist(track)}
+                      disabled={(track.spotifyData?.id && addedTracks.has(track.spotifyData.id)) || resolvingTrackId === `${track.artist}###${track.name}`}
+                    >
+                      {track.spotifyData?.id && addedTracks.has(track.spotifyData.id) ? 'Added to Tierlist' : 'Add to Tierlist'}
+                    </button>
+                    {track.spotifyData?.id ? (
+                      <AddToPlaylist 
+                        trackId={track.spotifyData.id}
+                        isSingleTrack={true}
+                      />
                     ) : (
-                      <span className="source-details">
-                        {track.sources.length} songs including {track.sources[0].track} by {track.sources[0].artist}
-                      </span>
+                      <button 
+                        className="add-to-playlist-button"
+                        onClick={() => handleAddToPlaylistLazy(track)}
+                        disabled={resolvingTrackId === `${track.artist}###${track.name}`}
+                      >
+                        {resolvingTrackId === `${track.artist}###${track.name}` ? 'Resolving...' : 'Add to Playlist'}
+                      </button>
                     )}
                   </div>
                 </div>
-                <div className="recommendation-actions">
-                  <button 
-                    className={`play-preview-button${currentTrackId === track.spotifyData.id && isPlayerPlaying ? ' playing' : ''}`}
-                    onClick={() => handlePlayClick(track.spotifyData.id)}
-                    aria-label={currentTrackId === track.spotifyData.id && isPlayerPlaying ? 'Pause preview' : 'Play preview'}
-                  >
-                    {currentTrackId === track.spotifyData.id && isPlayerPlaying ? (
-                      <svg viewBox="0 0 24 24" width="20" height="20">
-                        <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" width="20" height="20">
-                        <path fill="currentColor" d="M8 5v14l11-7z" />
-                      </svg>
-                    )}
-                  </button>
-                  <a 
-                    href={track.spotifyData?.external_urls?.spotify} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="listen-button"
-                  >
-                    Listen on Spotify
-                  </a>
-                  <button
-                    className={`add-to-tierlist-button ${addedTracks.has(track.spotifyData.id) ? 'added' : ''}`}
-                    onClick={() => handleAddToTierlist(track)}
-                    disabled={addedTracks.has(track.spotifyData.id)}
-                  >
-                    {addedTracks.has(track.spotifyData.id) ? 'Added to Tierlist' : 'Add to Tierlist'}
-                  </button>
-                  <AddToPlaylist 
-                    trackId={track.spotifyData.id}
-                    isSingleTrack={true}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
