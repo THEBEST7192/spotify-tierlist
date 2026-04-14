@@ -9,7 +9,9 @@ const TierListJSONExportImport = ({
   onUpload,
   uploading = false,
   uploadedTierlist = null,
-  coverImage = ''
+  coverImage = '',
+  resetButton = false,
+  onReset = null
 }) => {
   const fileInputRef = useRef(null);
 
@@ -92,6 +94,9 @@ const TierListJSONExportImport = ({
   return (
     <>
       <div className="export-group">
+        {resetButton && onReset && (
+          <button className="export-button reset-button" onClick={onReset}>Reset</button>
+        )}
         <button className="export-button export-json-button" onClick={handleExport}>Export JSON</button>
         <button className="export-button import-json-button" onClick={handleImportClick}>Import JSON</button>
         {onUpload && (

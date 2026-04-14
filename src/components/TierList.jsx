@@ -1278,6 +1278,38 @@ const TierList = ({
     });
   };
 
+  // Function to reset all songs to Unranked tier
+  const resetSongs = () => {
+    if (window.confirm('Are you sure you want to reset all songs to the Unranked tier? This will clear all your current rankings.')) {
+      setState(prev => {
+        const allSongs = [];
+        
+        // Collect all songs from all tiers
+        Object.keys(prev).forEach(tier => {
+          if (tier !== 'tierListName' && tier !== 'coverImage' && Array.isArray(prev[tier])) {
+            allSongs.push(...prev[tier]);
+          }
+        });
+        
+        // Reset all tiers to empty except Unranked
+        const newState = {};
+        tierOrder.forEach(tier => {
+          newState[tier] = tier === 'Unranked' ? allSongs : [];
+        });
+        
+        // Preserve non-tier properties
+        if (typeof prev.tierListName === 'string') {
+          newState.tierListName = prev.tierListName;
+        }
+        if (typeof prev.coverImage === 'string') {
+          newState.coverImage = prev.coverImage;
+        }
+        
+        return newState;
+      });
+    }
+  };
+
   // Handle track end
   const handleTrackEnd = () => {
     console.log('[TierList] handleTrackEnd called, clearing currentTrack at', Date.now(), 'currentTrack:', currentTrack, 'isPlayerPlaying:', isPlayerPlaying);
@@ -2244,7 +2276,7 @@ const TierList = ({
       <div className="tier-list-actions">
         <div className="tier-list-primary-actions">
           <div className="export-group">
-            <button className="export-button" onClick={() => exportImage(playlistName)}>
+            <button className="export-button export-image-button" onClick={() => exportImage(playlistName)}>
               Export as Image
             </button>
             <TierListJSONExportImport
@@ -2260,6 +2292,8 @@ const TierList = ({
               uploadError=""
               uploadShareUrl=""
               coverImage={resolvedCoverImage}
+              resetButton={true}
+              onReset={resetSongs}
             />
           </div>
 
