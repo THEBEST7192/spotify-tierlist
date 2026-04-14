@@ -72,7 +72,8 @@
   display: inline-block; 
   text-align: center;
   margin-top: 0;
-  margin-bottom: 20px;
+  margin-bottom: 5px;
+  margin-top: 25px;
 }
 
 .upload-status-container .upload-status {
