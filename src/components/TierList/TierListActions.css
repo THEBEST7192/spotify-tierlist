@@ -1,0 +1,145 @@
+/* Tier List Actions and Export Buttons */
+
+.export-button {
+  padding: 10px 15px;
+  background: #1DB954;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.export-button:hover {
+  background: #1ed760;
+}
+
+/* JSON Export/Import button overrides */
+.export-json-button {
+  background: #2aa79e !important;
+}
+.export-json-button:hover {
+  background: #3bbba9 !important;
+}
+.import-json-button {
+  background: #3498db !important;
+}
+.import-json-button:hover {
+  background: #5aaee5 !important;
+}
+
+.tier-list-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0; 
+  margin-top: 20px;
+  align-items: center;
+}
+
+.tier-list-primary-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tier-secondary-actions {
+  margin-top: -5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.tier-list-actions .export-button {
+  margin-top: 0;
+}
+
+.tier-list-actions .export-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: -5px;
+}
+
+.tier-list-actions .export-group .export-group {
+  display: contents;
+}
+
+.upload-status-container {
+  width: auto;
+  display: inline-block; 
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.upload-status-container .upload-status {
+  display: block;
+}
+
+.export-button.reset-button {
+  background: #FF6B6B;
+}
+
+.reset-button:hover {
+  background: #FF5252;
+}
+
+@media (max-width: 768px) {
+  .tier-list-actions .export-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 0;
+    margin-bottom: 15px;
+    align-items: flex-start;
+    line-height: 1;
+  }
+
+  .tier-list-actions .export-group .export-button {
+    margin-top: 0;
+    margin-bottom: 0;
+    padding: 10px 15px;
+    line-height: 1;
+  }
+
+  .tier-list-actions .export-group .export-image-button,
+  .tier-list-actions .export-group .export-json-button,
+  .tier-list-actions .export-group .import-json-button {
+    width: calc(33.33% - 6.67px);
+    max-width: calc(33.33% - 6.67px);
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  .tier-list-actions .export-group .reset-button,
+  .tier-list-actions .export-group .upload-tierlist-button {
+    width: calc(50% - 5px);
+    max-width: calc(50% - 5px);
+    box-sizing: border-box;
+    flex-shrink: 0;
+    margin-top: 0px;
+  }
+
+  .tier-list-actions .export-group .export-image-button {
+    order: 1;
+  }
+
+  .tier-list-actions .export-group .export-json-button {
+    order: 2;
+  }
+
+  .tier-list-actions .export-group .import-json-button {
+    order: 3;
+  }
+
+  .tier-list-actions .export-group .reset-button {
+    order: 4;
+  }
+
+  .tier-list-actions .export-group .upload-tierlist-button {
+    order: 5;
+  }
+}

@@ -1,0 +1,30 @@
+/* Tier List Detection Controls */
+
+.detection-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: center;
+}
+
+.detection-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cinema-control {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.control-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #ddd;
+}

@@ -1,0 +1,199 @@
+/* Tier List Song Card Styles */
+
+.song-card {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  margin: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+  min-width: 200px;
+  max-width: 100%;
+  width: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin-bottom: 8px;
+  cursor: grab;
+  position: relative;
+  background-color: #191414; /* Spotify black */
+  color: white;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.song-card:hover {
+  background-color: #333 !important;
+}
+
+.tier-list-container.wii-enabled.wii-carrying .song-card:hover {
+  outline: 2px solid #1DB954;
+  outline-offset: 2px;
+}
+
+.song-card:active {
+  background-color: #333 !important;
+  cursor: grabbing;
+}
+
+.song-card.dragging {
+  background-color: #333 !important;
+}
+
+.song-card.playing {
+  border-left: 4px solid #1DB954;
+  padding-left: 4px;
+}
+
+.song-card.focused {
+  background-color: #333 !important; /* Match hover state */
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+  z-index: 100;
+}
+
+.wii-control-focused {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.tier-list-container.wii-enabled.wii-carrying .song-card.picked-up {
+  opacity: 0.6;
+  border: 2px dashed #1db954;
+  transform: scale(0.95);
+  animation: pulse-green 1.5s infinite;
+}
+
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(29, 185, 84, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
+}
+
+.album-cover {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 2px; /* Spotify guidelines for small/medium screens */
+  margin-bottom: 5px;
+}
+
+/* Spotify guidelines for large screens */
+@media (min-width: 1200px) {
+  .album-cover {
+    border-radius: 4px;
+  }
+}
+
+.album-cover-placeholder-wrapper {
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.tierlist-song-placeholder {
+  width: 90px;
+  height: 90px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #121212;
+}
+
+.placeholder-svg-small {
+  width: 60px;
+  height: 60px;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.song-info {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-name {
+  font-weight: bold;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-artist {
+  font-size: 0.9em;
+  color: #b3b3b3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-actions {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.play-preview-button {
+  background: none;
+  border: none;
+  color: #1DB954;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  margin-right: 8px;
+}
+
+.play-preview-button:hover {
+  background-color: rgba(29, 185, 84, 0.1);
+  transform: scale(1.1);
+}
+
+.play-preview-button.playing {
+  background-color: #1DB954;
+}
+
+.album-cover-link {
+  display: block;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.album-cover-link:hover {
+  transform: scale(1.05);
+}
+
+.spotify-icon-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+
+.spotify-icon-link:hover {
+  transform: scale(1.1);
+}
+
+.spotify-icon-small {
+  height: 16px;
+  width: 16px;
+  object-fit: contain;
+  background-color: transparent;
+  border-radius: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.song-card:hover .spotify-icon-small {
+  opacity: 1;
+}
