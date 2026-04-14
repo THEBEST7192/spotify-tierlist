@@ -176,27 +176,6 @@
   accent-color: #1DB954;
 }
 
-.create-playlist-button {
-  background-color: #1DB954;
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 20px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  margin-top: 5px;
-}
-
-.create-playlist-button:hover {
-  background-color: #1ed760;
-}
-
-.create-playlist-button:disabled {
-  background-color: #535353;
-  cursor: not-allowed;
-}
-
 /* Clone Playlist Dialog Styles */
 .clone-playlist-dialog {
   margin-top: 15px;

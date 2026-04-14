@@ -106,41 +106,14 @@
 }
 
 .my-playlists-login-prompt .my-playlists-login-note {
-  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background-color: #282828;
+  color: #ffffff;
   font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.85);
   line-height: 1.5;
-}
-
-.public-search-container {
-  display: flex;
-  gap: 10px;
-  margin: 0;
-}
-
-.public-search-container .search-input {
-  margin: 0;
-  flex: 1;
-}
-
-.online-inline-controls .online-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 16px;
-  color: #fff;
-  user-select: none;
-}
-
-.online-inline-controls .online-toggle input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: #1db954;
-}
-
-.online-inline-controls .online-toggle span {
-  font-weight: 500;
 }
 
 .sort-select {
