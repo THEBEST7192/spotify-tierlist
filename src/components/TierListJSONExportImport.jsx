@@ -11,7 +11,8 @@ const TierListJSONExportImport = ({
   uploadedTierlist = null,
   coverImage = '',
   resetButton = false,
-  onReset = null
+  onReset = null,
+  isRemix = false
 }) => {
   const fileInputRef = useRef(null);
 
@@ -105,7 +106,7 @@ const TierListJSONExportImport = ({
             onClick={onUpload}
             disabled={uploading}
           >
-            {uploading ? 'Uploading...' : uploadedTierlist ? 'Update Online Tierlist' : 'Upload Tierlist'}
+            {uploading ? 'Uploading...' : isRemix ? 'Remix Online Tierlist' : uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId ? 'Update Online Tierlist' : 'Upload Online Tierlist'}
           </button>
         )}
       </div>

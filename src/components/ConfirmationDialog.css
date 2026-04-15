@@ -12,12 +12,36 @@
 }
 
 .confirmation-dialog {
-  background-color: #282828;
+  background-color: #121212;
   border-radius: 8px;
   padding: 24px;
   width: 90%;
   max-width: 400px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.dialog-close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.dialog-close-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ff4444;
 }
 
 .dialog-title {
@@ -35,7 +59,7 @@
 
 .dialog-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 12px;
 }
 
@@ -45,12 +69,16 @@
   font-weight: bold;
   cursor: pointer;
   border: none;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .dialog-button.cancel {
-  background-color: #535353;
+  background-color: #333;
   color: #fff;
+}
+
+.dialog-button.cancel:hover {
+  background-color: #444;
 }
 
 .dialog-button.confirm {
@@ -58,10 +86,6 @@
   color: #fff;
 }
 
-.dialog-button:hover {
-  transform: scale(1.05);
-}
-
-.dialog-button:active {
-  transform: scale(0.98);
+.dialog-button.confirm:hover {
+  background-color: #1ed760;
 }

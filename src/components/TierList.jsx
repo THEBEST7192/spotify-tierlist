@@ -294,6 +294,7 @@ const TierList = ({
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [uploadShareUrl, setUploadShareUrl] = useState('');
+  const [showRemixDialog, setShowRemixDialog] = useState(false);
   const [inferredCoverImage, setInferredCoverImage] = useState('');
   const [state, setState] = useState(() => {
     return DEFAULT_TIER_ORDER.reduce((acc, tier) => ({
@@ -1124,6 +1125,32 @@ const TierList = ({
   };
 
   const handleUploadTierlist = async () => {
+    // Check if this is a remix (tierlist owned by someone else)
+    const tierlistOwnerUsername = uploadedTierlist?.onlineUsername || uploadedTierlist?.username;
+    const tierlistOwnerUserId = uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId;
+    const hasOnlineTierlistId = uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId;
+    
+    // If tierlist has online ID and user is not logged in, it's a remix
+    if (hasOnlineTierlistId && !tuneTierUser?.username) {
+      setShowRemixDialog(true);
+      return;
+    }
+    
+    // If user is logged in, check if tierlist is owned by someone else
+    // Check both _id (MongoDB) and username for ownership
+    const isOwnedById = tierlistOwnerUserId && tuneTierUser?._id && String(tierlistOwnerUserId) === String(tuneTierUser._id);
+    const isOwnedByUsername = tierlistOwnerUsername && tuneTierUser?.username && tierlistOwnerUsername === tuneTierUser.username;
+    const isOwned = isOwnedById || isOwnedByUsername;
+    
+    if (hasOnlineTierlistId && !isOwned) {
+      setShowRemixDialog(true);
+      return;
+    }
+    
+    await performUploadTierlist();
+  };
+
+  const performUploadTierlist = async () => {
     setUploadError('');
     setUploadMessage('');
     setUploadShareUrl('');
@@ -1982,11 +2009,33 @@ const TierList = ({
     />
   );
 
+  // Render the confirmation dialog for remix
+  const renderRemixDialog = () => (
+    <ConfirmationDialog
+      isOpen={showRemixDialog}
+      onClose={() => setShowRemixDialog(false)}
+      onConfirm={() => {
+        setShowRemixDialog(false);
+        // Clear online IDs to create a new tierlist instead of updating
+        setUploadedTierlist(prev => ({
+          ...prev,
+          shortId: null,
+          onlineShortId: null
+        }));
+        performUploadTierlist();
+      }}
+      title="Remix Online Tierlist"
+      message="This tierlist was created by another user. Do you want to remix it as your own tierlist?"
+      confirmText="Remix"
+    />
+  );
+
   return (
     <div
       className={`tier-list-container${isWiiEnabled ? " wii-enabled" : ""}${isWiiEnabled && pickedUpSongId ? " wii-carrying" : ""}`}
     >
       {renderUnavailableSongsDialog()}
+      {renderRemixDialog()}
       <div className="tier-controls">
         <div className="tier-controls-header">
           <button 
@@ -2299,6 +2348,23 @@ const TierList = ({
               coverImage={resolvedCoverImage}
               resetButton={true}
               onReset={resetSongs}
+              isRemix={
+                (() => {
+                  const tierlistOwnerUsername = uploadedTierlist?.onlineUsername || uploadedTierlist?.username;
+                  const tierlistOwnerUserId = uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId;
+                  const hasOnlineTierlistId = uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId;
+                  // If tierlist has online ID and user is not logged in, it's a remix
+                  if (hasOnlineTierlistId && !tuneTierUser?.username) {
+                    return true;
+                  }
+                  // If user is logged in, check if tierlist is owned by someone else
+                  // Check both _id (MongoDB) and username for ownership
+                  const isOwnedById = tierlistOwnerUserId && tuneTierUser?._id && String(tierlistOwnerUserId) === String(tuneTierUser._id);
+                  const isOwnedByUsername = tierlistOwnerUsername && tuneTierUser?.username && tierlistOwnerUsername === tuneTierUser.username;
+                  const isOwned = isOwnedById || isOwnedByUsername;
+                  return hasOnlineTierlistId && !isOwned;
+                })()
+              }
             />
           </div>
 
