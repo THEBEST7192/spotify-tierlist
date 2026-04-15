@@ -158,6 +158,7 @@ const PlaylistSelector = ({
   const [deletingId, setDeletingId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalPlaylist, setEditModalPlaylist] = useState(null);
+  const [deletedTierlistIds, setDeletedTierlistIds] = useState(new Set());
   const [editModalContext, setEditModalContext] = useState(null);
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editModalSubmitting, setEditModalSubmitting] = useState(false);
@@ -325,6 +326,25 @@ const PlaylistSelector = ({
       const lists = [];
       const ownerUserIds = new Set(); // Collect ownerUserIds for batch lookup
       
+      // Check for and process pending deletion
+      const pendingDeletion = window.localStorage.getItem('pendingTierlistDeletion');
+      if (pendingDeletion) {
+        try {
+          const { shortId } = JSON.parse(pendingDeletion);
+          // Remove the tierlist from localStorage
+          window.localStorage.removeItem(`tierlist:${shortId}`);
+          window.localStorage.removeItem(`tierlist:local:${shortId}`);
+          // Add to deleted IDs set
+          setDeletedTierlistIds(prev => new Set(prev).add(shortId));
+          // Clear pending deletion
+          window.localStorage.removeItem('pendingTierlistDeletion');
+          console.log('[PlaylistSelector] Processed pending deletion for:', shortId);
+        } catch (err) {
+          console.warn('[PlaylistSelector] Failed to process pending deletion:', err);
+          window.localStorage.removeItem('pendingTierlistDeletion');
+        }
+      }
+      
       // First pass: collect all tierlists and ownerUserIds
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
@@ -335,6 +355,12 @@ const PlaylistSelector = ({
           const parts = key.split(":");
           if (parts.length < 3) continue;
           const localId = parts[2];
+          
+          // Skip if this tierlist was deleted via remix
+          if (deletedTierlistIds.has(localId)) {
+            continue;
+          }
+          
           const raw = window.localStorage.getItem(key);
           if (!raw) continue;
           let saved;
@@ -385,7 +411,7 @@ const PlaylistSelector = ({
           const playlistLike = {
             id: localId,
             name,
-            description: displayUsername ? `Local tierlist cloned from ${displayUsername}` : "Local tierlist",
+            description: saved.description || saved.state?.description || (displayUsername ? `Local tierlist cloned from ${displayUsername}` : "Local tierlist"),
             coverImage,
             owner: { display_name: displayUsername || "You (local)" },
             _localId: localId,
@@ -402,6 +428,12 @@ const PlaylistSelector = ({
           const parts = key.split(":");
           if (parts.length < 2) continue;
           const shortId = parts[1];
+          
+          // Skip if this tierlist was deleted via remix
+          if (deletedTierlistIds.has(shortId)) {
+            continue;
+          }
+          
           const raw = window.localStorage.getItem(key);
           if (!raw) continue;
           let saved;
@@ -462,13 +494,7 @@ const PlaylistSelector = ({
           const playlistLike = {
             id: shortId,
             name,
-            description: displayUsername 
-              ? (saved.description 
-                ? `Online tierlist by ${displayUsername}: ${saved.description}`
-                : `Online tierlist by ${displayUsername}`)
-              : (saved.description 
-                ? `Online tierlist: ${saved.description}`
-                : `Online tierlist by Unknown`),
+            description: saved.description || saved.state?.description || (displayUsername ? `Online tierlist by ${displayUsername}` : "Online tierlist"),
             coverImage,
             owner: { display_name: displayUsername || "Unknown" },
             _localId: shortId,
@@ -511,9 +537,7 @@ const PlaylistSelector = ({
                 return {
                   ...playlist,
                   owner: { display_name: username },
-                  description: playlist._kind === "local-tierlist" 
-                    ? `Local tierlist cloned from ${username}`
-                    : `Online tierlist by ${username}`,
+                  description: playlist.description || playlist.originalData?.description || playlist.originalData?.state?.description,
                   cachedUsername: username
                 };
               }
@@ -537,6 +561,31 @@ const PlaylistSelector = ({
     } catch (e) {
       console.error('[PlaylistSelector] Error loading local tierlists:', e);
     }
+  }, [deletedTierlistIds]);
+
+  useEffect(() => {
+    const handleTierlistDeleted = (event) => {
+      const { shortId } = event.detail;
+      // Remove from localStorage if it exists
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(`tierlist:${shortId}`);
+          window.localStorage.removeItem(`tierlist:local:${shortId}`);
+        } catch (err) {
+          console.warn('Failed to remove tierlist from localStorage:', err);
+        }
+      }
+      // Add to deleted IDs set to prevent reloading
+      setDeletedTierlistIds(prev => new Set(prev).add(shortId));
+      // Remove from UI state
+      setLocalTierlists(prev => prev.filter(list => {
+        // Remove if either _localId or _shortId matches the deleted shortId
+        return list?._localId !== shortId && list?._shortId !== shortId && list?.id !== shortId;
+      }));
+    };
+
+    window.addEventListener('tierlistDeleted', handleTierlistDeleted);
+    return () => window.removeEventListener('tierlistDeleted', handleTierlistDeleted);
   }, []);
 
   useEffect(() => {
@@ -989,10 +1038,16 @@ const PlaylistSelector = ({
       // Handle both local tierlists and online tierlists stored locally
       if (playlist.isOnlineTierlist) {
         // Online tierlists stored locally use key format: tierlist:${shortId}
-        window.localStorage.removeItem(`tierlist:${localId}`);
+        const storageKey = `tierlist:${localId}`;
+        if (window.localStorage.getItem(storageKey)) {
+          window.localStorage.removeItem(storageKey);
+        }
       } else {
         // Regular local tierlists use key format: tierlist:local:${localId}
-        window.localStorage.removeItem(`tierlist:local:${localId}`);
+        const storageKey = `tierlist:local:${localId}`;
+        if (window.localStorage.getItem(storageKey)) {
+          window.localStorage.removeItem(storageKey);
+        }
       }
       setLocalTierlists(prev => prev.filter(list => list?._localId !== localId));
       if (typeof onDeleted === 'function') {

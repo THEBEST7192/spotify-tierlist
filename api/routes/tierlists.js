@@ -90,6 +90,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
     try {
       const {
         tierListName,
+        description,
         coverImage,
         tiers,
         tierOrder,
@@ -109,6 +110,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
           ownerUserId: String(req.user._id),
           spotifyUserId,
           tierListName,
+          description,
           coverImage,
           tiers,
           tierOrder,

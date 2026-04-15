@@ -376,6 +376,7 @@ const TierList = ({
     setTiers(imported.tiers);
     setTierOrder(tierOrder);
     const resolvedName = imported.tierListName || imported.state?.tierListName;
+    const resolvedDescription = imported.description || imported.state?.description || '';
     const importedCover = imported.coverImage
       || imported.state?.coverImage
       || pickPreferredPlaylistImage(imported.images)?.url
@@ -383,7 +384,8 @@ const TierList = ({
       || '';
     const stateWithName = {
       ...processedState,
-      ...(resolvedName && { tierListName: resolvedName })
+      ...(resolvedName && { tierListName: resolvedName }),
+      ...(resolvedDescription && { description: resolvedDescription })
     };
     const stateWithCover = importedCover
       ? { ...stateWithName, coverImage: importedCover }
@@ -734,6 +736,7 @@ const TierList = ({
 
     const payload = {
       tierListName: playlistName,
+      description: initialTierlist?.description || uploadedTierlist?.description || uploadedTierlist?.state?.description || state?.description || '',
       tiers,
       tierOrder,
       state,
@@ -1150,7 +1153,7 @@ const TierList = ({
     await performUploadTierlist();
   };
 
-  const performUploadTierlist = async () => {
+  const performUploadTierlist = async (forceCreate = false) => {
     setUploadError('');
     setUploadMessage('');
     setUploadShareUrl('');
@@ -1175,15 +1178,18 @@ const TierList = ({
         spotifyDisplayName = null;
       }
 
-      const isUpdate = Boolean(uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId);
+      const isUpdate = forceCreate ? false : Boolean(uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId);
       const resolvedTierListName = state.tierListName || playlistName || 'My Spotify Tierlist';
       const existingCoverImage = typeof state?.coverImage === 'string' && state.coverImage.trim()
         ? state.coverImage.trim()
         : '';
       const coverImage = existingCoverImage || getFirstAvailableCoverImage();
+      const description = uploadedTierlist?.description || uploadedTierlist?.state?.description || state?.description || '';
+
       const tierlistState = {
         ...state,
         tierListName: resolvedTierListName,
+        description,
         ...(coverImage ? { coverImage } : {})
       };
 
@@ -1191,6 +1197,7 @@ const TierList = ({
         ...(spotifyUserId ? { spotifyUserId } : {}),
         username: spotifyDisplayName || tuneTierUser.username,
         tierListName: resolvedTierListName,
+        description,
         coverImage,
         tiers,
         tierOrder,
@@ -1245,8 +1252,22 @@ const TierList = ({
 
       setUploadShareUrl(shareUrl);
       setUploadMessage(
-        `Tierlist ${isUpdate ? 'updated' : 'uploaded'} successfully!${shareUrl ? '' : ` ID: ${resolvedResponse?.shortId || ''}`}`
+        `Tierlist ${forceCreate ? 'remixed' : (isUpdate ? 'updated' : 'uploaded')} successfully!${shareUrl ? '' : ` ID: ${resolvedResponse?.shortId || ''}`}`
       );
+
+      // Navigate to the new tierlist page after remixing
+      if (forceCreate && resolvedResponse?.shortId && typeof window !== 'undefined') {
+        const originalShortId = uploadedTierlist.shortId || uploadedTierlist.onlineShortId;
+        
+        // Store pending deletion in localStorage to be processed after navigation
+        try {
+          localStorage.setItem('pendingTierlistDeletion', JSON.stringify({ shortId: originalShortId }));
+        } catch (err) {
+          console.warn('Failed to store pending deletion:', err);
+        }
+        
+        navigate(`/tierlists/${resolvedResponse.shortId}`);
+      }
     } catch (error) {
       console.error('Failed to upload tierlist:', error);
       const backendMessage = error.response?.data?.error;
@@ -2016,13 +2037,18 @@ const TierList = ({
       onClose={() => setShowRemixDialog(false)}
       onConfirm={() => {
         setShowRemixDialog(false);
-        // Clear online IDs to create a new tierlist instead of updating
+        // Clear online IDs to create a new tierlist instead of updating, but preserve description
         setUploadedTierlist(prev => ({
           ...prev,
           shortId: null,
           onlineShortId: null
         }));
-        performUploadTierlist();
+        // Ensure state has description before remixing
+        setState(prev => ({
+          ...prev,
+          description: prev.description || uploadedTierlist?.description || uploadedTierlist?.state?.description || ''
+        }));
+        performUploadTierlist(true);
       }}
       title="Remix Online Tierlist"
       message="This tierlist was created by another user. Do you want to remix it as your own tierlist?"

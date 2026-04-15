@@ -19,6 +19,7 @@ export function buildTierListDocument({
   ownerUserId,
   spotifyUserId,
   tierListName,
+  description = '',
   coverImage = '',
   tiers = [],
   tierOrder = [],
@@ -36,6 +37,7 @@ export function buildTierListDocument({
     ownerUserId,
     ...(spotifyUserHash ? { spotifyUserHash } : {}),
     tierListName,
+    description,
     coverImage,   // base64 string or external URL
     tiers,
     tierOrder,
