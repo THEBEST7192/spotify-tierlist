@@ -25,16 +25,16 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
       const { username, password } = req.body || {};
       const normalized = normalizeUsername(username);
       if (!normalized) {
-        return res.status(400).json({ error: 'username is required' });
+        return res.status(400).json({ error: 'Username is required' });
       }
       if (typeof password !== 'string' || password.length < 6) {
-        return res.status(400).json({ error: 'password must be at least 6 characters' });
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
       }
 
       // Check if username already exists
       const existingUser = await users.findOne({ usernameLower: normalized });
       if (existingUser) {
-        return res.status(409).json({ error: 'username already exists' });
+        return res.status(409).json({ error: 'Username already exists' });
       }
 
       const now = new Date();
@@ -56,9 +56,9 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
     } catch (err) {
       console.error('Registration error:', err);
       if (err?.code === 11000) {
-        return res.status(409).json({ error: 'username already exists' });
+        return res.status(409).json({ error: 'Username already exists' });
       }
-      return res.status(500).json({ error: 'failed to register' });
+      return res.status(500).json({ error: 'Network Error' });
     }
   });
 
@@ -67,27 +67,27 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
       const { username, password } = req.body || {};
       const normalized = normalizeUsername(username);
       if (!normalized) {
-        return res.status(400).json({ error: 'username is required' });
+        return res.status(400).json({ error: 'Username is required' });
       }
       if (typeof password !== 'string' || !password) {
-        return res.status(400).json({ error: 'password is required' });
+        return res.status(400).json({ error: 'Password is required' });
       }
 
       const user = await users.findOne({ usernameLower: normalized });
       if (!user) {
-        return res.status(401).json({ error: 'invalid credentials' });
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) {
-        return res.status(401).json({ error: 'invalid credentials' });
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       const token = signAccessToken({ sub: String(user._id) });
       return res.json({ token, user: sanitizeUser(user) });
     } catch (err) {
       console.error('Error logging in:', err);
-      return res.status(500).json({ error: 'failed to login' });
+      return res.status(500).json({ error: 'Network Error' });
     }
   });
 
@@ -99,28 +99,28 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
     try {
       const { username, password } = req.body || {};
       const userId = req.user._id;
-      
+
       // Validate username if provided
       if (username !== undefined) {
         const normalized = normalizeUsername(username);
         if (!normalized) {
-          return res.status(400).json({ error: 'username is required' });
+          return res.status(400).json({ error: 'Username is required' });
         }
-        
+
         // Check if new username already exists (and isn't the current user)
-        const existingUser = await users.findOne({ 
+        const existingUser = await users.findOne({
           usernameLower: normalized,
           _id: { $ne: userId }
         });
         if (existingUser) {
-          return res.status(409).json({ error: 'username already exists' });
+          return res.status(409).json({ error: 'Username already exists' });
         }
-        
+
         // Update username
         await users.updateOne(
           { _id: userId },
-          { 
-            $set: { 
+          {
+            $set: {
               username: username.trim(),
               usernameLower: normalized,
               updatedAt: new Date()
@@ -128,42 +128,42 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
           }
         );
       }
-      
+
       // Validate password if provided
       if (password !== undefined) {
         if (typeof password !== 'string' || password.length < 6) {
-          return res.status(400).json({ error: 'password must be at least 6 characters' });
+          return res.status(400).json({ error: 'Password must be at least 6 characters' });
         }
-        
+
         // Update password
         const passwordHash = await hashPassword(password);
         await users.updateOne(
           { _id: userId },
-          { 
-            $set: { 
+          {
+            $set: {
               passwordHash,
               updatedAt: new Date()
             }
           }
         );
       }
-      
+
       // Return updated user
       const updatedUser = await users.findOne({ _id: userId });
       return res.json({ user: sanitizeUser(updatedUser) });
     } catch (err) {
       console.error('Error updating user:', err);
       if (err?.code === 11000) {
-        return res.status(409).json({ error: 'username already exists' });
+        return res.status(409).json({ error: 'Username already exists' });
       }
-      return res.status(500).json({ error: 'failed to update user' });
+      return res.status(500).json({ error: 'Network Error' });
     }
   });
 
   router.delete('/me', requireAuth, async (req, res) => {
     try {
       const userId = req.user._id;
-      
+
       // First, delete all tierlists associated user
       const tierlists = db.collection('tierlists');
       const linked = Array.from(getLinkedSpotifyHashes(req.user));
@@ -173,18 +173,18 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
           ...(linked.length ? [{ spotifyUserHash: { $in: linked } }] : [])
         ]
       });
-      
+
       // Then delete the user account
       const result = await users.deleteOne({ _id: userId });
-      
+
       if (result.deletedCount === 0) {
-        return res.status(404).json({ error: 'user not found' });
+        return res.status(404).json({ error: 'User not found' });
       }
-      
-      return res.json({ message: 'account deleted successfully' });
+
+      return res.json({ message: 'Account deleted successfully' });
     } catch (err) {
       console.error('Error deleting user account:', err);
-      return res.status(500).json({ error: 'failed to delete account' });
+      return res.status(500).json({ error: 'Network Error' });
     }
   });
   

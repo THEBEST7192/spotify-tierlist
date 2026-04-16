@@ -25,13 +25,7 @@ const TuneTierAuthPanel = ({ setAuthToken, tuneTierUser, setTuneTierUser }) => {
       setPassword('');
     } catch (err) {
       const errorMessage = err?.response?.data?.error || err?.message || 'Failed to authenticate';
-      let readableError = errorMessage
-        .replace(/username is required/i, 'Username is required')
-        .replace(/password is required/i, 'Password is required')
-        .replace(/username already exists/i, 'Username already exists')
-        .replace(/failed to login/i, 'Network Error')
-        .replace(/failed to register/i, 'Network Error');
-      setError(readableError);
+      setError(errorMessage);
     }
   }, [mode, password, setAuthToken, setTuneTierUser, username]);
 
