@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { loginUser, registerUser, setStoredAuthToken } from '../utils/backendApi';
 import './TuneTierAuthPanel.css';
 
@@ -7,6 +7,7 @@ const TuneTierAuthPanel = ({ setAuthToken, tuneTierUser, setTuneTierUser }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const passwordInputRef = useRef(null);
 
 
   const submit = useCallback(async () => {
@@ -35,6 +36,20 @@ const TuneTierAuthPanel = ({ setAuthToken, tuneTierUser, setTuneTierUser }) => {
     setTuneTierUser(null);
   }, [setAuthToken, setTuneTierUser]);
 
+  const handleKeyDown = useCallback((e, inputType) => {
+    if (e.key === 'Enter') {
+      if (inputType === 'username') {
+        // Focus password input when Enter is pressed on username
+        if (passwordInputRef.current) {
+          passwordInputRef.current.focus();
+        }
+      } else if (inputType === 'password') {
+        // Submit when Enter is pressed on password
+        submit();
+      }
+    }
+  }, [submit]);
+
   return (
     <div className="tune-tier-auth-panel">
       {tuneTierUser ? (
@@ -59,18 +74,21 @@ const TuneTierAuthPanel = ({ setAuthToken, tuneTierUser, setTuneTierUser }) => {
             </button>
           </div>
           <div className="auth-inputs">
-            <input 
-              value={username} 
-              onChange={(e) => setUsername(e.target.value)} 
-              placeholder="Username" 
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
               className="auth-input"
+              onKeyDown={(e) => handleKeyDown(e, 'username')}
             />
-            <input 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              placeholder="Password" 
-              type="password" 
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              type="password"
               className="auth-input"
+              ref={passwordInputRef}
+              onKeyDown={(e) => handleKeyDown(e, 'password')}
             />
           </div>
           <button onClick={submit} className="auth-button auth-button-primary">
