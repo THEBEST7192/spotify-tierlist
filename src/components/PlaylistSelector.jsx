@@ -1311,7 +1311,7 @@ const PlaylistSelector = ({
   return (
     <>
     <div className="playlist-selector-container">
-      <h2>Select a Playlist</h2>
+      <h2 className="playlist-selector-title">Select a Playlist</h2>
       
       <div className="search-mode-toggle">
         <div className="desktop-mode-toggle">

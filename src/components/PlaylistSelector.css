@@ -6,6 +6,10 @@
   box-sizing: border-box;
 }
 
+.playlist-selector-title {
+  margin-top: 45px;
+}
+
 .cover-edit-modal h3 {
   margin: 0 0 4px;
   font-family: inherit;
