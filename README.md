@@ -65,11 +65,13 @@ MONGODB_HOST=YOUR_MONGODB_HOST
 MONGODB_CLIENT_NAME=YOUR_MONGODB_CLIENT_NAME
 MONGODB_DB=YOUR_MONGODB_DB
 JWT_SECRET=JWT_SECRET_HERE_MINIMUM_32_LONG
-VITE_API_BASE_URL=  # Not needed for local dev (auto-detects http://localhost:3001). Leave empty for same-domain prod (uses relative /api). Set to full backend URL for separate deployments
+RESEND_API_KEY=YOUR_RESEND_API_KEY
 VITE_BACKEND_TIMEOUT_MS=25000  # Optional, default 25000ms
 ```
 
-The `VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. The `LASTFM_API_KEY`, MongoDB vars, `JWT_SECRET`, and `VITE_API_BASE_URL` are used by the backend server.
+`VITE_SPOTIFY_CLIENT_ID` and `VITE_SPOTIFY_REDIRECT_URI` are for the frontend. 
+
+`LASTFM_API_KEY`, MongoDB vars, `JWT_SECRET`, and `RESEND_API_KEY` are used by the backend server.
 
 The client id, client secret, and redirect URI should be the same as the ones you set in the Spotify developer console, if running locally set the redirect URI to `http://127.0.0.1:3000` in the Spotify developer console and in the environment file.
 The client secret is required for generating recommendations for TuneTier-only users via the backend proxy.
