@@ -87,8 +87,21 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
       // Check if 2FA is enabled
       if (hasTwoFactorEnabled(user)) {
         if (!twoFactorCode) {
-          return res.status(400).json({ 
-            error: 'Two-factor authentication code required',
+          // Generate and send 2FA code automatically
+          const code = generateTwoFactorCode();
+          await storeTwoFactorCode(db, String(user._id), code);
+          try {
+            await sendTwoFactorEmail(user.email, code, user.username);
+          } catch (emailErr) {
+            console.error('Failed to send 2FA email:', emailErr);
+            return res.status(500).json({
+              error: 'Failed to send verification code. Please try resending.',
+              requiresTwoFactor: true
+            });
+          }
+
+          return res.status(400).json({
+            message: 'A 2FA code has been sent to your email',
             requiresTwoFactor: true
           });
         }
@@ -96,7 +109,7 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
         // Verify 2FA code
         const isValid = await verifyTwoFactorCode(db, String(user._id), twoFactorCode);
         if (!isValid) {
-          return res.status(401).json({ 
+          return res.status(401).json({
             error: 'Invalid or expired two-factor code',
             requiresTwoFactor: true
           });

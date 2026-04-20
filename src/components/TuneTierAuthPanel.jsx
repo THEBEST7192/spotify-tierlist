@@ -69,7 +69,15 @@ const TuneTierAuthPanel = ({ setAuthToken, tuneTierUser, setTuneTierUser }) => {
       // Check if this is a 2FA requirement response
       if (err?.response?.data?.requiresTwoFactor) {
         setRequiresTwoFactor(true);
-        setCodeSentMessage('Two-factor authentication required. A code has been sent to your email.');
+        const errorMessage = err?.response?.data?.error;
+        const successMessage = err?.response?.data?.message;
+        if (errorMessage) {
+          setError(errorMessage);
+        } else if (successMessage) {
+          setCodeSentMessage(successMessage);
+        } else {
+          setCodeSentMessage('Two-factor authentication required. A code has been sent to your email.');
+        }
         // Focus on 2FA input
         setTimeout(() => {
           if (twoFactorInputRef.current) {
