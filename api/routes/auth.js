@@ -1,6 +1,7 @@
 import express from 'express';
 import { normalizeUsername, hashPassword, verifyPassword } from '../utils/authUtils.js';
 import { signAccessToken } from '../utils/jwtUtils.js';
+import { generateTwoFactorCode, storeTwoFactorCode, verifyTwoFactorCode, hasTwoFactorEnabled, sendTwoFactorEmail, sendTwoFactorSetupEmail } from '../utils/twoFactorUtils.js';
 
 function sanitizeUser(user) {
   if (!user) return null;
@@ -64,7 +65,7 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
 
   router.post('/login', async (req, res) => {
     try {
-      const { username, password } = req.body || {};
+      const { username, password, twoFactorCode } = req.body || {};
       const normalized = normalizeUsername(username);
       if (!normalized) {
         return res.status(400).json({ error: 'Username is required' });
@@ -81,6 +82,25 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) {
         return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Check if 2FA is enabled
+      if (hasTwoFactorEnabled(user)) {
+        if (!twoFactorCode) {
+          return res.status(400).json({ 
+            error: 'Two-factor authentication code required',
+            requiresTwoFactor: true
+          });
+        }
+
+        // Verify 2FA code
+        const isValid = await verifyTwoFactorCode(db, String(user._id), twoFactorCode);
+        if (!isValid) {
+          return res.status(401).json({ 
+            error: 'Invalid or expired two-factor code',
+            requiresTwoFactor: true
+          });
+        }
       }
 
       const token = signAccessToken({ sub: String(user._id) });
@@ -202,6 +222,129 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
     } catch (err) {
       console.error('Error getting Spotify user info:', err);
       return res.status(500).json({ error: 'Failed to get Spotify user info' });
+    }
+  });
+
+  // Enable 2FA - send verification code
+  router.post('/2fa/enable', requireAuth, async (req, res) => {
+    try {
+      const { email } = req.body || {};
+      const userId = req.user._id;
+
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ error: 'Valid email is required' });
+      }
+
+      // Generate and store 2FA code
+      const code = generateTwoFactorCode();
+      await storeTwoFactorCode(db, String(userId), code);
+
+      // Send email with code
+      await sendTwoFactorEmail(email, code, req.user.username);
+
+      return res.json({ message: 'Verification code sent to email' });
+    } catch (err) {
+      console.error('Error enabling 2FA:', err);
+      return res.status(500).json({ error: 'Failed to send verification code' });
+    }
+  });
+
+  // Verify 2FA code during setup
+  router.post('/2fa/verify', requireAuth, async (req, res) => {
+    try {
+      const { email, code } = req.body || {};
+      const userId = req.user._id;
+
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ error: 'Valid email is required' });
+      }
+      if (!code || typeof code !== 'string' || code.length !== 6) {
+        return res.status(400).json({ error: 'Valid 6-digit code is required' });
+      }
+
+      // Verify the code
+      const isValid = await verifyTwoFactorCode(db, String(userId), code);
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid or expired code' });
+      }
+
+      // Enable 2FA for user
+      await users.updateOne(
+        { _id: userId },
+        {
+          $set: {
+            email: email.trim(),
+            twoFactorEnabled: true,
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      // Send confirmation email
+      await sendTwoFactorSetupEmail(email, req.user.username);
+
+      // Return updated user
+      const updatedUser = await users.findOne({ _id: userId });
+      return res.json({ user: sanitizeUser(updatedUser) });
+    } catch (err) {
+      console.error('Error verifying 2FA:', err);
+      return res.status(500).json({ error: 'Failed to verify code' });
+    }
+  });
+
+  // Disable 2FA
+  router.post('/2fa/disable', requireAuth, async (req, res) => {
+    try {
+      const userId = req.user._id;
+
+      await users.updateOne(
+        { _id: userId },
+        {
+          $set: {
+            twoFactorEnabled: false,
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      // Return updated user
+      const updatedUser = await users.findOne({ _id: userId });
+      return res.json({ user: sanitizeUser(updatedUser) });
+    } catch (err) {
+      console.error('Error disabling 2FA:', err);
+      return res.status(500).json({ error: 'Failed to disable 2FA' });
+    }
+  });
+
+  // Send 2FA code during login
+  router.post('/2fa/send', async (req, res) => {
+    try {
+      const { username } = req.body || {};
+      const normalized = normalizeUsername(username);
+      if (!normalized) {
+        return res.status(400).json({ error: 'Username is required' });
+      }
+
+      const user = await users.findOne({ usernameLower: normalized });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!hasTwoFactorEnabled(user)) {
+        return res.status(400).json({ error: '2FA is not enabled for this account' });
+      }
+
+      // Generate and store 2FA code
+      const code = generateTwoFactorCode();
+      await storeTwoFactorCode(db, String(user._id), code);
+
+      // Send email with code
+      await sendTwoFactorEmail(user.email, code, user.username);
+
+      return res.json({ message: 'Verification code sent to email' });
+    } catch (err) {
+      console.error('Error sending 2FA code:', err);
+      return res.status(500).json({ error: 'Failed to send verification code' });
     }
   });
 

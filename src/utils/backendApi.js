@@ -206,8 +206,8 @@ export const registerUser = async ({ username, password }) => {
   return response.data;
 };
 
-export const loginUser = async ({ username, password }) => {
-  const response = await backendApi.post('/api/auth/login', { username, password });
+export const loginUser = async ({ username, password, twoFactorCode }) => {
+  const response = await backendApi.post('/api/auth/login', { username, password, twoFactorCode });
   return response.data;
 };
 
@@ -223,6 +223,26 @@ export const updateUser = async ({ username, password }) => {
 
 export const deleteAccount = async () => {
   const response = await backendApi.delete('/api/auth/me');
+  return response.data;
+};
+
+export const enableTwoFactor = async ({ email }) => {
+  const response = await backendApi.post('/api/auth/2fa/enable', { email });
+  return response.data;
+};
+
+export const verifyTwoFactor = async ({ email, code }) => {
+  const response = await backendApi.post('/api/auth/2fa/verify', { email, code });
+  return response.data;
+};
+
+export const disableTwoFactor = async () => {
+  const response = await backendApi.post('/api/auth/2fa/disable');
+  return response.data;
+};
+
+export const sendTwoFactorCode = async ({ username }) => {
+  const response = await backendApi.post('/api/auth/2fa/send', { username }, { skipAuth: true });
   return response.data;
 };
 

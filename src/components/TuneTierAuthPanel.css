@@ -123,3 +123,33 @@
   padding: 12px;
   font-size: 14px;
 }
+
+.auth-success {
+  color: #1DB954;
+  background-color: rgba(29, 185, 84, 0.1);
+  border: 1px solid #1DB954;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.auth-2fa-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 0px;
+}
+
+.auth-button-small {
+  font-size: 13px;
+  margin-top: 0px !important;
+}
+
+.auth-submit-button {
+  margin-top: 0px !important;
+}
+
+.auth-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -7,6 +7,7 @@ import { MongoClient, ServerApiVersion } from 'mongodb';
 import { createTierlistsRouter } from './routes/tierlists.js';
 import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
 import { ensureUserIndexes } from './db/ensureUserIndexes.js';
+import { ensureTwoFactorCodeIndexes } from './db/ensureTwoFactorCodeIndexes.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
 import { createUsersBatchRouter } from './routes/tierlists.js';
@@ -102,6 +103,7 @@ async function initMongoConnection() {
     await db.command({ ping: 1 });
     await ensureTierlistIndexes(db);
     await ensureUserIndexes(db);
+    await ensureTwoFactorCodeIndexes(db);
     app.locals.mongoClient = mongoClient;
     app.locals.db = db;
   } catch (err) {

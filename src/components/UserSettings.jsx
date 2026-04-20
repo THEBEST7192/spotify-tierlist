@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { updateUser, deleteAccount } from '../utils/backendApi';
+import { updateUser, deleteAccount, enableTwoFactor, verifyTwoFactor, disableTwoFactor } from '../utils/backendApi';
 import './UserSettings.css';
 
 const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
@@ -14,6 +14,15 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  
+  // 2FA state
+  const [twoFactorEmail, setTwoFactorEmail] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false);
+  const [twoFactorStep, setTwoFactorStep] = useState('email'); // 'email' or 'verify'
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [twoFactorError, setTwoFactorError] = useState('');
+  const [twoFactorSuccess, setTwoFactorSuccess] = useState('');
 
   useEffect(() => {
     if (tuneTierUser) {
@@ -115,6 +124,88 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
 
   const hasChanges = username !== (tuneTierUser?.username || '') || password || confirmPassword || currentPassword;
 
+  const handleEnableTwoFactor = async () => {
+    setTwoFactorError('');
+    setTwoFactorSuccess('');
+    setTwoFactorLoading(true);
+
+    try {
+      if (!twoFactorEmail || !twoFactorEmail.includes('@')) {
+        setTwoFactorError('Please enter a valid email address');
+        setTwoFactorLoading(false);
+        return;
+      }
+
+      await enableTwoFactor({ email: twoFactorEmail });
+      setTwoFactorStep('verify');
+      setTwoFactorSuccess('Verification code sent to your email!');
+    } catch (err) {
+      console.error('Error enabling 2FA:', err);
+      setTwoFactorError(err.response?.data?.error || 'Failed to send verification code');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleVerifyTwoFactor = async () => {
+    setTwoFactorError('');
+    setTwoFactorSuccess('');
+    setTwoFactorLoading(true);
+
+    try {
+      if (!twoFactorCode || twoFactorCode.length !== 6) {
+        setTwoFactorError('Please enter a valid 6-digit code');
+        setTwoFactorLoading(false);
+        return;
+      }
+
+      const response = await verifyTwoFactor({ email: twoFactorEmail, code: twoFactorCode });
+      setTwoFactorSuccess('Two-factor authentication enabled successfully!');
+      setShowTwoFactorSetup(false);
+      setTwoFactorStep('email');
+      setTwoFactorEmail('');
+      setTwoFactorCode('');
+      
+      if (onUserUpdate) {
+        onUserUpdate(response.user);
+      }
+    } catch (err) {
+      console.error('Error verifying 2FA:', err);
+      setTwoFactorError(err.response?.data?.error || 'Failed to verify code');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    setTwoFactorError('');
+    setTwoFactorSuccess('');
+    setTwoFactorLoading(true);
+
+    try {
+      const response = await disableTwoFactor();
+      setTwoFactorSuccess('Two-factor authentication disabled');
+      
+      if (onUserUpdate) {
+        onUserUpdate(response.user);
+      }
+    } catch (err) {
+      console.error('Error disabling 2FA:', err);
+      setTwoFactorError(err.response?.data?.error || 'Failed to disable 2FA');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleCancelTwoFactor = () => {
+    setShowTwoFactorSetup(false);
+    setTwoFactorStep('email');
+    setTwoFactorEmail('');
+    setTwoFactorCode('');
+    setTwoFactorError('');
+    setTwoFactorSuccess('');
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-box">
@@ -204,6 +295,107 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
                 Delete Account
               </button>
             </div>
+
+            {/* Two-Factor Authentication */}
+            <div className="form-group">
+              <label>Two-Factor Authentication</label>
+              {tuneTierUser?.twoFactorEnabled ? (
+                <>
+                  <span className="two-factor-status-inline">Enabled ({tuneTierUser.email})</span>
+                  <button
+                    type="button"
+                    className="disable-2fa-button-inline"
+                    onClick={handleDisableTwoFactor}
+                    disabled={twoFactorLoading}
+                  >
+                    {twoFactorLoading ? 'Disabling...' : 'Disable'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="enable-2fa-button-inline"
+                  onClick={() => setShowTwoFactorSetup(true)}
+                  disabled={isLoading}
+                >
+                  Enable 2FA
+                </button>
+              )}
+            </div>
+
+            {/* 2FA Setup Modal */}
+            {showTwoFactorSetup && (
+              <div className="two-factor-setup-modal">
+                {twoFactorStep === 'email' ? (
+                  <div className="two-factor-step">
+                    <h4>Enable Two-Factor Authentication</h4>
+                    <p>Enter your email address to receive a verification code:</p>
+                    <div className="form-group">
+                      <input
+                        type="email"
+                        value={twoFactorEmail}
+                        onChange={(e) => setTwoFactorEmail(e.target.value)}
+                        placeholder="Enter your email"
+                      />
+                    </div>
+                    {twoFactorError && <div className="error-message">{twoFactorError}</div>}
+                    {twoFactorSuccess && <div className="success-message">{twoFactorSuccess}</div>}
+                    <div className="two-factor-actions">
+                      <button
+                        type="button"
+                        className="cancel-button"
+                        onClick={handleCancelTwoFactor}
+                        disabled={twoFactorLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="save-button"
+                        onClick={handleEnableTwoFactor}
+                        disabled={twoFactorLoading}
+                      >
+                        {twoFactorLoading ? 'Sending...' : 'Send Code'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="two-factor-step">
+                    <h4>Verify Two-Factor Authentication</h4>
+                    <p>Enter the 6-digit code sent to {twoFactorEmail}:</p>
+                    <div className="form-group">
+                      <input
+                        type="text"
+                        value={twoFactorCode}
+                        onChange={(e) => setTwoFactorCode(e.target.value)}
+                        placeholder="Enter 6-digit code"
+                        maxLength={6}
+                      />
+                    </div>
+                    {twoFactorError && <div className="error-message">{twoFactorError}</div>}
+                    {twoFactorSuccess && <div className="success-message">{twoFactorSuccess}</div>}
+                    <div className="two-factor-actions">
+                      <button
+                        type="button"
+                        className="cancel-button"
+                        onClick={handleCancelTwoFactor}
+                        disabled={twoFactorLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="save-button"
+                        onClick={handleVerifyTwoFactor}
+                        disabled={twoFactorLoading}
+                      >
+                        {twoFactorLoading ? 'Verifying...' : 'Verify & Enable'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             
             {showDeleteConfirm && (
               <div className="delete-confirm">
