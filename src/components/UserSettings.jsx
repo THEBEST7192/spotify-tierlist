@@ -6,6 +6,7 @@ import './UserSettings.css';
 const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
   const navigate = useNavigate();
   const twoFactorModalRef = useRef(null);
+  const twoFactorEmailInputRef = useRef(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,8 +35,14 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
   useEffect(() => {
     if (showTwoFactorSetup && twoFactorModalRef.current) {
       twoFactorModalRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Focus email input after scroll animation completes
+      if (twoFactorStep === 'email' && twoFactorEmailInputRef.current) {
+        setTimeout(() => {
+          twoFactorEmailInputRef.current.focus();
+        }, 500);
+      }
     }
-  }, [showTwoFactorSetup]);
+  }, [showTwoFactorSetup, twoFactorStep]);
 
   useEffect(() => {
     if ((twoFactorSuccess || twoFactorError) && twoFactorModalRef.current) {
@@ -345,6 +352,7 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
                     <p>Enter your email address to receive a verification code:</p>
                     <div className="form-group">
                       <input
+                        ref={twoFactorEmailInputRef}
                         type="email"
                         value={twoFactorEmail}
                         onChange={(e) => setTwoFactorEmail(e.target.value)}
