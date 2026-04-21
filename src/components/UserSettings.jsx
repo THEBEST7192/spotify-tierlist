@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { updateUser, deleteAccount, enableTwoFactor, verifyTwoFactor, disableTwoFactor } from '../utils/backendApi';
 import './UserSettings.css';
 
 const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
   const navigate = useNavigate();
+  const twoFactorModalRef = useRef(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,7 +15,7 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
-  
+
   // 2FA state
   const [twoFactorEmail, setTwoFactorEmail] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -29,6 +30,18 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
       setUsername(tuneTierUser.username || '');
     }
   }, [tuneTierUser]);
+
+  useEffect(() => {
+    if (showTwoFactorSetup && twoFactorModalRef.current) {
+      twoFactorModalRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [showTwoFactorSetup]);
+
+  useEffect(() => {
+    if ((twoFactorSuccess || twoFactorError) && twoFactorModalRef.current) {
+      twoFactorModalRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [twoFactorSuccess, twoFactorError]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -325,7 +338,7 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
 
             {/* 2FA Setup Modal */}
             {showTwoFactorSetup && (
-              <div className="two-factor-setup-modal">
+              <div ref={twoFactorModalRef} className="two-factor-setup-modal">
                 {twoFactorStep === 'email' ? (
                   <div className="two-factor-step">
                     <h4>Enable Two-Factor Authentication</h4>
@@ -336,6 +349,12 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
                         value={twoFactorEmail}
                         onChange={(e) => setTwoFactorEmail(e.target.value)}
                         placeholder="Enter your email"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleEnableTwoFactor();
+                          }
+                        }}
                       />
                     </div>
                     {twoFactorError && <div className="error-message">{twoFactorError}</div>}
@@ -370,6 +389,12 @@ const UserSettings = ({ tuneTierUser, onUserUpdate, onClose, onLogout }) => {
                         onChange={(e) => setTwoFactorCode(e.target.value)}
                         placeholder="Enter 6-digit code"
                         maxLength={6}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleVerifyTwoFactor();
+                          }
+                        }}
                       />
                     </div>
                     {twoFactorError && <div className="error-message">{twoFactorError}</div>}
