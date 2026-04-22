@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, transferTierlistOwnership, batchGetUsernames } from "../utils/backendApi";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, transferTierlistOwnership, batchGetUsernames, getTopRatedTierlists } from "../utils/backendApi";
 import AuthButton from "./AuthButton";
 import CSVImportSelector from "./CSVImportSelector";
+import TierlistRating from "./TierlistRating";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -144,6 +145,7 @@ const PlaylistSelector = ({
   const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [localTierlists, setLocalTierlists] = useState([]);
   const [onlineTierlists, setOnlineTierlists] = useState([]);
+  const [topRatedTierlists, setTopRatedTierlists] = useState([]);
   const [refreshTrigger] = useState(0);
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [onlineSearchQuery, setOnlineSearchQuery] = useState("");
@@ -212,7 +214,7 @@ const PlaylistSelector = ({
     }
 
     const savedOnlineSortOption = window.localStorage.getItem(ONLINE_SORT_STORAGE_KEY);
-    if (savedOnlineSortOption && ["name-asc", "name-desc", "newest", "oldest"].includes(savedOnlineSortOption)) {
+    if (savedOnlineSortOption && ["name-asc", "name-desc", "newest", "oldest", "top-rated"].includes(savedOnlineSortOption)) {
       setOnlineSortOption(savedOnlineSortOption);
     }
 
@@ -642,11 +644,14 @@ const PlaylistSelector = ({
       ? [...newestFirstLocal].reverse()
       : newestFirstLocal;
 
+    // Use topRatedTierlists when sort option is top-rated, otherwise use onlineTierlists
+    const sourceTierlists = onlineSortOption === "top-rated" ? topRatedTierlists : onlineTierlists;
+
     return {
       sortedLocalTierlists: resolvedLocalTierlists,
-      sortedOnlineTierlists: createSortedList(onlineTierlists, onlineSortOption)
+      sortedOnlineTierlists: onlineSortOption === "top-rated" ? sourceTierlists : createSortedList(sourceTierlists, onlineSortOption)
     };
-  }, [createSortedList, localTierlists, localSortOption, onlineTierlists, onlineSortOption]);
+  }, [createSortedList, localTierlists, localSortOption, onlineTierlists, topRatedTierlists, onlineSortOption]);
 
   const filterPlaylistsByQuery = useCallback((lists, query) => {
     if (!Array.isArray(lists) || !query) return lists || [];
@@ -696,6 +701,44 @@ const PlaylistSelector = ({
       setIsLoading(true);
       setError(null);
       try {
+        // If sort option is top-rated, fetch top-rated tierlists
+        if (onlineSortOption === "top-rated") {
+          const topRated = await getTopRatedTierlists({ limit: 50 });
+          
+          const normalized = topRated.map((list) => {
+            const createdAtValue = Date.parse(list.createdAt || list.updatedAt || '') || 0;
+            const coverImage = list.coverImage || list.images?.[0]?.url || '';
+            return {
+              id: list.shortId,
+              name: list.tierListName || "Untitled Tierlist",
+              description: list.description || "Top-rated tierlist",
+              coverImage: coverImage,
+              owner: {
+                name: list.username,
+                display_name: list.username,
+                id: list.ownerUserId,
+                spotifyUserHash: list.spotifyUserHash
+              },
+              _shortId: list.shortId,
+              _kind: "online-tierlist",
+              isPublic: !!list.isPublic,
+              isOwnerSelf: false, // Top-rated lists are from others
+              createdAt: createdAtValue,
+              spotifyUserHash: list.spotifyUserHash,
+              ownerUserId: list.ownerUserId,
+              username: list.username,
+              averageRating: list.averageRating,
+              totalRatings: list.totalRatings
+            };
+          });
+
+          if (!cancelled) {
+            setTopRatedTierlists(normalized);
+            setOnlineTierlists([]);
+          }
+          return;
+        }
+
         const publicListsPromise = getPublicTierlists();
         let userListsPromise = Promise.resolve([]);
         
@@ -768,6 +811,7 @@ const PlaylistSelector = ({
 
         if (!cancelled) {
           setOnlineTierlists(normalized);
+          setTopRatedTierlists([]);
         }
       } catch (err) {
         console.error("Error loading online tierlists:", err);
@@ -794,7 +838,7 @@ const PlaylistSelector = ({
     return () => {
       cancelled = true;
     };
-  }, [searchMode, tuneTierUser, accessToken, refreshTrigger]);
+  }, [searchMode, tuneTierUser, accessToken, refreshTrigger, onlineSortOption]);
 
   const handlePlaylistClick = (playlist) => {
     if (searchMode === "local" && playlist && playlist._localId && typeof onSelectLocalTierlist === "function") {
@@ -1474,6 +1518,7 @@ const PlaylistSelector = ({
                 <option value="name-desc">Name (Z-A)</option>
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>
+                <option value="top-rated">Top Rated</option>
               </select>
             </div>
           </div>
@@ -1508,6 +1553,7 @@ const PlaylistSelector = ({
               <option value="name-desc">Name (Z-A)</option>
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
+              <option value="top-rated">Top Rated</option>
             </select>
           </div>
         </div>
@@ -1620,6 +1666,9 @@ const PlaylistSelector = ({
                   alt={playlist.name || 'Playlist'}
                   className="playlist-cover"
                 />
+                {searchMode === 'online' && playlist._shortId && playlist.isPublic && (
+                  <TierlistRating shortId={playlist._shortId} tuneTierUser={tuneTierUser} />
+                )}
               </div>
               <div className="playlist-info">
                 <h3 className="playlist-name">{playlist.name || 'Untitled Playlist'}</h3>

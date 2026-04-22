@@ -288,4 +288,50 @@ export const getBatchOEmbed = async (trackIds) => {
   }
 };
 
+/**
+ * Add or update a rating for a tierlist
+ * @param {string} shortId - Tierlist short identifier
+ * @param {number} rating - Rating value (-1 for dislike, 1-5 for stars)
+ * @returns {Promise<Object>} Rating document
+ */
+export const rateTierlist = async (shortId, rating) => {
+  const response = await backendApi.post(`/api/ratings/${shortId}`, { rating });
+  return response.data;
+};
+
+/**
+ * Get ratings for a specific tierlist
+ * @param {string} shortId - Tierlist short identifier
+ * @returns {Promise<Object>} Ratings statistics
+ */
+export const getTierlistRatings = async (shortId) => {
+  const token = getStoredAuthToken();
+  const response = await backendApi.get(`/api/ratings/${shortId}`, {
+    skipAuth: !token
+  });
+  return response.data;
+};
+
+/**
+ * Remove user's rating for a tierlist
+ * @param {string} shortId - Tierlist short identifier
+ * @returns {Promise<Object>} Success message
+ */
+export const removeTierlistRating = async (shortId) => {
+  const response = await backendApi.delete(`/api/ratings/${shortId}`);
+  return response.data;
+};
+
+/**
+ * Get top rated tierlists
+ * @param {Object} params - Query parameters (limit)
+ * @returns {Promise<Object>} Top rated tierlists
+ */
+export const getTopRatedTierlists = async (params = {}) => {
+  const response = await backendApi.get('/api/ratings/sorted/top', {
+    params
+  });
+  return response.data;
+};
+
 export default backendApi;

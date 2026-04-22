@@ -8,9 +8,11 @@ import { createTierlistsRouter } from './routes/tierlists.js';
 import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
 import { ensureUserIndexes } from './db/ensureUserIndexes.js';
 import { ensureTwoFactorCodeIndexes } from './db/ensureTwoFactorCodeIndexes.js';
+import { ensureRatingIndexes } from './db/ensureRatingIndexes.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
 import { createUsersBatchRouter } from './routes/tierlists.js';
+import { createRatingsRouter } from './routes/ratings.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 
 // Load environment variables (only for local development)
@@ -104,6 +106,7 @@ async function initMongoConnection() {
     await ensureTierlistIndexes(db);
     await ensureUserIndexes(db);
     await ensureTwoFactorCodeIndexes(db);
+    await ensureRatingIndexes(db);
     app.locals.mongoClient = mongoClient;
     app.locals.db = db;
   } catch (err) {
@@ -156,6 +159,12 @@ app.use('/api/tierlists', ensureDb, (req, res, next) => {
 
 app.use('/api/users', ensureDb, (req, res, next) => {
   const router = createUsersBatchRouter(req.db);
+  return router(req, res, next);
+});
+
+app.use('/api/ratings', ensureDb, (req, res, next) => {
+  const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
+  const router = createRatingsRouter(req.db, { requireAuth, optionalAuth });
   return router(req, res, next);
 });
 
