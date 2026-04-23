@@ -9,6 +9,7 @@ import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
 import { ensureUserIndexes } from './db/ensureUserIndexes.js';
 import { ensureTwoFactorCodeIndexes } from './db/ensureTwoFactorCodeIndexes.js';
 import { ensureRatingIndexes } from './db/ensureRatingIndexes.js';
+import { ensureRateLimitIndexes } from './db/ensureRateLimitIndexes.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
 import { createUsersBatchRouter } from './routes/tierlists.js';
@@ -107,6 +108,7 @@ async function initMongoConnection() {
     await ensureUserIndexes(db);
     await ensureTwoFactorCodeIndexes(db);
     await ensureRatingIndexes(db);
+    await ensureRateLimitIndexes(db);
     app.locals.mongoClient = mongoClient;
     app.locals.db = db;
   } catch (err) {
@@ -119,6 +121,63 @@ async function initMongoConnection() {
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// MongoDB-based rate limiter
+function createMongoRateLimiter(windowMs, maxRequests, endpointPrefix = null) {
+  return async function mongoRateLimiter(req, res, next) {
+    try {
+      const db = req.db || app.locals.db;
+      if (!db) {
+        return next();
+      }
+
+      const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+                 req.headers['x-real-ip'] || 
+                 req.ip || 
+                 'unknown';
+
+      const endpoint = endpointPrefix ? endpointPrefix : req.path;
+      const now = Date.now();
+      const windowStart = now - windowMs;
+
+      const collection = db.collection('rate_limits');
+
+      // Count requests from this IP to this endpoint in the window
+      const count = await collection.countDocuments({
+        ip,
+        endpoint,
+        timestamp: { $gte: windowStart }
+      });
+
+      if (count >= maxRequests) {
+        return res.status(429).json({ 
+          error: 'Too many requests, please try again later' 
+        });
+      }
+
+      // Record request
+      await collection.insertOne({
+        ip,
+        endpoint,
+        timestamp: now
+      });
+
+      next();
+    } catch (err) {
+      console.error('Rate limiter error:', err);
+      next(); // Continue on error to not block requests
+    }
+  };
+}
+
+// Strict rate limiter for auth endpoints (10 attempts per 15 minutes)
+const authRateLimiter = createMongoRateLimiter(15 * 60 * 1000, 10, '/api/auth');
+
+// General API rate limiter (100 requests per minute)
+const apiRateLimiter = createMongoRateLimiter(60 * 1000, 100);
+
+// Lenient rate limiter for read-only endpoints (150 requests per minute)
+const readRateLimiter = createMongoRateLimiter(60 * 1000, 150);
 
 async function ensureDb(req, res, next) {
   try {
@@ -139,30 +198,30 @@ async function ensureDb(req, res, next) {
   }
 }
 
-app.use('/api/auth', ensureDb, (req, res, next) => {
+app.use('/api/auth', ensureDb, authRateLimiter, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createAuthRouter(req.db, { requireAuth, optionalAuth });
   return router(req, res, next);
 });
 
-app.use('/api/spotify', ensureDb, (req, res, next) => {
+app.use('/api/spotify', ensureDb, apiRateLimiter, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createSpotifyAccountsRouter(req.db, { requireAuth, optionalAuth });
   return router(req, res, next);
 });
 
-app.use('/api/tierlists', ensureDb, (req, res, next) => {
+app.use('/api/tierlists', ensureDb, apiRateLimiter, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createTierlistsRouter(req.db, { optionalAuth, requireAuth });
   return router(req, res, next);
 });
 
-app.use('/api/users', ensureDb, (req, res, next) => {
+app.use('/api/users', ensureDb, apiRateLimiter, (req, res, next) => {
   const router = createUsersBatchRouter(req.db);
   return router(req, res, next);
 });
 
-app.use('/api/ratings', ensureDb, (req, res, next) => {
+app.use('/api/ratings', ensureDb, apiRateLimiter, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createRatingsRouter(req.db, { requireAuth, optionalAuth });
   return router(req, res, next);
@@ -183,7 +242,7 @@ app.get('/health', async (req, res) => {
 });
 
 // Get similar tracks endpoint
-app.get('/api/similar-tracks', async (req, res) => {
+app.get('/api/similar-tracks', ensureDb, readRateLimiter, async (req, res) => {
   try {
     const { artist, track } = req.query;
     
@@ -220,7 +279,7 @@ app.get('/api/similar-tracks', async (req, res) => {
 });
 
 // Get similar artists endpoint
-app.get('/api/similar-artists', async (req, res) => {
+app.get('/api/similar-artists', ensureDb, readRateLimiter, async (req, res) => {
   try {
     const { artist, limit = 10 } = req.query;
     
@@ -257,7 +316,7 @@ app.get('/api/similar-artists', async (req, res) => {
 });
 
 // Search Spotify for a track (Client Credentials Flow)
-app.get('/api/spotify/search', ensureDb, async (req, res) => {
+app.get('/api/spotify/search', ensureDb, readRateLimiter, async (req, res) => {
   try {
     const { q } = req.query;
     if (!q) {
@@ -324,7 +383,7 @@ app.get('/api/spotify/search', ensureDb, async (req, res) => {
 });
 
 // Batch oEmbed endpoint for fetching multiple track covers
-app.post('/api/oembed/batch', async (req, res) => {
+app.post('/api/oembed/batch', ensureDb, readRateLimiter, async (req, res) => {
   try {
     const { trackIds } = req.body;
     
