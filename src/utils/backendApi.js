@@ -177,8 +177,7 @@ export const deleteTierlist = async (shortId) => {
  */
 export const getPublicTierlists = async (params = {}) => {
   const response = await backendApi.get('/api/tierlists/public', { 
-    params,
-    skipAuth: true
+    params
   });
   return response.data;
 };

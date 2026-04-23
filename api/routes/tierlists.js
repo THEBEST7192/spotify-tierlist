@@ -1,6 +1,7 @@
 import express from 'express';
 import { buildTierListDocument, hashSpotifyUserId } from '../utils/tierlistUtils.js';
 import { ObjectId } from 'mongodb';
+import { batchGetRatings } from './ratings.js';
 
 async function getUserData(db, userId) {
   if (!userId) return null;
@@ -149,7 +150,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   //
   // GET all public tierlists
   //
-  router.get('/public', async (req, res) => {
+  router.get('/public', optionalAuthMiddleware, async (req, res) => {
     try {
       const { limit } = req.query;
       const limitNum = Math.min(parseInt(limit, 10) || 50, 100);
@@ -179,10 +180,16 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
       
       const userMap = userIds.length > 0 ? await batchGetUserData(db, userIds) : {};
       
-      // Add usernames to lists
+      // Fetch ratings for all tierlists
+      const shortIds = lists.map(list => list.shortId);
+      const userId = req.user ? String(req.user._id) : null;
+      const ratingsMap = shortIds.length > 0 ? await batchGetRatings(db, shortIds, userId) : {};
+      
+      // Add usernames and ratings to lists
       const listsWithUsernames = lists.map(list => ({
         ...list,
-        username: list.ownerUserId ? userMap[list.ownerUserId] : list.username
+        username: list.ownerUserId ? userMap[list.ownerUserId] : list.username,
+        rating: ratingsMap[list.shortId] || null
       }));
       
       return res.json(listsWithUsernames);
@@ -250,10 +257,16 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
       
       const userMap = userIds.length > 0 ? await batchGetUserData(db, userIds) : {};
       
-      // Add usernames to lists
+      // Fetch ratings for all tierlists
+      const shortIds = lists.map(list => list.shortId);
+      const userId = req.user ? String(req.user._id) : null;
+      const ratingsMap = shortIds.length > 0 ? await batchGetRatings(db, shortIds, userId) : {};
+      
+      // Add usernames and ratings to lists
       const finalLists = lists.map(list => ({
         ...list,
-        username: list.ownerUserId ? userMap[list.ownerUserId] : list.username
+        username: list.ownerUserId ? userMap[list.ownerUserId] : list.username,
+        rating: ratingsMap[list.shortId] || null
       }));
       
       return res.json(finalLists);

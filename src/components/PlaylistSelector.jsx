@@ -728,7 +728,8 @@ const PlaylistSelector = ({
               ownerUserId: list.ownerUserId,
               username: list.username,
               averageRating: list.averageRating,
-              totalRatings: list.totalRatings
+              totalRatings: list.totalRatings,
+              rating: list.rating || null
             };
           });
 
@@ -791,7 +792,9 @@ const PlaylistSelector = ({
             // Include the original ownership fields for transfer detection
             spotifyUserHash: list.spotifyUserHash,
             ownerUserId: list.ownerUserId,
-            username: list.username
+            username: list.username,
+            // Include rating data from backend
+            rating: list.rating || null
           });
         };
 
@@ -1667,7 +1670,7 @@ const PlaylistSelector = ({
                   className="playlist-cover"
                 />
                 {searchMode === 'online' && playlist._shortId && playlist.isPublic && (
-                  <TierlistRating shortId={playlist._shortId} tuneTierUser={tuneTierUser} />
+                  <TierlistRating shortId={playlist._shortId} tuneTierUser={tuneTierUser} initialRatings={playlist.rating} />
                 )}
               </div>
               <div className="playlist-info">

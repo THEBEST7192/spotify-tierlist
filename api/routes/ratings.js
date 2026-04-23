@@ -1,6 +1,48 @@
 import express from 'express';
 import { ObjectId } from 'mongodb';
 
+export async function batchGetRatings(db, shortIds, userId = null) {
+  if (!shortIds || shortIds.length === 0) return {};
+  
+  const collection = db.collection('tierlist_ratings');
+  const ratings = await collection.find({ 
+    tierlistShortId: { $in: shortIds } 
+  }).toArray();
+  
+  // Group by tierlistShortId and calculate stats
+  const result = {};
+  for (const shortId of shortIds) {
+    const tierlistRatings = ratings.filter(r => r.tierlistShortId === shortId);
+    const totalRatings = tierlistRatings.length;
+    const positiveRatings = tierlistRatings.filter(r => r.rating > 0).length;
+    const negativeRatings = tierlistRatings.filter(r => r.rating === -1).length;
+    
+    let averageRating = 0;
+    if (positiveRatings > 0) {
+      const sum = tierlistRatings.filter(r => r.rating > 0).reduce((acc, r) => acc + r.rating, 0);
+      averageRating = Math.round((sum / positiveRatings) * 10) / 10;
+    }
+    
+    let userRating = null;
+    if (userId) {
+      const userRatingDoc = tierlistRatings.find(r => r.userId === userId);
+      if (userRatingDoc) {
+        userRating = userRatingDoc.rating;
+      }
+    }
+    
+    result[shortId] = {
+      totalRatings,
+      positiveRatings,
+      negativeRatings,
+      averageRating,
+      userRating
+    };
+  }
+  
+  return result;
+}
+
 export function createRatingsRouter(db, { optionalAuth, requireAuth } = {}) {
   const router = express.Router();
   const collection = db.collection('tierlist_ratings', {
@@ -192,13 +234,47 @@ export function createRatingsRouter(db, { optionalAuth, requireAuth } = {}) {
         }
       ).toArray();
 
+      // Fetch usernames for TuneTier users
+      const userIds = [...new Set(tierlists
+        .filter(list => list.ownerUserId)
+        .map(list => list.ownerUserId)
+      )];
+      
+      const users = db.collection('users');
+      const userDocs = userIds.length > 0 ? await users.find({ 
+        _id: { $in: userIds.map(id => new ObjectId(id)) } 
+      }, { 
+        projection: { _id: 1, username: 1 } 
+      }).toArray() : [];
+      
+      const userMap = userDocs.reduce((map, user) => {
+        map[String(user._id)] = user.username;
+        return map;
+      }, {});
+
+      // Fetch ratings for consistent format
+      const ratingsMap = shortIds.length > 0 ? await batchGetRatings(db, shortIds) : {};
+
       // Merge rating data with tierlist data
       const tierlistMap = new Map(tierlists.map(t => [t.shortId, t]));
-      const result = sortedTierlists.map(rating => ({
-        ...tierlistMap.get(rating._id),
-        averageRating: Math.round(rating.averageRating * 10) / 10,
-        totalRatings: rating.totalRatings
-      })).filter(Boolean);
+      const result = sortedTierlists.map(rating => {
+        const tierlist = tierlistMap.get(rating._id);
+        if (!tierlist) return null;
+        
+        const ratingData = ratingsMap[rating._id] || {
+          totalRatings: rating.totalRatings,
+          positiveRatings: rating.totalRatings,
+          negativeRatings: 0,
+          averageRating: Math.round(rating.averageRating * 10) / 10,
+          userRating: null
+        };
+        
+        return {
+          ...tierlist,
+          username: tierlist.ownerUserId ? userMap[tierlist.ownerUserId] : tierlist.username,
+          rating: ratingData
+        };
+      }).filter(Boolean);
 
       return res.json(result);
     } catch (err) {

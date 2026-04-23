@@ -2,16 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { getTierlistRatings, rateTierlist, removeTierlistRating } from '../utils/backendApi';
 import './TierlistRating.css';
 
-const TierlistRating = ({ shortId, tuneTierUser }) => {
-  const [ratings, setRatings] = useState(null);
-  const [userRating, setUserRating] = useState(null);
+const TierlistRating = ({ shortId, tuneTierUser, initialRatings }) => {
+  const [ratings, setRatings] = useState(initialRatings || null);
+  const [userRating, setUserRating] = useState(initialRatings?.userRating || null);
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredRating, setHoveredRating] = useState(null);
 
+  // Update ratings when initialRatings prop changes
   useEffect(() => {
-    if (!shortId) return;
+    if (initialRatings) {
+      setRatings(initialRatings);
+      setUserRating(initialRatings.userRating);
+    }
+  }, [initialRatings]);
+
+  // Only fetch on mount if no initial ratings provided
+  useEffect(() => {
+    if (!shortId || initialRatings) return;
     fetchRatings();
-  }, [shortId]);
+  }, [shortId, initialRatings]);
 
   const fetchRatings = async () => {
     try {
