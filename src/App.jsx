@@ -1,44 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { getAccessToken, getValidAccessToken } from './utils/SpotifyAuth';
 import { getStoredAuthToken, setStoredAuthToken, getMe } from './utils/backendApi';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import './App.css';
 
 function App() {
-  const [accessToken, setAccessToken] = useState(null);
+  const accessToken = null;
   const [authToken, setAuthToken] = useState(() => getStoredAuthToken());
   const [tuneTierUser, setTuneTierUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check for the authorization code in the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-
-    const initializeAuth = async () => {
-      try {
-        if (code) {
-          // Exchange code for tokens
-          const data = await getAccessToken(code);
-          setAccessToken(data.access_token);
-          window.history.replaceState({}, document.title, window.location.pathname);
-        } else {
-          // Try to get a valid token from storage
-          const token = await getValidAccessToken();
-          setAccessToken(token);
-        }
-      } catch (error) {
-        console.error('Authentication error:', error);
-        setAccessToken(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,10 +44,6 @@ function App() {
     };
   }, []);
 
-  if (isLoading) {
-    return <div className="loading">Loading...</div>;
-  }
-
   return (
     <BrowserRouter>
       <Routes>
@@ -87,7 +53,6 @@ function App() {
             <div className="App">
               <Home
                 accessToken={accessToken}
-                setAccessToken={setAccessToken}
                 authToken={authToken}
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
@@ -102,7 +67,6 @@ function App() {
             <div className="App">
               <Login
                 accessToken={accessToken}
-                setAccessToken={setAccessToken}
                 authToken={authToken}
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
@@ -117,7 +81,6 @@ function App() {
             <div className="App">
               <Home
                 accessToken={accessToken}
-                setAccessToken={setAccessToken}
                 authToken={authToken}
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
@@ -132,7 +95,6 @@ function App() {
             <div className="App">
               <Home
                 accessToken={accessToken}
-                setAccessToken={setAccessToken}
                 authToken={authToken}
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
@@ -147,7 +109,6 @@ function App() {
             <div className="App">
               <Home
                 accessToken={accessToken}
-                setAccessToken={setAccessToken}
                 authToken={authToken}
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}

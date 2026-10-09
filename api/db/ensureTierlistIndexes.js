@@ -13,10 +13,6 @@ export async function ensureTierlistIndexes(db) {
       name: 'idx_ownerUserId'
     },
     {
-      key: { spotifyUserHash: 1 },
-      name: 'idx_spotifyUserHash'
-    },
-    {
       key: { username: 1, isPublic: 1 },
       name: 'idx_username_isPublic'
     }

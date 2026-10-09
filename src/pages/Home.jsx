@@ -3,9 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
-import SongGroupModal from "../components/SongGroupModal";
 import { PLACEHOLDER_COLORS } from '../constants';
-import { getPlaylistTracks } from "../utils/spotifyApi";
 import { getTierlist } from "../utils/backendApi";
 
 import "./Home.css";
@@ -34,12 +32,6 @@ const describeHttpError = (error) => {
   return backendMessage || 'Unexpected error';
 };
 
-const buildPlaylistLoadError = (error, playlistName) => {
-  const friendlyName = playlistName ? `"${playlistName}"` : 'this playlist';
-  const detail = describeHttpError(error);
-  return `Failed to load tracks from ${friendlyName}: ${detail}`;
-};
-
 const buildSharedTierlistError = (error) => {
   const status = getHttpStatus(error);
   if (status === 403) {
@@ -54,16 +46,12 @@ const buildSharedTierlistError = (error) => {
 
 const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 
-const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
+const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [playlistTracks, setPlaylistTracks] = useState([]);
-  const [showSongGroupModal, setShowSongGroupModal] = useState(false);
-  const [pendingPlaylist, setPendingPlaylist] = useState(null);
-  const [totalSongs, setTotalSongs] = useState(0);
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState("online");
   const [hasProceededToPlaylists, setHasProceededToPlaylists] = useState(false);
   const [importedPlaylistName, setImportedPlaylistName] = useState('');
@@ -89,30 +77,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
   }, []);
 
-  const getLocalIdForPlaylist = useCallback((pid) => {
-    try {
-      const key = `localIdFor:${pid}`;
-      let id = localStorage.getItem(key);
-      if (!id) {
-        id = genLocalId();
-        localStorage.setItem(key, id);
-      }
-      return id;
-    } catch {
-      return pid;
-    }
-  }, [genLocalId]);
-
-  const getStoredLocalTierlistName = useCallback((localId) => {
-    try {
-      const raw = localStorage.getItem(`tierlist:local:${localId}`);
-      if (!raw) return null;
-      const saved = JSON.parse(raw);
-      return saved?.tierListName || saved?.state?.tierListName || null;
-    } catch {
-      return null;
-    }
-  }, []);
 
 
   const konamiIndexRef = useRef(0);
@@ -131,23 +95,9 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     sessionStorage.clear();
     
     // Reset state
-    if (accessToken) {
-      // Only clear Spotify-related state if logged into Spotify
-      setAccessToken(null);
-      setSelectedPlaylist(null);
-      setPlaylistTracks([]);
-      
-      // Open Spotify logout in a new window/tab
-      const spotifyLogoutWindow = window.open('https://accounts.spotify.com/logout', '_blank');
-      
-      // Close the window after a short delay
-      setTimeout(() => {
-        if (spotifyLogoutWindow) {
-          spotifyLogoutWindow.close();
-        }
-      }, 2000);
-    }
-    
+    setSelectedPlaylist(null);
+    setPlaylistTracks([]);
+
     // Always clear TuneTier auth state
     setAuthToken(null);
     setTuneTierUser(null);
@@ -234,86 +184,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     return () => clearInterval(interval);
   }, []);
 
-  const handlePlaylistSelect = useCallback(async (playlist) => {
-    try {
-      // console.log('[Home] handlePlaylistSelect', {
-      //   playlistId: playlist?.id,
-      //   name: playlist?.name,
-      //   konamiActive,
-      //   accessTokenPresent: !!accessToken
-      // });
-
-      setSharedTierlist(null);
-      setIsLoading(true);
-      setError(null);
-
-      setPendingPlaylist(playlist);
-      // Get total tracks count from items paging
-      const metaResp = await getPlaylistTracks(playlist.id, 0, 1);
-      const tracksCount = metaResp?.data?.total || 0;
-      setTotalSongs(tracksCount);
-      // console.log('[Home] playlist meta', {
-      //   playlistId: playlist.id,
-      //   tracksCount
-      // });
-
-      // Only show song group modal if not in konami mode and tracks > 100
-      if (tracksCount > 100 && !konamiActive) {
-        setShowSongGroupModal(true);
-        setIsLoading(false);
-        return;
-      }
-      
-      // In konami mode or tracks <= 100, fetch all tracks at once
-      const allTracks = [];
-      let offset = 0;
-      const limit = konamiActive ? 50 : 100; // Smaller batches in konami mode to avoid rate limiting
-      
-      while (offset < tracksCount) {
-        const response = await getPlaylistTracks(playlist.id, offset, limit);
-        const tracks = (response.data.items || [])
-          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
-          .filter(Boolean)
-          .map((track, index) => ({
-            ...track,
-            dragId: `track-${playlist.id}-${offset + index}`,
-            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
-          }));
-        allTracks.push(...tracks);
-        offset += limit;
-      }
-      // console.log('[Home] fetched all tracks', {
-      //   playlistId: playlist.id,
-      //   totalFetched: allTracks.length
-      // });
-      
-      setSelectedPlaylist(playlist);
-      setPlaylistTracks(allTracks);
-      const localId = getLocalIdForPlaylist(playlist.id);
-      const storedName = getStoredLocalTierlistName(localId);
-      const effectiveName = storedName || importedPlaylistName || playlist.name || '';
-      // console.log('[Home] navigating to local route from handlePlaylistSelect', {
-      //   playlistId: playlist.id,
-      //   localId,
-      //   songsCount: allTracks.length
-      // });
-      navigate(`/local/${localId}`, {
-        state: {
-          fromPlaylistSelect: true,
-          selectedPlaylist: { ...playlist, name: effectiveName },
-          playlistTracks: allTracks,
-          importedPlaylistName: effectiveName
-        }
-      });
-      setImportedPlaylistName(effectiveName);
-      setIsLoading(false);
-    } catch (err) {
-      console.error("Error fetching playlist tracks:", err);
-      setError(buildPlaylistLoadError(err, playlist?.name));
-      setIsLoading(false);
-    }
-  }, [navigate, konamiActive, importedPlaylistName, getLocalIdForPlaylist, getStoredLocalTierlistName, setImportedPlaylistName]);
-
   const handleLocalTierlistSelect = (localId) => {
     navigate(`/local/${localId}`);
   };
@@ -370,243 +240,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     });
   };
 
-  const handleSongGroupSelect = async (option) => {
-    if (!pendingPlaylist) return;
-
-    // console.log('[Home] handleSongGroupSelect', {
-    //   option,
-    //   pendingPlaylistId: pendingPlaylist.id,
-    //   totalSongs
-    // });
-
-    setShowSongGroupModal(false);
-    setIsLoading(true);
-    
-    let offset = 0;
-    if (option.type === "first") {
-      offset = 0;
-      try {
-        const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
-        const tracks = (response.data.items || [])
-          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
-          .filter(Boolean)
-          .map((track, index) => ({
-            ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`,
-            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
-          }));
-        setSelectedPlaylist(pendingPlaylist);
-        setPlaylistTracks(tracks);
-        const localId = getLocalIdForPlaylist(pendingPlaylist.id);
-        const storedName = getStoredLocalTierlistName(localId);
-        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
-        // console.log('[Home] songGroupSelect result', {
-        //   type: option.type,
-        //   playlistId: pendingPlaylist.id,
-        //   localId,
-        //   songsCount: tracks.length
-        // });
-        navigate(`/local/${localId}`, {
-          state: {
-            fromPlaylistSelect: true,
-            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
-            playlistTracks: tracks,
-            importedPlaylistName: effectiveName
-          }
-        });
-        setImportedPlaylistName(effectiveName);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Failed to load tracks from this playlist:", error);
-        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
-        setIsLoading(false);
-      }
-      return;
-    } else if (option.type === "middle") {
-      offset = Math.floor((totalSongs - 100) / 2);
-      try {
-        const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
-        const tracks = (response.data.items || [])
-          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
-          .filter(Boolean)
-          .map((track, index) => ({
-            ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`,
-            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
-          }));
-        setSelectedPlaylist(pendingPlaylist);
-        setPlaylistTracks(tracks);
-        const localId = getLocalIdForPlaylist(pendingPlaylist.id);
-        const storedName = getStoredLocalTierlistName(localId);
-        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
-        // console.log('[Home] songGroupSelect result', {
-        //   type: option.type,
-        //   playlistId: pendingPlaylist.id,
-        //   localId,
-        //   songsCount: tracks.length
-        // });
-        navigate(`/local/${localId}`, {
-          state: {
-            fromPlaylistSelect: true,
-            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
-            playlistTracks: tracks,
-            importedPlaylistName: effectiveName
-          }
-        });
-        setImportedPlaylistName(effectiveName);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Failed to load tracks from this playlist:", error);
-        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
-        setIsLoading(false);
-      }
-      return;
-    } else if (option.type === "last") {
-      offset = totalSongs - 100;
-      try {
-        const response = await getPlaylistTracks(pendingPlaylist.id, offset, 100);
-        const tracks = (response.data.items || [])
-          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
-          .filter(Boolean)
-          .map((track, index) => ({
-            ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`,
-            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
-          }));
-        setSelectedPlaylist(pendingPlaylist);
-        setPlaylistTracks(tracks);
-        const localId = getLocalIdForPlaylist(pendingPlaylist.id);
-        const storedName = getStoredLocalTierlistName(localId);
-        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
-        // console.log('[Home] songGroupSelect result', {
-        //   type: option.type,
-        //   playlistId: pendingPlaylist.id,
-        //   localId,
-        //   songsCount: tracks.length
-        // });
-        navigate(`/local/${localId}`, {
-          state: {
-            fromPlaylistSelect: true,
-            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
-            playlistTracks: tracks,
-            importedPlaylistName: effectiveName
-          }
-        });
-        setImportedPlaylistName(effectiveName);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Failed to load tracks from this playlist:", error);
-        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
-        setIsLoading(false);
-      }
-      return;
-    } else if (option.type === "range") {
-      // Fetch a specific range of songs
-      const startIndex = option.start - 1;
-      const count = option.end - option.start + 1;
-      try {
-        const response = await getPlaylistTracks(pendingPlaylist.id, startIndex, count);
-        const tracks = (response.data.items || [])
-          .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
-          .filter(Boolean)
-          .map((track, index) => ({
-            ...track,
-            dragId: `track-${pendingPlaylist.id}-${index}`,
-            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
-          }));
-        setSelectedPlaylist(pendingPlaylist);
-        setPlaylistTracks(tracks);
-        const localId = getLocalIdForPlaylist(pendingPlaylist.id);
-        const storedName = getStoredLocalTierlistName(localId);
-        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
-        // console.log('[Home] songGroupSelect result', {
-        //   type: option.type,
-        //   playlistId: pendingPlaylist.id,
-        //   localId,
-        //   songsCount: tracks.length
-        // });
-        navigate(`/local/${localId}`, {
-          state: {
-            fromPlaylistSelect: true,
-            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
-            playlistTracks: tracks,
-            importedPlaylistName: effectiveName
-          }
-        });
-        setImportedPlaylistName(effectiveName);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Failed to load tracks from this playlist:", error);
-        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
-        setIsLoading(false);
-      }
-      return;
-    } else if (option.type === "random") {
-      // Fetch all tracks from playlist (up to totalSongs)
-      try {
-        let allTracks = [];
-        let fetched = 0;
-        while (fetched < totalSongs) {
-          const batchSize = Math.min(100, totalSongs - fetched);
-          const resp = await getPlaylistTracks(pendingPlaylist.id, fetched, batchSize);
-          const batchTracks = (resp.data.items || [])
-            .map((item) => item?.track ?? item?.item ?? item?.content ?? null)
-            .filter(Boolean);
-          allTracks = allTracks.concat(batchTracks);
-          fetched += batchSize;
-        }
-        // Randomly shuffle allTracks
-        for (let i = allTracks.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [allTracks[i], allTracks[j]] = [allTracks[j], allTracks[i]];
-        }
-        // Split into option.groups groups
-        const groupCount = option.groups;
-        const base = Math.floor(100 / groupCount);
-        const remainder = 100 % groupCount;
-        let sizes = Array.from({ length: groupCount }, (_, i) => base + (i < remainder ? 1 : 0));
-        let selectedTracks = [];
-        let start = 0;
-        for (let size of sizes) {
-          selectedTracks = selectedTracks.concat(allTracks.slice(start, start + size));
-          start += size;
-        }
-        // Add dragId for each track
-        selectedTracks = selectedTracks.slice(0, 100).map((track, index) => ({
-          ...track,
-          dragId: `track-${pendingPlaylist.id}-${index}`,
-          placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
-        }));
-        setSelectedPlaylist(pendingPlaylist);
-        setPlaylistTracks(selectedTracks);
-        const localId = getLocalIdForPlaylist(pendingPlaylist.id);
-        const storedName = getStoredLocalTierlistName(localId);
-        const effectiveName = storedName || importedPlaylistName || pendingPlaylist.name || '';
-        // console.log('[Home] songGroupSelect result', {
-        //   type: option.type,
-        //   playlistId: pendingPlaylist.id,
-        //   localId,
-        //   songsCount: selectedTracks.length
-        // });
-        navigate(`/local/${localId}`, {
-          state: {
-            fromPlaylistSelect: true,
-            selectedPlaylist: { ...pendingPlaylist, name: effectiveName },
-            playlistTracks: selectedTracks,
-            importedPlaylistName: effectiveName
-          }
-        });
-        setImportedPlaylistName(effectiveName);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Failed to load tracks from this playlist:", error);
-        setError(buildPlaylistLoadError(error, pendingPlaylist?.name));
-        setIsLoading(false);
-      }
-      return;
-    }
-  };
-
   // Reset playlist selection to return to playlist selector
   const handleBackToPlaylists = () => {
     // console.log('[Home] handleBackToPlaylists', { prevSelectedPlaylistId: selectedPlaylist?.id });
@@ -635,8 +268,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
         owner: data?.username || undefined
       });
       setPlaylistTracks([]);
-      setPendingPlaylist(null);
-      setShowSongGroupModal(false);
 
       // Create local editable copy for online tierlists
       if (shortId && !window.location.pathname.includes('/local/')) {
@@ -714,8 +345,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
       setPlaylistTracks([]);
       setImportedPlaylistName('');
       setImportedTierlistData(null);
-      setPendingPlaylist(null);
-      setShowSongGroupModal(false);
     }
   }, [location.pathname]);
 
@@ -747,8 +376,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
         setImportedTierlistData(null); // Clear previous imported data if not present
       }
       
-      setPendingPlaylist(null);
-      setShowSongGroupModal(false);
       return;
     }
 
@@ -795,8 +422,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
       if (Array.isArray(navState.playlistTracks)) {
         setPlaylistTracks(navState.playlistTracks);
       }
-      setPendingPlaylist(null);
-      setShowSongGroupModal(false);
       // console.log('[Home] hydrated from navigation state', {
       //   songId,
       //   importedPlaylistName: nameFromState,
@@ -809,8 +434,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
     const name = storedName || 'Local Spotify Tierlist';
     setImportedPlaylistName(name);
     setSelectedPlaylist(prev => prev || { id: `local-${songId}`, name });
-    setPendingPlaylist(null);
-    setShowSongGroupModal(false);
   }, [songId, location.state]);
 
   if (isLoading) {
@@ -862,7 +485,7 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
           Debug mode {debugModeActive ? 'activated' : 'deactivated'}! Camera preview {debugModeActive ? 'enabled' : 'disabled'}.
         </div>
       )}
-      {(!accessToken && !sharedTierlist && !hasProceededToPlaylists) ? (
+      {(!sharedTierlist && !hasProceededToPlaylists) ? (
         <div className="auth-container">
           <div className="spotify-attribution">
             <img src="/logo.png" alt="Logo" className="app-full-logo" />
@@ -907,11 +530,7 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
       ) : (
         <div className="playlist-selector-container">
 
-          <PlaylistSelector 
-            accessToken={accessToken}
-            onSelect={handlePlaylistSelect} 
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
+          <PlaylistSelector
             searchMode={searchMode}
             setSearchMode={setSearchMode}
             onSelectLocalTierlist={handleLocalTierlistSelect}
@@ -923,13 +542,6 @@ const Home = ({ accessToken, setAccessToken, setAuthToken, tuneTierUser, setTune
             <p>A third-party tool for Spotify</p>
           </div>
         </div>
-      )}
-      {showSongGroupModal && (
-        <SongGroupModal
-          totalSongs={totalSongs}
-          onSelect={handleSongGroupSelect}
-          onClose={() => setShowSongGroupModal(false)}
-        />
       )}
     </div>
   );

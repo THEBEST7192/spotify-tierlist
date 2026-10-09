@@ -1,5 +1,5 @@
 import express from 'express';
-import { buildTierListDocument, hashSpotifyUserId } from '../utils/tierlistUtils.js';
+import { buildTierListDocument } from '../utils/tierlistUtils.js';
 import { ObjectId } from 'mongodb';
 import { batchGetRatings } from './ratings.js';
 
@@ -31,38 +31,16 @@ async function batchGetUserData(db, userIds) {
   }, {});
 }
 
-function getLinkedSpotifyHashes(user) {
-  if (!user || !user.linkedSpotifyAccounts) {
-    return new Set();
-  }
-  return new Set(user.linkedSpotifyAccounts.map(account => account.spotifyUserHash));
-}
-
-function canReadTierlist(list, user, spotifyUser) {
+function canReadTierlist(list, user) {
   if (!list) return false;
   if (list.isPublic) return true;
-  if (!user && !spotifyUser) return false;
-
-  if (list.ownerUserId && user && String(list.ownerUserId) === String(user._id)) {
-    return true;
-  }
-
-  if (list.spotifyUserHash && spotifyUser && list.spotifyUserHash === hashSpotifyUserId(spotifyUser.id)) {
-    return true;
-  }
-
-  return false;
+  if (!user) return false;
+  return list.ownerUserId && String(list.ownerUserId) === String(user._id);
 }
 
-function canWriteTierlist(list, user, spotifyUser) {
-  if (!list || (!user && !spotifyUser)) return false;
-  if (list.ownerUserId && user && String(list.ownerUserId) === String(user._id)) {
-    return true;
-  }
-  if (list.spotifyUserHash && spotifyUser && list.spotifyUserHash === hashSpotifyUserId(spotifyUser.id)) {
-    return true;
-  }
-  return false;
+function canWriteTierlist(list, user) {
+  if (!list || !user) return false;
+  return list.ownerUserId && String(list.ownerUserId) === String(user._id);
 }
 
 export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
@@ -96,8 +74,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         tiers,
         tierOrder,
         state,
-        isPublic,
-        spotifyUserId
+        isPublic
       } = req.body;
 
       if (!tierListName) {
@@ -109,7 +86,6 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const doc = buildTierListDocument({
           ownerUserId: String(req.user._id),
-          spotifyUserId,
           tierListName,
           description,
           coverImage,
@@ -165,26 +141,25 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
             isPublic: 1, 
             createdAt: 1, 
             updatedAt: 1,
-            ownerUserId: 1,
-            spotifyUserHash: 1
+            ownerUserId: 1
           }
         }
       ).sort({ createdAt: -1 }).limit(limitNum).maxTimeMS(10000); // 10 second timeout
       const lists = await cursor.toArray();
-      
+
       // Fetch usernames for TuneTier users using batch lookup
       const userIds = [...new Set(lists
         .filter(list => list.ownerUserId)
         .map(list => list.ownerUserId)
       )];
-      
+
       const userMap = userIds.length > 0 ? await batchGetUserData(db, userIds) : {};
-      
+
       // Fetch ratings for all tierlists
       const shortIds = lists.map(list => list.shortId);
       const userId = req.user ? String(req.user._id) : null;
       const ratingsMap = shortIds.length > 0 ? await batchGetRatings(db, shortIds, userId) : {};
-      
+
       // Add usernames and ratings to lists
       const listsWithUsernames = lists.map(list => ({
         ...list,
@@ -204,48 +179,25 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   //
   router.get('/user/self', optionalAuthMiddleware, async (req, res) => {
     try {
-      // Debug: Log authentication state
-      // console.log('Auth state in /user/self:', {
-      //   hasTuneTierUser: !!req.user,
-      //   hasSpotifyUser: !!req.spotifyUser,
-      //   tuneTierUserId: req.user?._id,
-      //   spotifyUserId: req.spotifyUser?.id,
-      //   spotifyDisplayName: req.spotifyUser?.displayName
-      // });
-      
-      // Build single optimized query
-      const query = { $or: [] };
-      
-      // Add TuneTier user condition
-      if (req.user) {
-        query.$or.push({ ownerUserId: String(req.user._id) });
-      }
-      
-      // Add Spotify user condition
-      if (req.spotifyUser) {
-        const spotifyUserHash = hashSpotifyUserId(req.spotifyUser.id);
-        // console.log('Spotify user hash:', spotifyUserHash);
-        query.$or.push({ spotifyUserHash: spotifyUserHash });
-      }
-      
-      // If no auth, return empty
-      if (query.$or.length === 0) {
+      if (!req.user) {
         return res.json([]);
       }
-      
-      const cursor = collection.find(query, { 
-        projection: { 
-          shortId: 1, 
-          tierListName: 1, 
-          description: 1, 
-          coverImage: 1, 
-          isPublic: 1, 
-          createdAt: 1, 
-          updatedAt: 1,
-          ownerUserId: 1,
-          spotifyUserHash: 1
+
+      const cursor = collection.find(
+        { ownerUserId: String(req.user._id) },
+        {
+          projection: {
+            shortId: 1,
+            tierListName: 1,
+            description: 1,
+            coverImage: 1,
+            isPublic: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            ownerUserId: 1
+          }
         }
-      }).sort({ createdAt: -1 }).maxTimeMS(10000); // 10 second timeout
+      ).sort({ createdAt: -1 }).maxTimeMS(10000); // 10 second timeout
       
       const lists = await cursor.toArray();
       
@@ -277,85 +229,6 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   });
 
   //
-  // Transfer ownership of tierlist between Spotify and TuneTier accounts
-  //
-  router.post('/:shortId/transfer', requireAuthMiddleware, async (req, res) => {
-    try {
-      const { shortId } = req.params;
-      
-      // Use lean query to find only needed fields
-      const list = await collection.findOne(
-        { shortId },
-        { projection: { shortId: 1, ownerUserId: 1, spotifyUserHash: 1 } }
-      );
-
-      if (!list) {
-        return res.status(404).json({ error: 'Tierlist not found' });
-      }
-
-      // Require both TuneTier and Spotify auth for transfer
-      if (!req.user || !req.spotifyUser) {
-        return res.status(403).json({ error: 'Must be logged into both TuneTier and Spotify accounts to transfer ownership' });
-      }
-
-      let updateData = {};
-      
-      // Transfer from Spotify to TuneTier
-      if (list.spotifyUserHash && !list.ownerUserId) {
-        if (list.spotifyUserHash !== hashSpotifyUserId(req.spotifyUser.id)) {
-          return res.status(403).json({ error: 'Cannot transfer ownership - not Spotify owner' });
-        }
-        updateData = {
-          ownerUserId: String(req.user._id),
-          spotifyUserHash: null
-        };
-      }
-      // Transfer from TuneTier to Spotify
-      else if (list.ownerUserId && !list.spotifyUserHash) {
-        if (String(list.ownerUserId) !== String(req.user._id)) {
-          return res.status(403).json({ error: 'Cannot transfer ownership - not TuneTier owner' });
-        }
-        updateData = {
-          ownerUserId: null,
-          spotifyUserHash: hashSpotifyUserId(req.spotifyUser.id)
-        };
-      }
-      // Already owned by both or neither - no transfer needed
-      else {
-        return res.status(400).json({ error: 'Cannot transfer - invalid ownership state' });
-      }
-
-      // Use lean update operation
-      const result = await collection.findOneAndUpdate(
-        { shortId },
-        { 
-          $set: { 
-            ...updateData,
-            updatedAt: new Date()
-          }
-        },
-        { 
-          returnDocument: 'after'
-        }
-      );
-
-      // Add username to response if TuneTier owner
-      let response = result.value || result;
-      if (response.ownerUserId) {
-        const user = await getUserData(db, response.ownerUserId);
-        response.username = user?.username;
-      } else if (req.spotifyUser) {
-        response.username = req.spotifyUser.displayName;
-      }
-
-      return res.json(response);
-    } catch (err) {
-      console.error('Error transferring ownership:', err);
-      return res.status(500).json({ error: 'Failed to transfer ownership' });
-    }
-  });
-
-  //
   // GET tierlist by shortId
   //
   router.get('/:shortId', optionalAuthMiddleware, async (req, res) => {
@@ -367,7 +240,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         return res.status(404).json({ error: 'Tierlist not found' });
       }
 
-      if (!canReadTierlist(list, req.user, req.spotifyUser)) {
+      if (!canReadTierlist(list, req.user)) {
         return res.status(403).json({ error: 'Tierlist is private' });
       }
 
@@ -427,22 +300,23 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   router.put('/:shortId', requireAuthMiddleware, async (req, res) => {
     try {
       const { shortId } = req.params;
-      const { spotifyUserId, ...updateData } = req.body;
       const list = await collection.findOne({ shortId });
 
       if (!list) {
         return res.status(404).json({ error: 'Tierlist not found' });
       }
 
-      if (!canWriteTierlist(list, req.user, req.spotifyUser)) {
+      if (!canWriteTierlist(list, req.user)) {
         return res.status(403).json({ error: 'Unauthorized update attempt' });
       }
 
-      const updated = {
-        ...updateData,
-        ...(spotifyUserId ? { spotifyUserHash: hashSpotifyUserId(String(spotifyUserId).trim()) } : {}),
-        updatedAt: new Date()
-      };
+      const allowedFields = ['tierListName', 'description', 'coverImage', 'tiers', 'tierOrder', 'state', 'isPublic', 'username'];
+      const updated = { updatedAt: new Date() };
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updated[field] = req.body[field];
+        }
+      }
 
       const result = await collection.findOneAndUpdate(
         { shortId },
@@ -469,7 +343,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         return res.status(404).json({ error: 'Tierlist not found' });
       }
 
-      if (!canWriteTierlist(list, req.user, req.spotifyUser)) {
+      if (!canWriteTierlist(list, req.user)) {
         return res.status(403).json({ error: 'Unauthorized delete attempt' });
       }
 
@@ -486,12 +360,8 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
   //
   router.delete('/user/all', requireAuthMiddleware, async (req, res) => {
     try {
-      const linked = Array.from(getLinkedSpotifyHashes(req.user));
       const result = await collection.deleteMany({
-        $or: [
-          { ownerUserId: String(req.user._id) },
-          ...(linked.length ? [{ spotifyUserHash: { $in: linked } }] : [])
-        ]
+        ownerUserId: String(req.user._id)
       });
 
       return res.json({ message: `Deleted ${result.deletedCount} tierlists.` });
@@ -513,7 +383,7 @@ export function createTierlistsRouter(db, { optionalAuth, requireAuth } = {}) {
         return res.status(404).json({ error: 'Tierlist not found' });
       }
 
-      if (!canWriteTierlist(list, req.user, req.spotifyUser)) {
+      if (!canWriteTierlist(list, req.user)) {
         return res.status(403).json({ error: 'Unauthorized privacy toggle' });
       }
 

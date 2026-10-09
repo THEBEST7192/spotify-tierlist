@@ -1,11 +1,6 @@
 import { customAlphabet } from 'nanoid';
-import crypto from 'crypto';
 
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 9);
-
-export function hashSpotifyUserId(spotifyUserId) {
-  return crypto.createHash('sha256').update(spotifyUserId).digest('hex');
-}
 
 export function generateShortId() {
   return nanoid();
@@ -17,7 +12,6 @@ export function generateShortId() {
  */
 export function buildTierListDocument({
   ownerUserId,
-  spotifyUserId,
   tierListName,
   description = '',
   coverImage = '',
@@ -27,7 +21,6 @@ export function buildTierListDocument({
   isPublic = true
 }) {
   const now = new Date();
-  const spotifyUserHash = spotifyUserId ? hashSpotifyUserId(spotifyUserId) : null;
 
   if (!ownerUserId) {
     throw new Error('ownerUserId is required');
@@ -35,7 +28,6 @@ export function buildTierListDocument({
 
   return {
     ownerUserId,
-    ...(spotifyUserHash ? { spotifyUserHash } : {}),
     tierListName,
     description,
     coverImage,   // base64 string or external URL

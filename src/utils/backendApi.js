@@ -38,20 +38,13 @@ backendApi.interceptors.request.use((config) => {
     return config;
   }
   
-  // Try TuneTier auth token first
+  // Add TuneTier auth token
   const token = getStoredAuthToken();
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
-  // Also add Spotify access token if available
-  const spotifyAccessToken = localStorage.getItem('access_token');
-  if (spotifyAccessToken) {
-    config.headers = config.headers || {};
-    config.headers['x-spotify-access-token'] = spotifyAccessToken;
-  }
-  
+
   return config;
 });
 
@@ -191,15 +184,6 @@ export const getUserTierlists = async () => {
   return response.data;
 };
 
-/**
- * Fetch the current Spotify user info from the backend API
- * @returns {Promise<Object>} Spotify user info response
- */
-export const getSpotifyUserInfo = async () => {
-  const response = await backendApi.get('/api/auth/spotify/me');
-  return response.data;
-};
-
 export const registerUser = async ({ username, password }) => {
   const response = await backendApi.post('/api/auth/register', { username, password });
   return response.data;
@@ -249,26 +233,6 @@ export const batchGetUsernames = async (userIds) => {
   // console.log('[API] Making batch username request for user IDs:', userIds);
   const response = await backendApi.post('/api/users/usernames', { userIds });
   // console.log('[API] Batch username response:', response.data);
-  return response.data;
-};
-
-export const transferTierlistOwnership = async (shortId) => {
-  const response = await backendApi.post(`/api/tierlists/${shortId}/transfer`);
-  return response.data;
-};
-
-export const getLinkedSpotifyAccounts = async () => {
-  const response = await backendApi.get('/api/spotify/accounts');
-  return response.data;
-};
-
-export const linkSpotifyAccount = async ({ spotifyUserId, displayName }) => {
-  const response = await backendApi.post('/api/spotify/link', { spotifyUserId, displayName });
-  return response.data;
-};
-
-export const unlinkSpotifyAccount = async (spotifyUserHash) => {
-  const response = await backendApi.delete(`/api/spotify/unlink/${spotifyUserHash}`);
   return response.data;
 };
 

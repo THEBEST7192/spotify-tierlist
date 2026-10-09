@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { getUserPlaylists, getCurrentUser } from "../utils/spotifyApi";
-import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, transferTierlistOwnership, batchGetUsernames, getTopRatedTierlists } from "../utils/backendApi";
-import AuthButton from "./AuthButton";
+import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, batchGetUsernames, getTopRatedTierlists } from "../utils/backendApi";
 import CSVImportSelector from "./CSVImportSelector";
 import TierlistRating from "./TierlistRating";
 import "./PlaylistSelector.css";
@@ -126,10 +124,6 @@ const konamiCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'];
 const debugModeCode = ['d', 'e', 'b', 'u', 'g', 'm', 'o', 'd', 'e'];
 
 const PlaylistSelector = ({
-  accessToken,
-  onSelect,
-  searchQuery,
-  setSearchQuery,
   searchMode,
   setSearchMode,
   onSelectLocalTierlist,
@@ -141,8 +135,6 @@ const PlaylistSelector = ({
   const ONLINE_SORT_STORAGE_KEY = "playlistSelector.onlineSortOption";
   const LOCAL_SORT_STORAGE_KEY = "playlistSelector.localSortOption";
 
-  const [playlists, setPlaylists] = useState([]);
-  const [filteredPlaylists, setFilteredPlaylists] = useState([]);
   const [localTierlists, setLocalTierlists] = useState([]);
   const [onlineTierlists, setOnlineTierlists] = useState([]);
   const [topRatedTierlists, setTopRatedTierlists] = useState([]);
@@ -154,7 +146,6 @@ const PlaylistSelector = ({
   const [onlineOwnerFilter, setOnlineOwnerFilter] = useState("all");
   const [, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [spotifyUserId, _setSpotifyUserId] = useState(null);
   const [coverUpdatingId, setCoverUpdatingId] = useState(null);
   const [privacyUpdatingId, setPrivacyUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -172,12 +163,8 @@ const PlaylistSelector = ({
   const [editTierlistDescription, setEditTierlistDescription] = useState("");
   const konamiIndex = useRef(0);
   const debugModeIndex = useRef(0);
-  const searchInputRef = useRef(null);
   
   const fileUploadInputRef = useRef(null);
-  const [ownedOffset, setOwnedOffset] = useState(0);
-  const [hasMoreOwned, setHasMoreOwned] = useState(false);
-  const [loadingMoreOwned, setLoadingMoreOwned] = useState(false);
 
   const checkKonamiCode = useCallback((key) => {
     // Check for Konami code
@@ -238,89 +225,6 @@ const PlaylistSelector = ({
     if (typeof window === "undefined") return;
     window.localStorage.setItem(LOCAL_SORT_STORAGE_KEY, localSortOption);
   }, [localSortOption]);
-
-  useEffect(() => {
-    const fetchFirstPage = async () => {
-      console.log("[PlaylistSelector] fetchFirstPage - Auth state:", { 
-        hasTuneTierUser: !!tuneTierUser, 
-        hasAccessToken: !!accessToken,
-        tuneTierUsername: tuneTierUser?.username 
-      });
-      
-      try {
-        // Only fetch Spotify playlists if we have an access token
-        if (!accessToken) {
-          console.log("[PlaylistSelector] No Spotify access token available, skipping Spotify playlist fetch");
-          return;
-        }
-        
-        const userResponse = await getCurrentUser();
-        const userId = userResponse.data.id;
-        _setSpotifyUserId(userId);
-        const limit = 50;
-        const response = await getUserPlaylists({ limit, offset: 0 });
-        const items = Array.isArray(response?.data?.items) ? response.data.items : [];
-        const owned = items.filter((p) => p?.owner?.id === userId);
-        setPlaylists(owned);
-        setFilteredPlaylists(owned);
-        setOwnedOffset(items.length);
-        setHasMoreOwned(!!response?.data?.next);
-        console.log("Fetched Spotify playlists:", owned.length);
-      } catch (err) {
-        console.error("Error fetching playlists:", err);
-        // Handle 429 rate limit errors gracefully
-        if (err?.response?.status === 429) {
-          console.warn("Spotify API rate limited, skipping Spotify playlists but continuing with TuneTier");
-          return;
-        }
-        // Don't show error to user if it's just missing access token
-        if (!accessToken || err.message?.includes('No access token')) {
-          return;
-        }
-      }
-    };
-    fetchFirstPage();
-  }, [accessToken, tuneTierUser]);
-
-  const loadMoreOwned = useCallback(async () => {
-    if (!hasMoreOwned || loadingMoreOwned) return;
-    
-    // Only fetch Spotify playlists if we have an access token
-    if (!accessToken) {
-      console.log("No Spotify access token available, skipping load more");
-      return;
-    }
-    
-    try {
-      setLoadingMoreOwned(true);
-      const limit = 50;
-      const response = await getUserPlaylists({ limit, offset: ownedOffset });
-      const items = Array.isArray(response?.data?.items) ? response.data.items : [];
-      const owned = spotifyUserId ? items.filter((p) => p?.owner?.id === spotifyUserId) : items;
-      const nextList = [...playlists, ...owned];
-      setPlaylists(nextList);
-
-      if (searchMode === "user" && !searchQuery) {
-        setFilteredPlaylists(nextList);
-      }
-      const newOffset = ownedOffset + items.length;
-      setOwnedOffset(newOffset);
-      setHasMoreOwned(!!response?.data?.next && items.length > 0);
-    } catch (err) {
-      console.error("Error loading more playlists:", err);
-      // Handle 429 rate limit errors gracefully
-      if (err?.response?.status === 429) {
-        console.warn("Spotify API rate limited while loading more playlists, continuing with TuneTier");
-        return;
-      }
-      // Don't show error if it's just missing access token
-      if (!accessToken || err.message?.includes('No access token')) {
-        return;
-      }
-    } finally {
-      setLoadingMoreOwned(false);
-    }
-  }, [hasMoreOwned, loadingMoreOwned, ownedOffset, playlists, searchMode, searchQuery, spotifyUserId, accessToken]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -590,22 +494,6 @@ const PlaylistSelector = ({
     return () => window.removeEventListener('tierlistDeleted', handleTierlistDeleted);
   }, []);
 
-  useEffect(() => {
-    if (searchMode === "user") {
-      if (!searchQuery) {
-        setFilteredPlaylists(playlists);
-        return;
-      }
-      
-      const filtered = playlists.filter(playlist => 
-        playlist.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (playlist.description && playlist.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (playlist.owner && playlist.owner.display_name && playlist.owner.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-      setFilteredPlaylists(filtered);
-    }
-  }, [searchQuery, playlists, searchMode]);
-
   
 
   const handleSearchModeChange = (mode) => {
@@ -666,9 +554,7 @@ const PlaylistSelector = ({
   }, []);
 
   let basePlaylists =
-    searchMode === "user"
-      ? filteredPlaylists
-      : searchMode === "local"
+    searchMode === "local"
       ? sortedLocalTierlists
       : searchMode === "online"
       ? sortedOnlineTierlists
@@ -708,6 +594,7 @@ const PlaylistSelector = ({
           const normalized = topRated.map((list) => {
             const createdAtValue = Date.parse(list.createdAt || list.updatedAt || '') || 0;
             const coverImage = list.coverImage || list.images?.[0]?.url || '';
+            const isOwnerSelf = !!tuneTierUser?._id && String(list.ownerUserId) === String(tuneTierUser._id);
             return {
               id: list.shortId,
               name: list.tierListName || "Untitled Tierlist",
@@ -716,15 +603,13 @@ const PlaylistSelector = ({
               owner: {
                 name: list.username,
                 display_name: list.username,
-                id: list.ownerUserId,
-                spotifyUserHash: list.spotifyUserHash
+                id: list.ownerUserId
               },
               _shortId: list.shortId,
               _kind: "online-tierlist",
               isPublic: !!list.isPublic,
-              isOwnerSelf: false, // Top-rated lists are from others
+              isOwnerSelf,
               createdAt: createdAtValue,
-              spotifyUserHash: list.spotifyUserHash,
               ownerUserId: list.ownerUserId,
               username: list.username,
               averageRating: list.averageRating,
@@ -743,18 +628,13 @@ const PlaylistSelector = ({
         const publicListsPromise = getPublicTierlists();
         let userListsPromise = Promise.resolve([]);
         
-        console.log("[PlaylistSelector] fetchOnlineTierlists - Auth state:", { 
-          hasTuneTierUser: !!tuneTierUser, 
-          hasAccessToken: !!accessToken,
-          tuneTierUsername: tuneTierUser?.username 
+        console.log("[PlaylistSelector] fetchOnlineTierlists - Auth state:", {
+          hasTuneTierUser: !!tuneTierUser,
+          tuneTierUsername: tuneTierUser?.username
         });
-        
-        // Always fetch user tierlists - backend will handle both local and Spotify auth
-        if (tuneTierUser || accessToken) {
-          // console.log("Fetching tierlists for authenticated user(s)");
+
+        if (tuneTierUser) {
           userListsPromise = getUserTierlists();
-        } else {
-          // console.log("No authentication found, returning empty user lists");
         }
 
         const [publicLists, userLists] = await Promise.all([publicListsPromise, userListsPromise]);
@@ -781,16 +661,13 @@ const PlaylistSelector = ({
             owner: {
               name: list.username,
               display_name: list.username,
-              id: list.ownerUserId,
-              spotifyUserHash: list.spotifyUserHash
+              id: list.ownerUserId
             },
             _shortId: list.shortId,
             _kind: "online-tierlist",
             isPublic: !!list.isPublic,
             isOwnerSelf,
             createdAt: createdAtValue,
-            // Include the original ownership fields for transfer detection
-            spotifyUserHash: list.spotifyUserHash,
             ownerUserId: list.ownerUserId,
             username: list.username,
             // Include rating data from backend
@@ -841,7 +718,7 @@ const PlaylistSelector = ({
     return () => {
       cancelled = true;
     };
-  }, [searchMode, tuneTierUser, accessToken, refreshTrigger, onlineSortOption]);
+  }, [searchMode, tuneTierUser, refreshTrigger, onlineSortOption]);
 
   const handlePlaylistClick = (playlist) => {
     if (searchMode === "local" && playlist && playlist._localId && typeof onSelectLocalTierlist === "function") {
@@ -858,10 +735,6 @@ const PlaylistSelector = ({
     if (searchMode === "online" && playlist && playlist._shortId && typeof onSelectOnlineTierlist === "function") {
       onSelectOnlineTierlist(playlist._shortId);
       return;
-    }
-
-    if (typeof onSelect === "function") {
-      onSelect(playlist);
     }
   };
 
@@ -1214,131 +1087,6 @@ const PlaylistSelector = ({
     openEditModal({ ...playlist }, context);
   }, [openEditModal]);
 
-  const handleTransferOwnership = useCallback(async (playlist) => {
-    if (!playlist._shortId || !tuneTierUser || !accessToken) {
-      return;
-    }
-    
-    // Detect ownership correctly: local playlist lacks spotifyUserHash, spotify playlist has it
-    // Check the actual fields available in the playlist object
-    const hasSpotifyHash = playlist.spotifyUserHash !== undefined && playlist.spotifyUserHash !== null;
-    const hasOwnerUserId = playlist.ownerUserId !== undefined && playlist.ownerUserId !== null;
-    
-    const isSpotifyOwned = hasSpotifyHash && !hasOwnerUserId;
-    const isLocalOwned = hasOwnerUserId && !hasSpotifyHash;
-    
-    // Debug: Log ownership detection
-    // console.log('Ownership detection:', {
-    //   isSpotifyOwned,
-    //   isLocalOwned,
-    //   hasSpotifyHash,
-    //   hasOwnerUserId,
-    //   spotifyUserHash: playlist.spotifyUserHash,
-    //   ownerUserId: playlist.ownerUserId,
-    //   ownerObject: playlist.owner,
-    //   allPlaylistKeys: Object.keys(playlist)
-    // });
-    
-    const isOwnedByCurrentUser = playlist.isOwnerSelf;
-    if (!isSpotifyOwned && !isLocalOwned && isOwnedByCurrentUser) {
-      // If we can't determine ownership from fields, don't proceed
-      return;
-    } else if (!isSpotifyOwned && !isLocalOwned) {
-      return;
-    }
-    
-    // Create dynamic confirmation message based on transfer direction
-    let direction, targetName, currentOwnerName;
-    
-    // Debug: Log the owner object specifically and its contents
-    // console.log('Transfer playlist owner object:', playlist.owner);
-    // console.log('Owner object keys:', playlist.owner ? Object.keys(playlist.owner) : 'No owner object');
-    // console.log('Owner name:', playlist.owner?.name);
-    // console.log('Full playlist object keys:', Object.keys(playlist));
-    
-    // Get current owner name from playlist data - use owner object structure
-    if (playlist.owner && typeof playlist.owner === 'object' && playlist.owner.display_name && typeof playlist.owner.display_name === 'string' && playlist.owner.display_name.trim()) {
-      currentOwnerName = playlist.owner.display_name;
-    } else if (playlist.username && typeof playlist.username === 'string' && playlist.username.trim()) {
-      currentOwnerName = playlist.username;
-    } else if (playlist.owner && typeof playlist.owner === 'string') {
-      currentOwnerName = playlist.owner;
-    } else {
-      currentOwnerName = 'Unknown';
-    }
-    
-    // console.log('Detected owner name:', currentOwnerName);
-    
-    if (isSpotifyOwned) {
-      direction = 'from Spotify to your TuneTier account';
-      targetName = tuneTierUser.username;
-    } else {
-      direction = 'from your TuneTier account to Spotify';
-      // Get actual Spotify username from auth data
-      targetName = 'your Spotify account'; // Will be updated below
-    }
-    
-    // Get Spotify username from auth data for better target name
-    if (!isSpotifyOwned && accessToken) {
-      // Get actual Spotify username from API
-      try {
-        const { getSpotifyUserInfo } = await import('../utils/backendApi.js');
-        const spotifyUserInfo = await getSpotifyUserInfo();
-        if (spotifyUserInfo && spotifyUserInfo.displayName) {
-          targetName = spotifyUserInfo.displayName;
-          // console.log('Using Spotify username from API:', targetName);
-        } else {
-          // console.log('No Spotify user info available from API');
-        }
-      } catch {
-        // console.log('Could not get Spotify username from API');
-      }
-    }
-    
-    const confirmed = window.confirm(`Transfer "${playlist.name}" ${direction}? This will change the displayed creator from "${currentOwnerName}" to "${targetName}".`);
-    if (!confirmed) {
-      return;
-    }
-    
-    try {
-      console.log('Attempting transfer...');
-      const result = await Promise.race([
-        transferTierlistOwnership(playlist._shortId),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Transfer timeout')), 10000))
-      ]);
-      
-      console.log('Transfer successful:', result);
-      
-      // Update the online tierlists state to show new ownership immediately
-      setOnlineTierlists(prev => prev.map(p => 
-        p.id === playlist._shortId 
-          ? { 
-              ...p, 
-              username: result.username,
-              ownerUserId: result.ownerUserId,
-              spotifyUserHash: result.spotifyUserHash,
-              owner: {
-                ...p.owner,
-                name: result.username,
-                display_name: result.username,
-                id: result.ownerUserId,
-                spotifyUserHash: result.spotifyUserHash
-              },
-              // Keep isOwnerSelf as true since user owns both accounts
-              isOwnerSelf: true
-            }
-          : p
-      ));
-      
-      // No need to refresh from database - we already have the updated data
-      // The UI will show the new username immediately
-    } catch (err) {
-      console.error('Failed to transfer ownership:', err);
-      console.error('Error details:', err.message, err.stack);
-      setError('Failed to transfer ownership. Please try again.');
-    }
-  }, [tuneTierUser, accessToken]);
-
   const handleDeleteTierlist = useCallback(() => {
     if (!editModalPlaylist || !editModalContext || isModalBusy) return;
     
@@ -1380,12 +1128,6 @@ const PlaylistSelector = ({
           >
             Import Playlist (CSV)
           </button>
-          <button 
-            className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
-            onClick={() => handleSearchModeChange("user")}
-          >
-            My Playlists
-          </button>
         </div>
         <div className="mobile-mode-toggle">
           <button 
@@ -1406,32 +1148,9 @@ const PlaylistSelector = ({
           >
             Import
           </button>
-          <button 
-            className={`toggle-btn ${searchMode === "user" ? "active" : ""}`}
-            onClick={() => handleSearchModeChange("user")}
-          >
-            My Playlists
-          </button>
         </div>
       </div>
 
-      {searchMode === "user" && (
-        <div className="search-input-wrapper">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search your playlists..."
-            value={searchQuery}
-            ref={searchInputRef}
-            onKeyDown={(e) => {
-              if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
-                checkKonamiCode(e.key.toLowerCase());
-              }
-            }}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      )}
       
       {searchMode === "local" && (
         <div className="search-input-wrapper">
@@ -1564,16 +1283,6 @@ const PlaylistSelector = ({
 
       {error && <div className="error-message">{error}</div>}
 
-      {searchMode === "user" && !accessToken && (
-        <div className="my-playlists-login-prompt">
-          <p>Log in with Spotify to see your playlists.</p>
-          <p className="my-playlists-login-note">
-            Spotify restricts how many users can use this app. Login here only works if you have been approved. If you have not been approved, use Online Playlists.
-          </p>
-          <AuthButton />
-        </div>
-      )}
-
       {searchMode === "import" && (
         <CSVImportSelector onSelectImported={onSelectImported} />
       )}
@@ -1649,21 +1358,6 @@ const PlaylistSelector = ({
                     <img src={playlist.isPublic ? '/assets/public.svg' : '/assets/private.svg'} alt="" aria-hidden="true" />
                   </button>
                 ) : null}
-                {/* Transfer ownership button - only show when both auths are present */}
-                {searchMode === 'online' && playlist._shortId && tuneTierUser && accessToken && playlist.isOwnerSelf && (
-                  <button
-                    type="button"
-                    className="playlist-transfer-button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleTransferOwnership(playlist);
-                    }}
-                    title={playlist.ownerUserId ? "Transfer to Spotify account" : "Transfer to TuneTier account"}
-                    aria-label="Transfer ownership"
-                  >
-                    ⇄
-                  </button>
-                )}
                 <img
                   src={imageUrl}
                   alt={playlist.name || 'Playlist'}
@@ -1684,18 +1378,6 @@ const PlaylistSelector = ({
           );
         }) : null}
       </div>
-      {searchMode === "user" && hasMoreOwned && (
-        <div className="load-more-container">
-          <button
-            type="button"
-            className="load-more-button"
-            onClick={loadMoreOwned}
-            disabled={loadingMoreOwned}
-          >
-            {loadingMoreOwned ? 'Loading…' : 'Load more'}
-          </button>
-        </div>
-      )}
     </div>
     {isEditModalOpen && (
       <div className="cover-edit-modal-overlay" role="dialog" aria-modal="true">

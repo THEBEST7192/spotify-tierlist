@@ -3,7 +3,7 @@ import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import { MongoClient, ServerApiVersion } from 'mongodb';
+import { connectMongo } from './utils/mongoConnect.js';
 import { createTierlistsRouter } from './routes/tierlists.js';
 import { ensureTierlistIndexes } from './db/ensureTierlistIndexes.js';
 import { ensureUserIndexes } from './db/ensureUserIndexes.js';
@@ -11,7 +11,6 @@ import { ensureTwoFactorCodeIndexes } from './db/ensureTwoFactorCodeIndexes.js';
 import { ensureRatingIndexes } from './db/ensureRatingIndexes.js';
 import { ensureRateLimitIndexes } from './db/ensureRateLimitIndexes.js';
 import { createAuthRouter } from './routes/auth.js';
-import { createSpotifyAccountsRouter } from './routes/spotifyAccounts.js';
 import { createUsersBatchRouter } from './routes/tierlists.js';
 import { createRatingsRouter } from './routes/ratings.js';
 import { createAuthMiddleware } from './middleware/auth.js';
@@ -90,18 +89,9 @@ async function getSpotifyServerToken() {
 
 const MONGODB_URI = `mongodb+srv://${encodeURIComponent(MONGODB_USER)}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}/${MONGODB_DB}?retryWrites=true&w=majority&appName=${MONGODB_CLIENT_NAME}`;
 
-const mongoClient = new MongoClient(MONGODB_URI, {
-  readPreference: 'primary',
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
-
 async function initMongoConnection() {
   try {
-    await mongoClient.connect();
+    const mongoClient = await connectMongo(MONGODB_URI, { readPreference: 'primary' });
     const db = mongoClient.db(MONGODB_DB);
     await db.command({ ping: 1 });
     await ensureTierlistIndexes(db);
@@ -201,12 +191,6 @@ async function ensureDb(req, res, next) {
 app.use('/api/auth', ensureDb, authRateLimiter, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createAuthRouter(req.db, { requireAuth, optionalAuth });
-  return router(req, res, next);
-});
-
-app.use('/api/spotify', ensureDb, apiRateLimiter, (req, res, next) => {
-  const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
-  const router = createSpotifyAccountsRouter(req.db, { requireAuth, optionalAuth });
   return router(req, res, next);
 });
 

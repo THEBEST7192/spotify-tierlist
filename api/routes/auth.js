@@ -10,14 +10,7 @@ function sanitizeUser(user) {
   return userCopy;
 }
 
-function getLinkedSpotifyHashes(user) {
-  if (!user || !user.linkedSpotifyAccounts) {
-    return new Set();
-  }
-  return new Set(user.linkedSpotifyAccounts.map(account => account.spotifyUserHash));
-}
-
-export function createAuthRouter(db, { requireAuth, optionalAuth }) {
+export function createAuthRouter(db, { requireAuth }) {
   const router = express.Router();
   const users = db.collection('users');
 
@@ -199,12 +192,8 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
 
       // First, delete all tierlists associated user
       const tierlists = db.collection('tierlists');
-      const linked = Array.from(getLinkedSpotifyHashes(req.user));
       await tierlists.deleteMany({
-        $or: [
-          { ownerUserId: String(userId) },
-          ...(linked.length ? [{ spotifyUserHash: { $in: linked } }] : [])
-        ]
+        ownerUserId: String(userId)
       });
 
       // Then delete the user account
@@ -221,23 +210,6 @@ export function createAuthRouter(db, { requireAuth, optionalAuth }) {
     }
   });
   
-  // GET current Spotify user info  
-  router.get('/spotify/me', optionalAuth, (req, res) => {
-    try {
-      if (req.spotifyUser) {
-        return res.json({
-          id: req.spotifyUser.id,
-          displayName: req.spotifyUser.displayName
-        });
-      } else {
-        return res.json(null);
-      }
-    } catch (err) {
-      console.error('Error getting Spotify user info:', err);
-      return res.status(500).json({ error: 'Failed to get Spotify user info' });
-    }
-  });
-
   // Enable 2FA - send verification code
   router.post('/2fa/enable', requireAuth, async (req, res) => {
     try {

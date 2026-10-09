@@ -36,8 +36,7 @@
     "eject": "react-scripts eject",
     "dev": "vite",
     "server": "cd api && npm start",
-    "server:dev": "cd api && npm run dev",
-    "migrate:tierlists": "node api/scripts/migrateTierlistOwner.js"
+    "server:dev": "cd api && npm run dev"
   },
   "eslintConfig": {
     "extends": [
@@ -72,5 +71,9 @@
   },
   "overrides": {
     "rimraf": "^6.1.2"
+  },
+  "allowScripts": {
+    "esbuild@0.25.5": true,
+    "core-js@3.29.1": true
   }
 }

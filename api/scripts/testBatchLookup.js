@@ -1,5 +1,6 @@
-import { MongoClient, ServerApiVersion, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
+import { connectMongo } from '../utils/mongoConnect.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -17,16 +18,9 @@ const MONGODB_DB = process.env.MONGODB_DB;
 const MONGODB_URI = `mongodb+srv://${encodeURIComponent(MONGODB_USER)}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}/${MONGODB_DB}?retryWrites=true&w=majority&appName=${MONGODB_CLIENT_NAME}`;
 
 async function testBatchLookup() {
-  const client = new MongoClient(MONGODB_URI, {
-    serverApi: {
-      version: ServerApiVersion.v1,
-      strict: true,
-      deprecationErrors: true,
-    }
-  });
+  const client = await connectMongo(MONGODB_URI);
 
   try {
-    await client.connect();
     console.log('Connected to MongoDB');
     
     const db = client.db(MONGODB_DB);

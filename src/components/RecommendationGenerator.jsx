@@ -1,17 +1,14 @@
 import React, { useState } from 'react';
-import { searchTracks } from '../utils/spotifyApi';
 import { 
   getSimilarTracksFromBackend, 
   getSimilarArtistsFromBackend, 
   searchTracksFromBackend 
 } from '../utils/backendApi';
 import './RecommendationGenerator.css';
-import AddToPlaylist from './AddToPlaylist';
 import { PLACEHOLDER_COLORS } from '../constants';
 
 // Constants for recommendation configuration
-const MAX_RECOMMENDATIONS_SPOTIFY = 100; // Maximum recommendations for Spotify users
-const MAX_RECOMMENDATIONS_TUNETIER = 50; // Half limit for TuneTier users
+const MAX_RECOMMENDATIONS_TUNETIER = 50; // Maximum recommendations for TuneTier users
 
 // Cache key for local storage
 const LOCAL_STORAGE_CACHE_KEY = 'spotify_track_id_cache';
@@ -73,7 +70,7 @@ const savePersistentCache = () => {
 // Initial load
 loadPersistentCache();
 
-const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying, accessToken, tuneTierUser }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying, tuneTierUser }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingAll, setIsAddingAll] = useState(false);
@@ -88,14 +85,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
 
   // Determine maximum recommendations based on user type
   const getMaxRecommendations = () => {
-    // Robust check for a valid-looking access token string
-    const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
-
-    // If user is logged in with Spotify (has accessToken)
-    if (hasValidToken) {
-      return MAX_RECOMMENDATIONS_SPOTIFY;
-    }
-    // If user is logged in with TuneTier (has tuneTierUser but no Spotify accessToken)
+    // If user is logged in with TuneTier
     if (tuneTierUser) {
       return MAX_RECOMMENDATIONS_TUNETIER;
     }
@@ -268,20 +258,9 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
         }
       }
       
-      // Search for the artist on Spotify
+      // Search for the artist via the backend search proxy
       const searchQuery = `artist:${artistName}`;
-      let artistResponse;
-      
-      // Robust check for a valid-looking access token string
-      const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
-      
-      if (hasValidToken) {
-        // User is logged into Spotify - use their token
-        artistResponse = await searchTracks(searchQuery);
-      } else {
-        // User is only logged into TuneTier - use backend search proxy
-        artistResponse = await searchTracksFromBackend(searchQuery);
-      }
+      const artistResponse = await searchTracksFromBackend(searchQuery);
       
       if (artistResponse.data.tracks.items.length > 0) {
         // Get the first few tracks from this artist (they're usually popular ones)
@@ -808,14 +787,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
 
     try {
       const searchQuery = `artist:${track.artist} track:${track.name}`;
-      let response;
-      const hasValidToken = accessToken && typeof accessToken === 'string' && accessToken.length > 10;
-
-      if (hasValidToken) {
-        response = await searchTracks(searchQuery);
-      } else {
-        response = await searchTracksFromBackend(searchQuery);
-      }
+      const response = await searchTracksFromBackend(searchQuery);
 
       if (response.data.tracks.items.length > 0) {
         const spotifyTrack = response.data.tracks.items[0];
@@ -852,30 +824,6 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
     return null;
   };
 
-  // Handle adding a track to a playlist (lazy)
-  const handleAddToPlaylistLazy = async (track) => {
-    let spotifyData = track.spotifyData;
-    
-    if (!spotifyData?.id) {
-      setResolvingTrackId(`${track.artist}###${track.name}`);
-      spotifyData = await resolveSpotifyTrack(track);
-      setResolvingTrackId(null);
-      
-      // Update local state to mark as resolved
-      const updatedRecs = recommendations.map(r => 
-        (r.artist === track.artist && r.name === track.name) 
-          ? { ...r, spotifyData: spotifyData || r.spotifyData, resolved: true } 
-          : r
-      );
-      setRecommendations(updatedRecs);
-    }
-
-    if (!spotifyData?.id) {
-      setError(`Could not find "${track.name}" by ${track.artist} on Spotify.`);
-    }
-    // The AddToPlaylist component will now be rendered because spotifyData.id exists
-  };
-
   // Check if all tracks have been added
   const areAllTracksAdded = recommendations.length > 0 && 
     recommendations.every(track => track.spotifyData?.id && addedTracks.has(track.spotifyData.id));
@@ -884,7 +832,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
   const allTracksResolved = recommendations.length > 0 && 
     recommendations.every(track => track.spotifyData?.id || track.resolved);
 
-  const isGuest = !accessToken && !tuneTierUser;
+  const isGuest = !tuneTierUser;
 
   return (
     <div className="recommendation-container">
@@ -921,7 +869,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
 
       {isGuest && (
         <div className="login-requirement-note">
-          A TuneTier account or Spotify login is required to generate recommendations.
+          A TuneTier account is required to generate recommendations.
         </div>
       )}
       
@@ -945,10 +893,6 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
                     )
                 }
               </button>
-              <AddToPlaylist 
-                trackId={recommendations.filter(t => t.spotifyData?.id).map(track => track.spotifyData.id)}
-                isSingleTrack={false}
-              />
             </div>
           </div>
           <p className="recommendation-explanation">
@@ -1026,20 +970,6 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
                     >
                       {track.spotifyData?.id && addedTracks.has(track.spotifyData.id) ? 'Added to Tierlist' : 'Add to Tierlist'}
                     </button>
-                    {track.spotifyData?.id ? (
-                      <AddToPlaylist 
-                        trackId={track.spotifyData.id}
-                        isSingleTrack={true}
-                      />
-                    ) : (
-                      <button 
-                        className="add-to-playlist-button"
-                        onClick={() => handleAddToPlaylistLazy(track)}
-                        disabled={resolvingTrackId === `${track.artist}###${track.name}`}
-                      >
-                        {resolvingTrackId === `${track.artist}###${track.name}` ? 'Resolving...' : 'Add to Playlist'}
-                      </button>
-                    )}
                   </div>
                 </div>
               );
