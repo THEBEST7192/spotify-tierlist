@@ -89,43 +89,34 @@ const TierlistRating = ({ shortId, tuneTierUser, initialRatings }) => {
 
   const renderStars = () => {
     const stars = [];
-    // Always show average rating in stars, but highlight user's rating when logged in
-    const baseRating = ratings.averageRating || 0;
-    const displayRating = tuneTierUser ? (hoveredRating || baseRating) : baseRating;
+    // Stars always reflect the average rating; the user's own rating is shown via the active highlight
+    const avgRating = ratings.averageRating || 0;
     
     for (let i = 1; i <= 5; i++) {
       let fillPercentage = 0;
       
-      if (i <= Math.floor(displayRating)) {
-        // Full star
+      if (i <= Math.floor(avgRating)) {
         fillPercentage = 100;
-      } else if (i === Math.ceil(displayRating) && displayRating % 1 !== 0) {
-        // Partial star
-        fillPercentage = (displayRating % 1) * 100;
+      } else if (i === Math.ceil(avgRating) && avgRating % 1 !== 0) {
+        fillPercentage = (avgRating % 1) * 100;
       }
       
-      const isFilled = i <= baseRating;
+      const isHovered = hoveredRating != null && i <= hoveredRating;
       const isActive = userRating === i;
-      const hasPartialFill = fillPercentage > 0 && fillPercentage < 100;
-      
-      // Only apply gradient style for partial fills
-      const style = hasPartialFill 
-        ? { background: `linear-gradient(90deg, #FFD700 ${fillPercentage}%, #888 ${fillPercentage}%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }
-        : {};
-      
+
       stars.push(
         <button
           key={i}
           type="button"
-          className={`rating-star ${isFilled && !hasPartialFill ? 'filled' : ''} ${isActive ? 'active' : ''}`}
+          className={`rating-star ${fillPercentage === 100 ? 'filled' : ''} ${isActive ? 'active' : ''} ${isHovered ? 'hovered' : ''}`}
           disabled={isLoading || !tuneTierUser}
           onClick={(e) => handleRatingClick(i, e)}
           onMouseEnter={() => setHoveredRating(i)}
           onMouseLeave={() => setHoveredRating(null)}
           aria-label={`Rate ${i} stars`}
-          style={style}
         >
-          ★
+          <span className="star-base" aria-hidden="true">★</span>
+          <span className="star-fill" style={{ width: `${fillPercentage}%` }} aria-hidden="true">★</span>
         </button>
       );
     }
