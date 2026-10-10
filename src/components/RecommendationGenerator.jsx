@@ -5,7 +5,8 @@ import {
   searchTracksFromBackend 
 } from '../utils/backendApi';
 import './RecommendationGenerator.css';
-import { PLACEHOLDER_COLORS } from '../constants';
+import { makeVinylFallback } from '../utils/imageFallback';
+import { VinylSvg, randomPlaceholderColor } from '../utils/vinylGenerator';
 
 // Constants for recommendation configuration
 const MAX_RECOMMENDATIONS_TUNETIER = 50; // Maximum recommendations for TuneTier users
@@ -597,7 +598,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
           spotifyData: spotifyDataFromCache,
           sources: rec.sources && Array.isArray(rec.sources) ? [...rec.sources] : [rec.source],
           recommendationCount: rec.recommendationCount || 1,
-          placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+          placeholderColor: randomPlaceholderColor()
         });
       }
     });
@@ -908,18 +909,14 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
                       src={albumArt} 
                       alt={`${track.name} album art`}
                       className="recommendation-album-cover"
-                      onError={(e) => { e.target.style.display = 'none'; }}
+                      onError={makeVinylFallback(track.placeholderColor)}
                     />
                   ) : (
                     <div 
                       className="recommendation-album-cover-placeholder"
                       style={{ backgroundColor: '#121212' }}
                     >
-                      <svg viewBox="0 0 256 256" className="placeholder-svg">
-                        <circle cx="127.5" cy="128.5" r="95.5" fill={track.placeholderColor || '#1DB954'}/>
-                        <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
-                        <circle cx="127.5" cy="128.5" r="7.95833" fill={track.placeholderColor || '#1DB954'}/>
-                      </svg>
+                      <VinylSvg color={track.placeholderColor || '#1DB954'} className="placeholder-svg" />
                     </div>
                   )}
                   <div className="recommendation-info">

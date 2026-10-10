@@ -2,6 +2,8 @@ import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
 import spotifyIconOfficial from '../../assets/spotify/spotify-icon-official.png';
 import { getItemStyle } from './tierListUtils';
+import { makeVinylFallback } from '../../utils/imageFallback';
+import { VinylSvg } from '../../utils/vinylGenerator';
 
 const SongCard = ({ item, index, isPlaying, isFocused, isPickedUp, onPlayTrack }) => {
   if (!item || !item.content) return null;
@@ -40,6 +42,7 @@ const SongCard = ({ item, index, isPlaying, isFocused, isPickedUp, onPlayTrack }
                 src={song.album.images[song.album.images.length > 2 ? 2 : 0].url}
                 alt={song.album.name || "Album Cover"}
                 className="album-cover"
+                onError={makeVinylFallback(song.placeholderColor)}
               />
             </a>
           ) : (
@@ -48,11 +51,7 @@ const SongCard = ({ item, index, isPlaying, isFocused, isPickedUp, onPlayTrack }
                 className="tierlist-song-placeholder"
                 style={{ backgroundColor: '#121212' }}
               >
-                <svg viewBox="0 0 256 256" className="placeholder-svg-small">
-                  <circle cx="127.5" cy="128.5" r="95.5" fill={song.placeholderColor || '#1DB954'}/>
-                  <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
-                  <circle cx="127.5" cy="128.5" r="7.95833" fill={song.placeholderColor || '#1DB954'}/>
-                </svg>
+                <VinylSvg color={song.placeholderColor || '#1DB954'} className="placeholder-svg-small" />
               </div>
             </div>
           )}

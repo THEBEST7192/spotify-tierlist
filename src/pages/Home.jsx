@@ -5,6 +5,7 @@ import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
 import { PLACEHOLDER_COLORS } from '../constants';
 import { getTierlist } from "../utils/backendApi";
+import { VinylSvg } from '../utils/vinylGenerator';
 
 import "./Home.css";
 
@@ -439,11 +440,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
   if (isLoading) {
     return (
       <div className="loading-screen">
-          <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="127.5" cy="128.5" r="95.5" fill={loadingColor}/>
-            <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
-            <circle cx="127.5" cy="128.5" r="7.95833" fill={loadingColor}/>
-          </svg>
+          <VinylSvg color={loadingColor} width={256} height={256} />
           <p className="loading-text">
             <span>Loading</span>
             <span className="loading-dots">

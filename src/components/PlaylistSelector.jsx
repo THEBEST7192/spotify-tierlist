@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, batchGetUsernames, getTopRatedTierlists } from "../utils/backendApi";
 import CSVImportSelector from "./CSVImportSelector";
 import TierlistRating from "./TierlistRating";
+import { makeVinylFallback } from "../utils/imageFallback";
+import { vinylDataUri, randomPlaceholderColor } from "../utils/vinylGenerator";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -1101,7 +1103,7 @@ const PlaylistSelector = ({
     }
   }, [editModalPlaylist, editModalContext, isModalBusy, handleDeleteLocalTierlist, handleDeleteOnlineTierlist, handleModalClose]);
 
-  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || '/assets/placeholder.png';
+  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || vinylDataUri(randomPlaceholderColor(['#1DB954']));
 
   return (
     <>
@@ -1296,7 +1298,7 @@ const PlaylistSelector = ({
           const fallbackImage = pickBestSongImageUrl(playlist.images);
           const imageUrl = playlist.coverImage
             || fallbackImage
-            || '/assets/placeholder.png';
+            || vinylDataUri(randomPlaceholderColor(['#1DB954']));
           
           // Get owner display name safely
           const ownerName = playlist.owner && playlist.owner.display_name ? 
@@ -1362,6 +1364,7 @@ const PlaylistSelector = ({
                   src={imageUrl}
                   alt={playlist.name || 'Playlist'}
                   className="playlist-cover"
+                  onError={makeVinylFallback(null, ['#1DB954'])}
                 />
                 {searchMode === 'online' && playlist._shortId && playlist.isPublic && (
                   <TierlistRating shortId={playlist._shortId} tuneTierUser={tuneTierUser} initialRatings={playlist.rating} />
