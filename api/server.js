@@ -14,6 +14,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createUsersBatchRouter } from './routes/tierlists.js';
 import { createRatingsRouter } from './routes/ratings.js';
 import { createAuthMiddleware } from './middleware/auth.js';
+import { normalizeUsername } from './utils/authUtils.js';
 
 // Load environment variables (only for local development)
 if (process.env.NODE_ENV !== 'production') {
@@ -113,9 +114,19 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // MongoDB-based rate limiter
-function createMongoRateLimiter(windowMs, maxRequests, endpointPrefix = null) {
+function createMongoRateLimiter(windowMs, maxRequests, endpointPrefix = null, options = {}) {
+  const {
+    shouldLimitRequest = () => true,
+    shouldCountResponse = null,
+    getEndpoint = req => endpointPrefix ? endpointPrefix : req.path
+  } = options;
+
   return async function mongoRateLimiter(req, res, next) {
     try {
+      if (!shouldLimitRequest(req)) {
+        return next();
+      }
+
       const db = req.db || app.locals.db;
       if (!db) {
         return next();
@@ -126,7 +137,7 @@ function createMongoRateLimiter(windowMs, maxRequests, endpointPrefix = null) {
                  req.ip || 
                  'unknown';
 
-      const endpoint = endpointPrefix ? endpointPrefix : req.path;
+      const endpoint = getEndpoint(req);
       const now = Date.now();
       const windowStart = now - windowMs;
 
@@ -145,12 +156,23 @@ function createMongoRateLimiter(windowMs, maxRequests, endpointPrefix = null) {
         });
       }
 
-      // Record request
-      await collection.insertOne({
-        ip,
-        endpoint,
-        timestamp: now
-      });
+      const recordRequest = async () => {
+        try {
+          await collection.insertOne({ ip, endpoint, timestamp: Date.now() });
+        } catch (err) {
+          console.error('Failed to record rate limit request:', err);
+        }
+      };
+
+      if (shouldCountResponse) {
+        res.once('finish', () => {
+          if (shouldCountResponse(req, res)) {
+            void recordRequest();
+          }
+        });
+      } else {
+        await recordRequest();
+      }
 
       next();
     } catch (err) {
@@ -160,8 +182,21 @@ function createMongoRateLimiter(windowMs, maxRequests, endpointPrefix = null) {
   };
 }
 
-// Strict rate limiter for auth endpoints (10 attempts per 15 minutes)
-const authRateLimiter = createMongoRateLimiter(15 * 60 * 1000, 10, '/api/auth');
+const failedLoginRequest = req => req.method === 'POST' && req.path === '/login';
+const failedLoginResponse = (_req, res) => res.statusCode === 401;
+
+// Broad failed-login protection for shared abuse sources (50 invalid credentials per IP per 15 minutes)
+const loginIpRateLimiter = createMongoRateLimiter(15 * 60 * 1000, 50, '/api/auth/login/ip', {
+  shouldLimitRequest: failedLoginRequest,
+  shouldCountResponse: failedLoginResponse
+});
+
+// Strict failed-login protection per account and IP (10 invalid credentials per 15 minutes)
+const loginAccountRateLimiter = createMongoRateLimiter(15 * 60 * 1000, 10, null, {
+  shouldLimitRequest: failedLoginRequest,
+  shouldCountResponse: failedLoginResponse,
+  getEndpoint: req => `/api/auth/login/account/${encodeURIComponent(normalizeUsername(req.body?.username))}`
+});
 
 // General API rate limiter (100 requests per minute)
 const apiRateLimiter = createMongoRateLimiter(60 * 1000, 100);
@@ -188,7 +223,7 @@ async function ensureDb(req, res, next) {
   }
 }
 
-app.use('/api/auth', ensureDb, authRateLimiter, (req, res, next) => {
+app.use('/api/auth', ensureDb, loginIpRateLimiter, loginAccountRateLimiter, (req, res, next) => {
   const { optionalAuth, requireAuth } = createAuthMiddleware(req.db);
   const router = createAuthRouter(req.db, { requireAuth, optionalAuth });
   return router(req, res, next);

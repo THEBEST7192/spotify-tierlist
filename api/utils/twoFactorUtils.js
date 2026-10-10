@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const CODE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const CODE_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const CODE_LENGTH = 6;
 
 // Get Resend instance (lazy initialization)
@@ -87,7 +87,7 @@ export async function sendTwoFactorEmail(email, code, username) {
           <div style="background-color: #f5f5f5; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
             ${code}
           </div>
-          <p>This code will expire in 5 minutes.</p>
+          <p>This code will expire in 15 minutes.</p>
           <p>If you didn't request this code, please ignore this email.</p>
           <p style="color: #666; font-size: 12px;">This is an automated message from TuneTier.</p>
         </div>
