@@ -1,78 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import html2canvas from "html2canvas";
-import { createTierlist, updateTierlist } from '../utils/backendApi';
+import { DragDropContext } from "@hello-pangea/dnd";
+import { updateTierlist } from '../utils/backendApi';
 import "./TierList/TierListMain.css";
 import "./TierList/TierListSongCard.css";
 import "./TierList/TierListActions.css";
 import "./TierList/TierListControls.css";
 import "./TierList/TierListModal.css";
 import "./TierList/TierListDetection.css";
-import RecommendationGenerator from "./RecommendationGenerator";
 import { PLACEHOLDER_COLORS } from '../constants';
 import SpotifyPlayer from "./SpotifyPlayer";
-import spotifyIconOfficial from '../assets/spotify/spotify-icon-official.png';
-import CinemaPoseDetector from './CinemaPoseDetector';
-import TierListJSONExportImport from "./TierListJSONExportImport";
-import ConfirmationDialog from "./ConfirmationDialog";
-import WiiController from "./WiiController";
-
-// Define default tiers and their colors
-const DEFAULT_TIERS = {
-  S: { color: "#FF7F7F", label: "S" },
-  A: { color: "#FFBF7F", label: "A" },
-  B: { color: "#FFFF7F", label: "B" },
-  C: { color: "#7FFF7F", label: "C" },
-  D: { color: "#7FBFFF", label: "D" },
-  E: { color: "#BF7FFF", label: "E" },
-  F: { color: "#FF7FBF", label: "F" },
-  Unranked: { color: "#E0E0E0", label: "Unranked" }
-};
-
-// Define the default order of tiers
-const DEFAULT_TIER_ORDER = ["S", "A", "B", "C", "D", "E", "F", "Unranked"];
-
-const pickPreferredPlaylistImage = (images = []) => {
-  if (!Array.isArray(images) || images.length === 0) {
-    return null;
-  }
-
-  const exact300 = images.find((img) => Number(img?.width) === 300 || Number(img?.height) === 300);
-  if (exact300) {
-    return exact300;
-  }
-
-  if (images[1]) {
-    return images[1];
-  }
-
-  return images[0];
-};
-
-// IMPORTANT: This is the most reliable ID method
-const getItemStyle = (isDragging, draggableStyle) => ({
-  // some basic styles to make the items look nicer
-  userSelect: "none",
-  padding: 8,
-  margin: "0 8px 0 0",
-  
-  // change background colour if dragging
-  background: isDragging ? "#333" : "#191414", // Spotify black
-  color: "white", // Text color for readability on black background
-  
-  // styles we need to apply on draggables
-  ...draggableStyle
-});
-
-const getListStyle = isDraggingOver => ({
-  background: isDraggingOver ? "rgba(255, 255, 255, 0.1)" : "transparent",
-  display: "flex",
-  flexWrap: "wrap",
-  overflow: "auto",
-  minHeight: "80px",
-  alignContent: "flex-start"
-});
+import TierListActions from "./TierList/TierListActions";
+import TierListControls from "./TierList/TierListControls";
+import TierListDialogs from "./TierList/TierListDialogs";
+import TierRow from "./TierList/TierRow";
+import { useTierlistUpload } from "./TierList/useTierlistUpload";
+import { useTierlistPlayer } from "./TierList/useTierlistPlayer";
+import { useTierEditor } from "./TierList/useTierEditor";
+import { DEFAULT_TIERS, DEFAULT_TIER_ORDER, pickPreferredPlaylistImage, checkForUnavailableSongs } from "./TierList/tierListUtils";
 
 const TierList = ({
   songs,
@@ -103,18 +48,37 @@ const TierList = ({
   const [focusedTierId, setFocusedTierId] = useState(null);
   const [pickedUpSongId, setPickedUpSongId] = useState(null);
   const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
-  const [uploadedTierlist, setUploadedTierlist] = useState(null);
-  const [uploadingTierlist, setUploadingTierlist] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState('');
-  const [uploadError, setUploadError] = useState('');
-  const [uploadShareUrl, setUploadShareUrl] = useState('');
-  const [showRemixDialog, setShowRemixDialog] = useState(false);
   const [inferredCoverImage, setInferredCoverImage] = useState('');
   const [state, setState] = useState(() => {
     return DEFAULT_TIER_ORDER.reduce((acc, tier) => ({
       ...acc,
       [tier]: []
     }), {});
+  });
+  const {
+    onDragEnd,
+    addTier,
+    deleteTier,
+    moveTierUp,
+    moveTierDown,
+    startEditingTier,
+    saveTierName,
+    cancelTierEdit
+  } = useTierEditor({
+    state,
+    setState,
+    tiers,
+    setTiers,
+    setTierOrder,
+    newTierName,
+    setNewTierName,
+    newTierColor,
+    setNewTierColor,
+    setShowAddTierForm,
+    editingTier,
+    setEditingTier,
+    editTierName,
+    setEditTierName
   });
   const hydratedStateRef = useRef(null);
   const hydratedFromStorageRef = useRef(false);
@@ -149,6 +113,48 @@ const TierList = ({
     }
     return [];
   }, [playlistImages, resolvedCoverImage]);
+  const getFirstAvailableCoverImage = useCallback(() => {
+    if (resolvedPlaylistImages.length > 0) {
+      return resolvedPlaylistImages[0]?.url || '';
+    }
+    for (const tier of tierOrder) {
+      const songsInTier = state[tier];
+      if (!Array.isArray(songsInTier)) continue;
+      for (const item of songsInTier) {
+        const content = item?.content;
+        const images = content?.album?.images;
+        if (Array.isArray(images) && images.length > 0) {
+          return pickPreferredPlaylistImage(images)?.url || images[0]?.url || '';
+        }
+      }
+    }
+    return '';
+  }, [resolvedPlaylistImages, state, tierOrder]);
+
+  const {
+    uploadedTierlist,
+    setUploadedTierlist,
+    uploadingTierlist,
+    uploadMessage,
+    uploadError,
+    uploadShareUrl,
+    setUploadShareUrl,
+    showRemixDialog,
+    setShowRemixDialog,
+    handleUploadTierlist,
+    performUploadTierlist
+  } = useTierlistUpload({
+    tuneTierUser,
+    state,
+    setState,
+    tiers,
+    tierOrder,
+    playlistName,
+    storageKey,
+    getFirstAvailableCoverImage,
+    navigate
+  });
+
   const computeShareUrl = useCallback((shortId) => {
     if (!shortId || typeof window === 'undefined') return '';
     return `${window.location.origin}/tierlists/${shortId}`;
@@ -292,43 +298,19 @@ const TierList = ({
   }
 }, [storageKey, hydrateTierlist, initialTierlist]);
   
-  // State for the tier list
-  // State for the currently playing track
-  const [currentTrack, setCurrentTrack] = useState(null);
-  const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
-  const [isPlayerVisible, setIsPlayerVisible] = useState(true);
-  
+  const {
+    currentTrack,
+    isPlayerPlaying,
+    isPlayerVisible,
+    playTrack,
+    handleTrackEnd,
+    handlePlayerStateChange,
+    handlePlayerClose
+  } = useTierlistPlayer();
+
   // State for unavailable songs handling
   const [unavailableSongs, setUnavailableSongs] = useState([]);
   const [showUnavailableDialog, setShowUnavailableDialog] = useState(false);
-  
-  // Check for unavailable songs
-  const checkForUnavailableSongs = useCallback((tracks) => {
-    const unavailable = [];
-    
-    // Helper function to recursively check tracks in the state
-    const checkTracks = (tierName, tierSongs) => {
-      tierSongs.forEach((song) => {
-        // Check if the track is unavailable (no preview_url and no external_urls.spotify)
-        const content = song.content || song; // Handle both formats
-        if (content && content.type === 'track' && !content.preview_url && !content.external_urls?.spotify) {
-          unavailable.push({
-            id: content.id || content.dragId, // Use track ID or dragId as fallback
-            name: content.name,
-            artist: content.artists?.[0]?.name || 'Unknown Artist',
-            tier: tierName
-          });
-        }
-      });
-    };
-    
-    // Check all tiers
-    Object.entries(tracks).forEach(([tierName, tierSongs]) => {
-      checkTracks(tierName, tierSongs);
-    });
-    
-    return unavailable;
-  }, []);
   
   // Handle user's choice about unavailable songs
   const handleUnavailableSongsChoice = (remove) => {
@@ -589,279 +571,6 @@ const TierList = ({
     });
   }, [tierOrder]);
 
-  const onDragEnd = result => {
-    const { source, destination } = result;
-
-    // dropped outside the list
-    if (!destination) {
-      return;
-    }
-
-    // If dropped in the same position
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    ) {
-      return;
-    }
-
-    // Moving within the same list
-    if (source.droppableId === destination.droppableId) {
-      const items = Array.from(state[source.droppableId]);
-      const [removed] = items.splice(source.index, 1);
-      items.splice(destination.index, 0, removed);
-
-      setState(prev => ({
-        ...prev,
-        [source.droppableId]: items
-      }));
-    } 
-    // Moving from one list to another
-    else {
-      const sourceItems = Array.from(state[source.droppableId]);
-      const destItems = Array.from(state[destination.droppableId]);
-      const [removed] = sourceItems.splice(source.index, 1);
-
-      destItems.splice(destination.index, 0, removed);
-
-      setState(prev => ({
-        ...prev,
-        [source.droppableId]: sourceItems,
-        [destination.droppableId]: destItems
-      }));
-    }
-  };
-
-  // Add a new tier
-  const addTier = () => {
-    if (!newTierName.trim()) return;
-    
-    // Check if tier name already exists
-    if (tiers[newTierName]) {
-      alert("A tier with this name already exists!");
-      return;
-    }
-    
-    // Add the new tier
-    setTiers(prev => ({
-      ...prev,
-      [newTierName]: { color: newTierColor, label: newTierName }
-    }));
-    
-    // Add the new tier to the order (before Unranked)
-    setTierOrder(prev => {
-      const unrankedIndex = prev.indexOf("Unranked");
-      const newOrder = [...prev];
-      newOrder.splice(unrankedIndex, 0, newTierName);
-      return newOrder;
-    });
-    
-    // Initialize the new tier in the state
-    setState(prev => ({
-      ...prev,
-      [newTierName]: []
-    }));
-    
-    // Reset form
-    setNewTierName("");
-    setNewTierColor("#CCCCCC");
-    setShowAddTierForm(false);
-  };
-
-  // Delete a tier
-  const deleteTier = (tierId) => {
-    // Don't allow deleting the Unranked tier
-    if (tierId === "Unranked") {
-      alert("Cannot delete the Unranked tier!");
-      return;
-    }
-    
-    // Check if the tier has songs
-    if (state[tierId] && state[tierId].length > 0) {
-      if (window.confirm(`The tier "${tierId}" contains ${state[tierId].length} songs. Do you want to move them to the Unranked tier?`)) {
-        // Move songs to Unranked tier
-        setState(prev => ({
-          ...prev,
-          Unranked: [...prev.Unranked, ...prev[tierId]],
-          [tierId]: []
-        }));
-      } else {
-        return; // Cancel deletion
-      }
-    }
-    
-    // Remove the tier from the order
-    setTierOrder(prev => prev.filter(tier => tier !== tierId));
-    
-    // Remove the tier from the tiers object
-    setTiers(prev => {
-      const newTiers = { ...prev };
-      delete newTiers[tierId];
-      return newTiers;
-    });
-  };
-
-  // Move a tier up in the order
-  const moveTierUp = (tierId) => {
-    // Don't allow moving the Unranked tier
-    if (tierId === "Unranked") return;
-    
-    setTierOrder(prev => {
-      const index = prev.indexOf(tierId);
-      if (index <= 0) return prev;
-      
-      const newOrder = [...prev];
-      [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-      return newOrder;
-    });
-  };
-
-  // Move a tier down in the order
-  const moveTierDown = (tierId) => {
-    // Don't allow moving the Unranked tier
-    if (tierId === "Unranked") return;
-    
-    setTierOrder(prev => {
-      const index = prev.indexOf(tierId);
-      if (index === -1 || index === prev.length - 1) return prev;
-      
-      const newOrder = [...prev];
-      [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
-      return newOrder;
-    });
-  };
-
-  // Start editing a tier
-  const startEditingTier = (tierId) => {
-    // Don't allow editing the Unranked tier
-    if (tierId === "Unranked") {
-      alert("Cannot rename the Unranked tier!");
-      return;
-    }
-    
-    setEditingTier(tierId);
-    setEditTierName(tierId);
-  };
-
-  // Save tier name changes
-  const saveTierName = () => {
-    if (!editTierName.trim() || editTierName === editingTier) {
-      setEditingTier(null);
-      return;
-    }
-    
-    // Check if the new name already exists
-    if (tiers[editTierName]) {
-      alert("A tier with this name already exists!");
-      return;
-    }
-    
-    // Update the tier name in the tiers object
-    setTiers(prev => {
-      const newTiers = { ...prev };
-      const tierData = newTiers[editingTier];
-      delete newTiers[editingTier];
-      newTiers[editTierName] = { ...tierData, label: editTierName };
-      return newTiers;
-    });
-    
-    // Update the tier name in the order
-    setTierOrder(prev => prev.map(tier => tier === editingTier ? editTierName : tier));
-    
-    // Update the state with the new tier name
-    setState(prev => {
-      const newState = { ...prev };
-      newState[editTierName] = prev[editingTier];
-      delete newState[editingTier];
-      return newState;
-    });
-    
-    // Reset editing state
-    setEditingTier(null);
-  };
-
-  // Cancel tier name editing
-  const cancelTierEdit = () => {
-    setEditingTier(null);
-  };
-
-  // Export tier list as an image
-  const exportImage = (name) => {
-    // Wait for images to load
-    const images = document.querySelectorAll('.album-cover');
-    const promises = Array.from(images).map(img => {
-      return new Promise((resolve) => {
-        if (img.complete) {
-          resolve();
-        } else {
-          img.onload = resolve;
-          img.onerror = resolve; // Resolve even if image fails to load
-        }
-      });
-    });
-
-    Promise.all(promises).then(() => {
-      // Create a temporary container for the tier list
-      const tempContainer = document.createElement('div');
-      const tierList = document.getElementById("tier-list").cloneNode(true);
-      
-      // Ensure all images have CORS support
-      const clonedImages = tierList.querySelectorAll('.album-cover');
-      clonedImages.forEach(img => {
-        img.crossOrigin = "Anonymous";
-        img.loading = "eager";
-        img.style.opacity = '1'; // Ensure images are visible
-      });
-
-      tempContainer.appendChild(tierList);
-      document.body.appendChild(tempContainer);
-
-      // Generate the image
-      html2canvas(tempContainer, {
-        useCORS: true,
-        logging: true,
-        scale: 2, // Higher quality image
-        onclone: (doc) => {
-          // Ensure images are loaded in the cloned document
-          const docImages = doc.querySelectorAll('.album-cover');
-          docImages.forEach(img => {
-            img.crossOrigin = "Anonymous";
-            img.loading = "eager";
-          });
-        }
-      }).then(canvas => {
-        // Clean up
-        tempContainer.remove();
-        
-        const link = document.createElement("a");
-        link.href = canvas.toDataURL("image/png");
-        const filename = name ? 
-          `${name.replace(/[^a-z0-9-]/gi, '_').toLowerCase()}.png` : 
-          'spotify-tierlist.png';
-        link.download = filename;
-        link.click();
-      });
-    });
-  };
-
-  const getFirstAvailableCoverImage = useCallback(() => {
-    if (resolvedPlaylistImages.length > 0) {
-      return resolvedPlaylistImages[0]?.url || '';
-    }
-    for (const tier of tierOrder) {
-      const songsInTier = state[tier];
-      if (!Array.isArray(songsInTier)) continue;
-      for (const item of songsInTier) {
-        const content = item?.content;
-        const images = content?.album?.images;
-        if (Array.isArray(images) && images.length > 0) {
-          return pickPreferredPlaylistImage(images)?.url || images[0]?.url || '';
-        }
-      }
-    }
-    return '';
-  }, [resolvedPlaylistImages, state, tierOrder]);
-
   // Handler for importing tierlist JSON
   const handleImport = (imported) => {
     // Create a new local tierlist with imported content
@@ -941,160 +650,6 @@ const TierList = ({
     }
   };
 
-  const handleUploadTierlist = async () => {
-    // Check if this is a remix (tierlist owned by someone else)
-    const tierlistOwnerUsername = uploadedTierlist?.onlineUsername || uploadedTierlist?.username;
-    const tierlistOwnerUserId = uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId;
-    const hasOnlineTierlistId = uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId;
-    
-    // If tierlist has online ID and user is not logged in, it's a remix
-    if (hasOnlineTierlistId && !tuneTierUser?.username) {
-      setShowRemixDialog(true);
-      return;
-    }
-    
-    // If user is logged in, check if tierlist is owned by someone else
-    // Check both _id (MongoDB) and username for ownership
-    const isOwnedById = tierlistOwnerUserId && tuneTierUser?._id && String(tierlistOwnerUserId) === String(tuneTierUser._id);
-    const isOwnedByUsername = tierlistOwnerUsername && tuneTierUser?.username && tierlistOwnerUsername === tuneTierUser.username;
-    const isOwned = isOwnedById || isOwnedByUsername;
-    
-    if (hasOnlineTierlistId && !isOwned) {
-      setShowRemixDialog(true);
-      return;
-    }
-    
-    await performUploadTierlist();
-  };
-
-  const performUploadTierlist = async (forceCreate = false) => {
-    setUploadError('');
-    setUploadMessage('');
-    setUploadShareUrl('');
-    setUploadingTierlist(true);
-
-    try {
-      if (!tuneTierUser) {
-        throw new Error('Please log in to your account before uploading tierlists');
-      }
-
-      const isUpdate = forceCreate ? false : Boolean(uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId);
-      const resolvedTierListName = state.tierListName || playlistName || 'My Spotify Tierlist';
-      const existingCoverImage = typeof state?.coverImage === 'string' && state.coverImage.trim()
-        ? state.coverImage.trim()
-        : '';
-      const coverImage = existingCoverImage || getFirstAvailableCoverImage();
-      const description = uploadedTierlist?.description || uploadedTierlist?.state?.description || state?.description || '';
-
-      const tierlistState = {
-        ...state,
-        tierListName: resolvedTierListName,
-        description,
-        ...(coverImage ? { coverImage } : {})
-      };
-
-      const payload = {
-        username: tuneTierUser.username,
-        tierListName: resolvedTierListName,
-        description,
-        coverImage,
-        tiers,
-        tierOrder,
-        state: tierlistState,
-        isPublic: true
-      };
-
-      const response = isUpdate
-        ? await updateTierlist(uploadedTierlist.shortId || uploadedTierlist.onlineShortId, payload)
-        : await createTierlist(payload);
-
-      const resolvedResponse = response || uploadedTierlist;
-      if (!resolvedResponse) {
-        throw new Error('No response received from tierlist service');
-      }
-
-      setUploadedTierlist(resolvedResponse);
-      
-      // Ensure state includes the resolved name and cover image after upload
-      setState(prev => ({
-        ...prev,
-        tierListName: resolvedTierListName,
-        ...(coverImage ? { coverImage } : {})
-      }));
-
-      // Update localStorage copy for online tierlists to maintain sync
-      if (storageKey && typeof window !== 'undefined') {
-        try {
-          const isOnlineTierlist = window.location.pathname.includes('/tierlists/');
-          if (isOnlineTierlist && resolvedResponse.shortId) {
-            // Create updated local copy with online metadata
-            const updatedLocalCopy = {
-              ...resolvedResponse,
-              // Preserve original online reference metadata
-              onlineShortId: resolvedResponse.shortId,
-              onlineUsername: uploadedTierlist?.onlineUsername || uploadedTierlist?.username || resolvedResponse.username,
-              onlineOwnerUserId: uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId || resolvedResponse.ownerUserId,
-              isOnlineTierlist: true,
-              isPublic: resolvedResponse.isPublic !== false
-            };
-            
-            localStorage.setItem(`tierlist:${resolvedResponse.shortId}`, JSON.stringify(updatedLocalCopy));
-          }
-        } catch (err) {
-          console.warn('Failed to update local copy of online tierlist:', err);
-        }
-      }
-
-      const shareUrl = resolvedResponse?.shortId && typeof window !== 'undefined'
-        ? `${window.location.origin}/tierlists/${resolvedResponse.shortId}`
-        : '';
-
-      setUploadShareUrl(shareUrl);
-      setUploadMessage(
-        `Tierlist ${forceCreate ? 'remixed' : (isUpdate ? 'updated' : 'uploaded')} successfully!${shareUrl ? '' : ` ID: ${resolvedResponse?.shortId || ''}`}`
-      );
-
-      // Navigate to the new tierlist page after remixing
-      if (forceCreate && resolvedResponse?.shortId && typeof window !== 'undefined') {
-        const originalShortId = uploadedTierlist.shortId || uploadedTierlist.onlineShortId;
-        
-        // Store pending deletion in localStorage to be processed after navigation
-        try {
-          localStorage.setItem('pendingTierlistDeletion', JSON.stringify({ shortId: originalShortId }));
-        } catch (err) {
-          console.warn('Failed to store pending deletion:', err);
-        }
-        
-        navigate(`/tierlists/${resolvedResponse.shortId}`);
-      }
-    } catch (error) {
-      console.error('Failed to upload tierlist:', error);
-      const backendMessage = error.response?.data?.error;
-      setUploadError(backendMessage || error.message || 'Failed to upload tierlist');
-    } finally {
-      setUploadingTierlist(false);
-    }
-  };
-
-  // Play a track
-  const playTrack = useCallback((trackId) => {
-    console.log('[TierList] playTrack called with', trackId, 'isPlayerVisible:', isPlayerVisible, 'currentTrack:', currentTrack, 'isPlayerPlaying:', isPlayerPlaying, 'at', Date.now());
-    if (!isPlayerVisible) {
-      setIsPlayerVisible(true);
-      setCurrentTrack(trackId);
-      setIsPlayerPlaying(true);
-    } else if (trackId === currentTrack) {
-      setIsPlayerPlaying(!isPlayerPlaying);
-    } else {
-      setCurrentTrack(trackId);
-      setIsPlayerPlaying(true);
-    }
-    try {
-      const ev = new CustomEvent('spotifyPlayerRequestPlay', { detail: { trackId } });
-      document.dispatchEvent(ev);
-    } catch { /* ignore */ }
-  }, [isPlayerVisible, currentTrack, isPlayerPlaying]);
-
   // Function to add a recommended song to the tierlist
   const addSongToTierlist = (trackData) => {
     // Create a unique ID for the new song
@@ -1160,26 +715,6 @@ const TierList = ({
         return newState;
       });
     }
-  };
-
-  // Handle track end
-  const handleTrackEnd = () => {
-    console.log('[TierList] handleTrackEnd called, clearing currentTrack at', Date.now(), 'currentTrack:', currentTrack, 'isPlayerPlaying:', isPlayerPlaying);
-    setCurrentTrack(null);
-    setIsPlayerPlaying(false);
-  };
-
-  // Handle player state changes
-  const handlePlayerStateChange = (isPlaying) => {
-    setIsPlayerPlaying(isPlaying);
-  };
-
-  // Handle player close
-  const handlePlayerClose = () => {
-    console.log('[TierList] handlePlayerClose called, hiding player');
-    setIsPlayerVisible(false);
-    setIsPlayerPlaying(false);
-    setCurrentTrack(null);
   };
 
   // Add event listener for cinema pose song movement
@@ -1799,438 +1334,103 @@ const TierList = ({
     window._prevWiiButtons = { ...buttons };
   }, [isWiiEnabled, focusedSongId, focusedTierId, pickedUpSongId, state, tierOrder, playTrack, isWiiUiMode]);
 
-  // Render the confirmation dialog for unavailable songs
-  const renderUnavailableSongsDialog = () => (
-    <ConfirmationDialog
-      isOpen={showUnavailableDialog}
-      onClose={() => handleUnavailableSongsChoice(false)}
-      onConfirm={() => handleUnavailableSongsChoice(true)}
-      title="Unavailable Songs Detected"
-      confirmText="Remove Unavailable Songs"
-      cancelText="Keep Songs"
-      message={
-        <>
-          <p>We found {unavailableSongs.length} song{unavailableSongs.length > 1 ? 's' : ''} that may not be playable:</p>
-          <ul className="unavailable-songs-list">
-            {unavailableSongs.slice(0, 5).map((song, index) => (
-              <li key={index}>
-                {song.name} by {song.artist}
-                {song.tier !== 'Unranked' ? ` (in ${song.tier} tier)` : ''}
-              </li>
-            ))}
-            {unavailableSongs.length > 5 && (
-              <li>...and {unavailableSongs.length - 5} more</li>
-            )}
-          </ul>
-          <p>These songs may have been removed from Spotify or may not be available in your region.</p>
-          <p>Would you like to remove them from your tier list?</p>
-        </>
-      }
-    />
-  );
-
-  // Render the confirmation dialog for remix
-  const renderRemixDialog = () => (
-    <ConfirmationDialog
-      isOpen={showRemixDialog}
-      onClose={() => setShowRemixDialog(false)}
-      onConfirm={() => {
-        setShowRemixDialog(false);
-        // Clear online IDs to create a new tierlist instead of updating, but preserve description
-        setUploadedTierlist(prev => ({
-          ...prev,
-          shortId: null,
-          onlineShortId: null
-        }));
-        // Ensure state has description before remixing
-        setState(prev => ({
-          ...prev,
-          description: prev.description || uploadedTierlist?.description || uploadedTierlist?.state?.description || ''
-        }));
-        performUploadTierlist(true);
-      }}
-      title="Remix Online Tierlist"
-      message="This tierlist was created by another user. Do you want to remix it as your own tierlist?"
-      confirmText="Remix"
-    />
-  );
+  const handleConfirmRemix = () => {
+    setShowRemixDialog(false);
+    // Clear online IDs to create a new tierlist instead of updating, but preserve description
+    setUploadedTierlist(prev => ({
+      ...prev,
+      shortId: null,
+      onlineShortId: null
+    }));
+    // Ensure state has description before remixing
+    setState(prev => ({
+      ...prev,
+      description: prev.description || uploadedTierlist?.description || uploadedTierlist?.state?.description || ''
+    }));
+    performUploadTierlist({ remix: true });
+  };
 
   return (
     <div
       className={`tier-list-container${isWiiEnabled ? " wii-enabled" : ""}${isWiiEnabled && pickedUpSongId ? " wii-carrying" : ""}`}
     >
-      {renderUnavailableSongsDialog()}
-      {renderRemixDialog()}
-      <div className="tier-controls">
-        <div className="tier-controls-header">
-          <button 
-            className="edit-mode-toggle"
-            onClick={() => setShowEditMode(!showEditMode)}
-          >
-            {showEditMode ? "Hide Editing Tools" : "Show Editing Tools"}
-          </button>
-          
-          {showEditMode && (
-            <button 
-              className="add-tier-button"
-              onClick={() => setShowAddTierForm(!showAddTierForm)}
-            >
-              {showAddTierForm ? "Cancel" : "Add New Tier"}
-            </button>
-          )}
-        </div>
-        {showAddTierForm && (
-          <div className="add-tier-form">
-            <input
-              type="text"
-              placeholder="Tier Name"
-              value={newTierName}
-              onChange={(e) => setNewTierName(e.target.value)}
-              className="new-tier-name-input"
-            />
-            <input
-              type="color"
-              value={newTierColor}
-              onChange={(e) => setNewTierColor(e.target.value)}
-              className="new-tier-color-input"
-            />
-            <button
-              className="confirm-add-tier-button"
-              onClick={addTier}
-            >
-              Add Tier
-            </button>
-          </div>
-        )}
-        <div className="detection-controls">
-          <div className="cinema-control">
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={isCinemaEnabled}
-                onChange={(e) => setIsCinemaEnabled(e.target.checked)}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-            <span className="control-label">
-              {isCinemaEnabled ? '🎬 Absolute cinema on' : '🎬 Absolute cinema off'}
-            </span>
-          </div>
-
-          <div className="detection-group">
-            <div className="cinema-control">
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={isWiiEnabled}
-                  onChange={(e) => setIsWiiEnabled(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-              <span className="control-label">
-                {isWiiEnabled ? '🎮 Wii Support on' : '🎮 Wii Support off'}
-              </span>
-            </div>
-            <WiiController isEnabled={isWiiEnabled} onButtonPress={handleWiiButtonPress} />
-          </div>
-          <CinemaPoseDetector isEnabled={isCinemaEnabled} debugMode={debugMode} />
-        </div>
-      </div>
+      <TierListDialogs
+        showUnavailableDialog={showUnavailableDialog}
+        unavailableSongs={unavailableSongs}
+        onUnavailableSongsChoice={handleUnavailableSongsChoice}
+        showRemixDialog={showRemixDialog}
+        onCloseRemix={() => setShowRemixDialog(false)}
+        onConfirmRemix={handleConfirmRemix}
+      />
+      <TierListControls
+        showEditMode={showEditMode}
+        showAddTierForm={showAddTierForm}
+        newTierName={newTierName}
+        newTierColor={newTierColor}
+        isCinemaEnabled={isCinemaEnabled}
+        isWiiEnabled={isWiiEnabled}
+        debugMode={debugMode}
+        onToggleEditMode={() => setShowEditMode(!showEditMode)}
+        onToggleAddTierForm={() => setShowAddTierForm(!showAddTierForm)}
+        onNewTierNameChange={setNewTierName}
+        onNewTierColorChange={setNewTierColor}
+        onAddTier={addTier}
+        onCinemaEnabledChange={setIsCinemaEnabled}
+        onWiiEnabledChange={setIsWiiEnabled}
+        onWiiButtonPress={handleWiiButtonPress}
+      />
       
       <DragDropContext onDragEnd={onDragEnd}>
         <div id="tier-list" className="tier-list">
-          {tierOrder.map(tierId => {
-            const { color, label } = tiers[tierId];
-            const isUnranked = tierId === "Unranked";
-            const isEditing = editingTier === tierId;
-            
-            return (
-              <div 
-                key={tierId}
-                className="tier"
-                style={{ backgroundColor: color }}
-              >
-                <div className="tier-header">
-                  <div className="tier-label">
-                    {isEditing ? (
-                      <div className="tier-edit-form">
-                        <input
-                          type="text"
-                          value={editTierName}
-                          onChange={(e) => setEditTierName(e.target.value)}
-                          className="tier-edit-input"
-                          autoFocus
-                        />
-                        <div className="edit-buttons">
-                          <button 
-                            className="save-edit-button"
-                            onClick={saveTierName}
-                          >
-                            Save
-                          </button>
-                          <button 
-                            className="cancel-edit-button"
-                            onClick={cancelTierEdit}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <h3>{label}</h3>
-                    )}
-                  </div>
-                  
-                  {showEditMode && !isUnranked && !isEditing && (
-                    <div className="tier-actions">
-                      <button 
-                        className="tier-action-button rename"
-                        onClick={() => startEditingTier(tierId)}
-                        title="Rename Tier"
-                      >
-                        ✎
-                      </button>
-                      <button 
-                        className="tier-action-button"
-                        onClick={() => moveTierUp(tierId)}
-                        title="Move Up"
-                      >
-                        ↑
-                      </button>
-                      <button 
-                        className="tier-action-button"
-                        onClick={() => moveTierDown(tierId)}
-                        title="Move Down"
-                      >
-                        ↓
-                      </button>
-                      <button 
-                        className="tier-action-button delete"
-                        onClick={() => deleteTier(tierId)}
-                        title="Delete Tier"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                </div>
-                
-                <Droppable
-                  droppableId={tierId}
-                  direction="vertical"
-                >
-                  {(provided, snapshot) => (
-                    (() => {
-                      const visibleItems = (state[tierId] || []).filter(item => item && item.content);
-                      const isEmpty = visibleItems.length === 0;
-                      const isEmptyFocused = isEmpty && focusedTierId === tierId;
-                      const isEmptyDraggingOver = isEmpty && snapshot.isDraggingOver;
-                      const isCarrying = Boolean(pickedUpSongId);
-                      const showEmptySlot = isEmpty && (isEmptyFocused || isEmptyDraggingOver);
-                      const emptySlotVariant = isEmptyDraggingOver || (isEmptyFocused && isCarrying) ? "carrying" : "focused";
-
-                      return (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      style={getListStyle(snapshot.isDraggingOver)}
-                      className={[
-                        "tier-songs",
-                        snapshot.isDraggingOver ? "dragging-over" : ""
-                      ].filter(Boolean).join(" ")}
-                    >
-                      {showEmptySlot && (
-                        <div className={`empty-tier-slot ${emptySlotVariant}`} />
-                      )}
-                      {state[tierId].map((item, index) => {
-                        if (!item || !item.content) return null;
-                        const song = item.content;
-                        const isPlaying = currentTrack === song.id && isPlayerPlaying;
-                        
-                        return (
-                          <Draggable
-                            key={item.id}
-                            draggableId={item.id}
-                            index={index}
-                          >
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                style={getItemStyle(
-                                  snapshot.isDragging,
-                                  provided.draggableProps.style
-                                )}
-                                data-song-id={item.id}
-                                className={`song-card ${isPlaying ? 'playing' : ''} ${!isWiiUiMode && focusedSongId === item.id ? 'focused' : ''} ${pickedUpSongId === item.id ? 'picked-up' : ''}`}
-                              >
-                                {song.album && song.album.images && song.album.images.length > 0 ? (
-                                  <a 
-                                    href={song.id ? `https://open.spotify.com/track/${song.id}` : "#"}
-                                    target={song.id ? "_blank" : "_self"}
-                                    rel="noopener noreferrer"
-                                    className="album-cover-link"
-                                    onClick={(e) => {
-                                      if (!song.id) e.preventDefault();
-                                      e.stopPropagation();
-                                    }}
-                                  >
-                                    <img 
-                                      src={song.album.images[song.album.images.length > 2 ? 2 : 0].url}
-                                      alt={song.album.name || "Album Cover"}
-                                      className="album-cover" 
-                                    />
-                                  </a>
-                                ) : (
-                                  <div className="album-cover-placeholder-wrapper">
-                                    <div 
-                                      className="tierlist-song-placeholder"
-                                      style={{ backgroundColor: '#121212' }}
-                                    >
-                                      <svg viewBox="0 0 256 256" className="placeholder-svg-small">
-                                        <circle cx="127.5" cy="128.5" r="95.5" fill={song.placeholderColor || '#1DB954'}/>
-                                        <circle cx="127.5" cy="128.5" r="23.875" fill="black"/>
-                                        <circle cx="127.5" cy="128.5" r="7.95833" fill={song.placeholderColor || '#1DB954'}/>
-                                      </svg>
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="song-info">
-                                  <div className="song-name">{song.name}</div>
-                                  <div className="song-artist">
-                                    {song.artists && song.artists.map(artist => artist.name).join(", ")}
-                                  </div>
-                                </div>
-                                <div className="song-actions">
-                                  <button 
-                                    className={`play-preview-button ${isPlaying ? 'playing' : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      playTrack(song.id);
-                                    }}
-                                    aria-label={isPlaying ? "Pause preview" : "Play preview"}
-                                  >
-                                    {isPlaying ? (
-                                      <svg viewBox="0 0 24 24" width="20" height="20">
-                                        <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                                      </svg>
-                                    ) : (
-                                      <svg viewBox="0 0 24 24" width="20" height="20">
-                                        <path fill="currentColor" d="M8 5v14l11-7z" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                  <a 
-                                    href={`https://open.spotify.com/track/${song.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="spotify-icon-link"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <img 
-                                      src={spotifyIconOfficial} 
-                                      alt="Spotify" 
-                                      className="spotify-icon-small" 
-                                    />
-                                  </a>
-                                </div>
-                              </div>
-                            )}
-                          </Draggable>
-                        );
-                      })}
-                      {provided.placeholder}
-                    </div>
-                      );
-                    })()
-                  )}
-                </Droppable>
-              </div>
-            );
-          })}
+          {tierOrder.map(tierId => (
+            <TierRow
+              key={tierId}
+              tierId={tierId}
+              color={tiers[tierId].color}
+              label={tiers[tierId].label}
+              items={state[tierId]}
+              isEditing={editingTier === tierId}
+              editTierName={editTierName}
+              onEditTierNameChange={setEditTierName}
+              onSaveTierName={saveTierName}
+              onCancelTierEdit={cancelTierEdit}
+              showEditMode={showEditMode}
+              onStartEdit={() => startEditingTier(tierId)}
+              onMoveUp={() => moveTierUp(tierId)}
+              onMoveDown={() => moveTierDown(tierId)}
+              onDelete={() => deleteTier(tierId)}
+              currentTrack={currentTrack}
+              isPlayerPlaying={isPlayerPlaying}
+              focusedSongId={focusedSongId}
+              focusedTierId={focusedTierId}
+              pickedUpSongId={pickedUpSongId}
+              isWiiUiMode={isWiiUiMode}
+              onPlayTrack={playTrack}
+            />
+          ))}
         </div>
       </DragDropContext>
       
-      <div className="tier-list-actions">
-        <div className="tier-list-primary-actions">
-          <div className="export-group">
-            <button className="export-button export-image-button" onClick={() => exportImage(playlistName)}>
-              Export as Image
-            </button>
-            <TierListJSONExportImport
-              tiers={tiers}
-              tierOrder={tierOrder}
-              state={state}
-              onImport={handleImport}
-              tierListName={playlistName}
-              onUpload={handleUploadTierlist}
-              uploading={uploadingTierlist}
-              uploadedTierlist={uploadedTierlist}
-              uploadMessage=""
-              uploadError=""
-              uploadShareUrl=""
-              coverImage={resolvedCoverImage}
-              resetButton={true}
-              onReset={resetSongs}
-              isRemix={
-                (() => {
-                  const tierlistOwnerUsername = uploadedTierlist?.onlineUsername || uploadedTierlist?.username;
-                  const tierlistOwnerUserId = uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId;
-                  const hasOnlineTierlistId = uploadedTierlist?.shortId || uploadedTierlist?.onlineShortId;
-                  // If tierlist has online ID and user is not logged in, it's a remix
-                  if (hasOnlineTierlistId && !tuneTierUser?.username) {
-                    return true;
-                  }
-                  // If user is logged in, check if tierlist is owned by someone else
-                  // Check both _id (MongoDB) and username for ownership
-                  const isOwnedById = tierlistOwnerUserId && tuneTierUser?._id && String(tierlistOwnerUserId) === String(tuneTierUser._id);
-                  const isOwnedByUsername = tierlistOwnerUsername && tuneTierUser?.username && tierlistOwnerUsername === tuneTierUser.username;
-                  const isOwned = isOwnedById || isOwnedByUsername;
-                  return hasOnlineTierlistId && !isOwned;
-                })()
-              }
-            />
-          </div>
-
-          {/* Upload status messages - grouped with export/import/upload buttons */}
-          {(uploadMessage || uploadError) && (
-            <div className="upload-status-container">
-              {uploadMessage && (
-                <div className="success-message upload-status">
-                  {uploadMessage}
-                  {uploadShareUrl && (
-                    <>
-                      {' '}
-                      <a href={uploadShareUrl} target="_blank" rel="noopener noreferrer">
-                        {uploadShareUrl}
-                      </a>
-                    </>
-                  )}
-                </div>
-              )}
-              {uploadError && (
-                <div className="error-message upload-status">
-                  {uploadError}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="tier-secondary-actions">
-          <RecommendationGenerator 
-            tierState={state} 
-            tierOrder={tierOrder}
-            tiers={tiers}
-            tuneTierUser={tuneTierUser}
-            onPlayTrack={playTrack}
-            onAddToTierlist={addSongToTierlist}
-            currentTrackId={currentTrack}
-            isPlayerPlaying={isPlayerPlaying}
-          />
-        </div>
-      </div>
+      <TierListActions
+        tiers={tiers}
+        tierOrder={tierOrder}
+        state={state}
+        playlistName={playlistName}
+        handleImport={handleImport}
+        handleUploadTierlist={handleUploadTierlist}
+        uploadingTierlist={uploadingTierlist}
+        uploadedTierlist={uploadedTierlist}
+        resolvedCoverImage={resolvedCoverImage}
+        resetSongs={resetSongs}
+        tuneTierUser={tuneTierUser}
+        uploadMessage={uploadMessage}
+        uploadError={uploadError}
+        uploadShareUrl={uploadShareUrl}
+        playTrack={playTrack}
+        addSongToTierlist={addSongToTierlist}
+        currentTrack={currentTrack}
+        isPlayerPlaying={isPlayerPlaying}
+      />
 
       {/* Spotify Player */}
       <div className={!isPlayerVisible ? 'hidden' : ''}>
