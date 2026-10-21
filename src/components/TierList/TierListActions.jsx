@@ -21,7 +21,8 @@ const TierListActions = ({
   playTrack,
   addSongToTierlist,
   currentTrack,
-  isPlayerPlaying
+  isPlayerPlaying,
+  serverConfig = {}
 }) => {
   const tierlistOwnerUsername = uploadedTierlist?.onlineUsername || uploadedTierlist?.username;
   const tierlistOwnerUserId = uploadedTierlist?.onlineOwnerUserId || uploadedTierlist?.ownerUserId;
@@ -71,7 +72,7 @@ const TierListActions = ({
                 )}
               </div>
             )}
-            {uploadError && <div className="error-message upload-status">{uploadError}</div>}
+            {uploadError && <div className="auth-error upload-status">{uploadError}</div>}
           </div>
         )}
       </div>
@@ -86,6 +87,7 @@ const TierListActions = ({
           onAddToTierlist={addSongToTierlist}
           currentTrackId={currentTrack}
           isPlayerPlaying={isPlayerPlaying}
+          requireLogin={serverConfig.requireLoginForRecommendations !== false}
         />
       </div>
     </div>

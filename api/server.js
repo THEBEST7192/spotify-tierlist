@@ -45,6 +45,11 @@ const MONGODB_HOST = process.env.MONGODB_HOST;
 const MONGODB_CLIENT_NAME = process.env.MONGODB_CLIENT_NAME;
 const MONGODB_DB = process.env.MONGODB_DB;
 
+// Feature flags
+const REQUIRE_LOGIN_FOR_RECOMMENDATIONS = process.env.REQUIRE_LOGIN_FOR_RECOMMENDATIONS !== 'false';
+const ENABLE_KONAMI = process.env.ENABLE_KONAMI === 'true';
+const ENABLE_DEBUG_MODE = process.env.ENABLE_DEBUG_MODE === 'true';
+
 // Spotify API configuration
 let spotifyServerToken = null;
 let spotifyTokenExpiresAt = 0;
@@ -257,11 +262,27 @@ app.get('/health', async (req, res) => {
   } catch {
     db = false;
   }
-  res.json({ status: 'OK', message: 'Last.fm API server is running', db });
+  res.json({
+    status: 'OK',
+    message: 'Last.fm API server is running',
+    db,
+    config: {
+      requireLoginForRecommendations: REQUIRE_LOGIN_FOR_RECOMMENDATIONS,
+      enableKonami: ENABLE_KONAMI,
+      enableDebugMode: ENABLE_DEBUG_MODE
+    }
+  });
 });
 
+// Auth gate for recommendation endpoints when REQUIRE_LOGIN_FOR_RECOMMENDATIONS is enabled
+function requireLoginForRecommendations(req, res, next) {
+  if (!REQUIRE_LOGIN_FOR_RECOMMENDATIONS) return next();
+  const { requireAuth } = createAuthMiddleware(req.db);
+  return requireAuth(req, res, next);
+}
+
 // Get similar tracks endpoint
-app.get('/api/similar-tracks', ensureDb, readRateLimiter, async (req, res) => {
+app.get('/api/similar-tracks', ensureDb, readRateLimiter, requireLoginForRecommendations, async (req, res) => {
   try {
     const { artist, track } = req.query;
     
@@ -298,7 +319,7 @@ app.get('/api/similar-tracks', ensureDb, readRateLimiter, async (req, res) => {
 });
 
 // Get similar artists endpoint
-app.get('/api/similar-artists', ensureDb, readRateLimiter, async (req, res) => {
+app.get('/api/similar-artists', ensureDb, readRateLimiter, requireLoginForRecommendations, async (req, res) => {
   try {
     const { artist, limit = 10 } = req.query;
     

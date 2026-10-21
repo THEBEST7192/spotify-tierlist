@@ -122,6 +122,20 @@ export const checkBackendHealth = async () => {
 };
 
 /**
+ * Fetch server configuration (feature flags)
+ * @returns {Promise<Object>} Server config object
+ */
+export const getServerConfig = async () => {
+  try {
+    const response = await backendApi.get('/health');
+    return response.data?.config || {};
+  } catch (error) {
+    console.error('Failed to fetch server config:', error);
+    return {};
+  }
+};
+
+/**
  * Create a tierlist document in the backend
  * @param {Object} payload - Tierlist payload matching backend expectations
  * @returns {Promise<Object>} Created tierlist document

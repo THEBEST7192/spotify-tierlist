@@ -28,7 +28,8 @@ const TierList = ({
   initialTierlist = null,
   storageKey = null,
   playlistImages = [],
-  tuneTierUser = null
+  tuneTierUser = null,
+  serverConfig = {}
 }) => {
   const navigate = useNavigate();
   
@@ -1430,6 +1431,7 @@ const TierList = ({
         addSongToTierlist={addSongToTierlist}
         currentTrack={currentTrack}
         isPlayerPlaying={isPlayerPlaying}
+        serverConfig={serverConfig}
       />
 
       {/* Spotify Player */}

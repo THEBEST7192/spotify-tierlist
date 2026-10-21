@@ -47,7 +47,7 @@ const buildSharedTierlistError = (error) => {
 
 const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 
-const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
+const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser, serverConfig = {} }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -106,6 +106,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
 
   // Function to toggle Konami code
   const toggleKonamiCode = useCallback(() => {
+    if (!serverConfig.enableKonami) return;
     const newState = !konamiActive;
     setKonamiActive(newState);
     setShowKonamiMessage(true);
@@ -118,7 +119,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
     
     // Hide message after 5 seconds
     setTimeout(() => setShowKonamiMessage(false), 5000);
-  }, [konamiActive]);
+  }, [konamiActive, serverConfig.enableKonami]);
 
   // Konami code detection - arrow keys
   useEffect(() => {
@@ -140,6 +141,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
 
   // Function to toggle Debug mode
   const toggleDebugMode = useCallback(() => {
+    if (!serverConfig.enableDebugMode) return;
     const newState = !debugModeActive;
     setDebugModeActive(newState);
     setShowDebugMessage(true);
@@ -152,7 +154,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
     
     // Hide message after 5 seconds
     setTimeout(() => setShowDebugMessage(false), 5000);
-  }, [debugModeActive]);
+  }, [debugModeActive, serverConfig.enableDebugMode]);
 
   // Listen for Konami code activation from search bar
   useEffect(() => {
@@ -518,6 +520,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser }) => {
             storageKey={shortId || songId || selectedPlaylist?.id || null}
             playlistImages={selectedPlaylist?.images || []}
             tuneTierUser={tuneTierUser}
+            serverConfig={serverConfig}
           />
 
           <div className="app-attribution">

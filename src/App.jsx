@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { getStoredAuthToken, setStoredAuthToken, getMe } from './utils/backendApi';
+import { getStoredAuthToken, setStoredAuthToken, getMe, getServerConfig } from './utils/backendApi';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import './App.css';
@@ -9,6 +9,11 @@ function App() {
   const accessToken = null;
   const [authToken, setAuthToken] = useState(() => getStoredAuthToken());
   const [tuneTierUser, setTuneTierUser] = useState(null);
+  const [serverConfig, setServerConfig] = useState({});
+
+  useEffect(() => {
+    getServerConfig().then(setServerConfig);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +62,7 @@ function App() {
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
                 setTuneTierUser={setTuneTierUser}
+                serverConfig={serverConfig}
               />
             </div>
           )}
@@ -85,6 +91,7 @@ function App() {
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
                 setTuneTierUser={setTuneTierUser}
+                serverConfig={serverConfig}
               />
             </div>
           )}
@@ -99,6 +106,7 @@ function App() {
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
                 setTuneTierUser={setTuneTierUser}
+                serverConfig={serverConfig}
               />
             </div>
           )}
@@ -113,6 +121,7 @@ function App() {
                 setAuthToken={setAuthToken}
                 tuneTierUser={tuneTierUser}
                 setTuneTierUser={setTuneTierUser}
+                serverConfig={serverConfig}
               />
             </div>
           )}

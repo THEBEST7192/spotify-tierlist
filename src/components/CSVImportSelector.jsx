@@ -227,7 +227,7 @@ const CSVImportSelector = ({ onSelectImported }) => {
       {selectedTracks.length > 0 && !isLoading && (
         <p>Loaded {selectedTracks.length} tracks</p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="auth-error">{error}</p>}
       {tracksParsed.length > 0 && (
         <div className="import-form">
           <label>

@@ -2,10 +2,16 @@ import { Resend } from 'resend';
 
 const CODE_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const CODE_LENGTH = 6;
-
-// Get Resend instance (lazy initialization)
+const DEFAULT_FROM_EMAIL = 'no-reply-auth@veryrealdomain.com';
+const DEFAULT_FROM_NAME = 'TuneTier';
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
+}
+
+function getFromEmail() {
+  const email = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL;
+  const name = process.env.RESEND_FROM_NAME || DEFAULT_FROM_NAME;
+  return `${name} <${email}>`;
 }
 
 /**
@@ -76,7 +82,7 @@ export async function sendTwoFactorEmail(email, code, username) {
   try {
     const resend = getResend();
     const { data, error } = await resend.emails.send({
-      from: 'tunetier@2fa.the-diddy.party',
+      from: getFromEmail(),
       to: email,
       subject: 'TuneTier - Two-Factor Authentication Code',
       html: `
@@ -113,7 +119,7 @@ export async function sendTwoFactorSetupEmail(email, username) {
   try {
     const resend = getResend();
     const { data, error } = await resend.emails.send({
-      from: 'tunetier@2fa.the-diddy.party',
+      from: getFromEmail(),
       to: email,
       subject: 'TuneTier - Two-Factor Authentication Enabled',
       html: `

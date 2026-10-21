@@ -71,7 +71,7 @@ const savePersistentCache = () => {
 // Initial load
 loadPersistentCache();
 
-const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying, tuneTierUser }) => {
+const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTierlist, currentTrackId, isPlayerPlaying, tuneTierUser, requireLogin = true }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingAll, setIsAddingAll] = useState(false);
@@ -87,7 +87,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
   // Determine maximum recommendations based on user type
   const getMaxRecommendations = () => {
     // If user is logged in with TuneTier
-    if (tuneTierUser) {
+    if (tuneTierUser || !requireLogin) {
       return MAX_RECOMMENDATIONS_TUNETIER;
     }
     // Guest (no login) should have no recommendations
@@ -394,7 +394,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
     try {
       const maxRecs = getMaxRecommendations();
       if (maxRecs === 0) {
-        setError('Please login with Spotify or TuneTier to get recommendations');
+        setError('Please log in to your TuneTier account to get recommendations.');
         setIsLoading(false);
         return;
       }
@@ -833,7 +833,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
   const allTracksResolved = recommendations.length > 0 && 
     recommendations.every(track => track.spotifyData?.id || track.resolved);
 
-  const isGuest = !tuneTierUser;
+  const isGuest = requireLogin && !tuneTierUser;
 
   return (
     <div className="recommendation-container">
