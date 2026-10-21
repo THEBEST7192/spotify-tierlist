@@ -179,22 +179,6 @@
   transform: none;
 }
 
-.error-message {
-  color: #ff4444;
-  text-align: center;
-  padding: 10px;
-  background-color: rgba(255, 68, 68, 0.1);
-  border-radius: 4px;
-}
-
-.success-message {
-  color: #4caf50;
-  text-align: center;
-  padding: 15px;
-  background-color: rgba(76, 175, 80, 0.1);
-  border-radius: 4px;
-  font-size: 18px;
-}
 
 @media (max-width: 768px) {
   .playlist-modal {

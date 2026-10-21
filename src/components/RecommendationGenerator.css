@@ -105,11 +105,6 @@
   cursor: not-allowed;
 }
 
-.error-message {
-  color: #ff4444;
-  margin: 10px 0;
-  text-align: center;
-}
 
 .login-requirement-note {
   color: #b3b3b3;

@@ -115,23 +115,6 @@
   color: #1DB954;
 }
 
-.auth-error {
-  color: #ff4444;
-  background-color: rgba(255, 68, 68, 0.1);
-  border: 1px solid #ff4444;
-  border-radius: 6px;
-  padding: 12px;
-  font-size: 14px;
-}
-
-.auth-success {
-  color: #1DB954;
-  background-color: rgba(29, 185, 84, 0.1);
-  border: 1px solid #1DB954;
-  border-radius: 6px;
-  padding: 12px;
-  font-size: 14px;
-}
 
 .auth-2fa-actions {
   display: flex;
