@@ -17,8 +17,9 @@ const CSVImportSelector = ({ onSelectImported }) => {
   const [totalSongs, setTotalSongs] = useState(0);
   const fileInputRef = useRef(null);
 
-  
-  const parseCSVBasic = useCallback(async (csvText) => {
+  // Chosic Spotify Playlist Analyzer format:
+  // "Spotify Track Id","Song","Artist","Album","Duration" (Duration as m:ss)
+  const parseChosicCSV = useCallback(async (csvText) => {
     return new Promise((resolve, reject) => {
       Papa.parse(csvText, {
         header: true,
@@ -38,7 +39,12 @@ const CSVImportSelector = ({ onSelectImported }) => {
                   name: row["Album"] || "Unknown Album",
                   images: [] // No covers yet
                 },
-                duration_ms: parseInt(row["Duration"].replace(/:/g, "")) * 1000 || 0,
+                duration_ms: (() => {
+                  const parts = String(row["Duration"] || "").split(":").map(Number);
+                  return parts.length === 2 && parts.every(n => !isNaN(n))
+                    ? (parts[0] * 60 + parts[1]) * 1000
+                    : 0;
+                })(),
                 external_urls: { spotify: `https://open.spotify.com/track/${trackId}` }
               });
             }
@@ -49,6 +55,56 @@ const CSVImportSelector = ({ onSelectImported }) => {
       });
     });
   }, []);
+
+  // Exportify (exportify.app) format:
+  // "Track URI" (spotify:track:<id>), "Track Name", "Artist Name(s)" (comma-separated),
+  // "Album Name", "Album Image URL", "Track Duration (ms)", "Track Preview URL"
+  const parseExportifyCSV = useCallback(async (csvText) => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const tracks = [];
+          for (const row of results.data) {
+            const uri = row["Track URI"];
+            const song = row["Track Name"];
+            const artists = (row["Artist Name(s)"] || "").split(",").map(a => a.trim()).filter(Boolean);
+            if (uri && song && artists.length > 0) {
+              const trackId = uri.startsWith("spotify:track:") ? uri.split(":")[2] : uri;
+              const albumImageUrl = row["Album Image URL"];
+              tracks.push({
+                id: trackId,
+                name: song,
+                artists: artists.map(name => ({ name })),
+                album: {
+                  name: row["Album Name"] || "Unknown Album",
+                  images: albumImageUrl ? [{ url: albumImageUrl }] : []
+                },
+                duration_ms: parseInt(row["Track Duration (ms)"], 10) || 0,
+                preview_url: row["Track Preview URL"] || null,
+                external_urls: { spotify: `https://open.spotify.com/track/${trackId}` }
+              });
+            }
+          }
+          resolve(tracks);
+        },
+        error: (error) => reject(error)
+      });
+    });
+  }, []);
+
+  // Dispatch to the correct parser based on the CSV header row
+  const parseCSV = useCallback(async (csvText) => {
+    const headerLine = csvText.split("\n")[0] || "";
+    if (headerLine.includes("Track URI")) {
+      return parseExportifyCSV(csvText);
+    }
+    if (headerLine.includes("Spotify Track Id")) {
+      return parseChosicCSV(csvText);
+    }
+    throw new Error("Unrecognized CSV format. Expected a Chosic or Exportify CSV export.");
+  }, [parseChosicCSV, parseExportifyCSV]);
 
   const fetchCoversForTracks = useCallback(async (tracks) => {
     // Extract track IDs for batch request
@@ -98,7 +154,7 @@ const CSVImportSelector = ({ onSelectImported }) => {
     setIsLoading(true);
     try {
       const text = await selectedFile.text();
-      const tracks = await parseCSVBasic(text);
+      const tracks = await parseCSV(text);
       if (tracks.length === 0) {
         setError("No valid tracks found in CSV.");
         setIsLoading(false);
@@ -122,11 +178,11 @@ const CSVImportSelector = ({ onSelectImported }) => {
         });
       }
     } catch (err) {
-      setError("Failed to parse CSV file.");
+      setError(err?.message || "Failed to parse CSV file.");
       console.error(err);
       setIsLoading(false);
     }
-  }, [parseCSVBasic, fetchCoversForTracks]);
+  }, [parseCSV, fetchCoversForTracks]);
 
   const handleDrop = useCallback((event) => {
     event.preventDefault();
@@ -216,7 +272,13 @@ const CSVImportSelector = ({ onSelectImported }) => {
           <p>Drop your CSV file here or click to choose</p>
         )}
       </div>
-      {!isLoading && tracksParsed.length === 0 && <p>You can get CSV files from <a href="https://www.chosic.com/spotify-playlist-analyzer/" target="_blank" rel="noopener noreferrer">Chosic Spotify Playlist Analyzer</a>.</p>}
+      {!isLoading && tracksParsed.length === 0 && (
+        <p>You can get CSV files from{' '}
+          <a href="https://exportify.app/" target="_blank" rel="noopener noreferrer">Exportify</a>
+          {' '}or{' '}
+          <a href="https://www.chosic.com/spotify-playlist-analyzer/" target="_blank" rel="noopener noreferrer">Chosic Spotify Playlist Analyzer</a>.
+        </p>
+      )}
       <input
         type="file"
         ref={fileInputRef}

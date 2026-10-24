@@ -28,7 +28,7 @@ export const useTierlistUpload = ({
     try {
       if (!tuneTierUser) {
         throw new Error(remix
-          ? 'Remix: Please log in to your account before uploading tierlists.'
+          ? 'Please log in to your account before remixing tierlists.'
           : 'Please log in to your account before uploading tierlists.');
       }
 
@@ -126,7 +126,7 @@ export const useTierlistUpload = ({
     if (hasOnlineTierlistId && !tuneTierUser?.username) {
       setUploadMessage('');
       setUploadShareUrl('');
-      setUploadError('Remix: Please log in to your account before uploading tierlists.');
+      setUploadError('Please log in to your account before remixing tierlists.');
       return;
     }
 
