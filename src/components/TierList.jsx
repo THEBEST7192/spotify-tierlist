@@ -8,7 +8,7 @@ import "./TierList/TierListActions.css";
 import "./TierList/TierListControls.css";
 import "./TierList/TierListModal.css";
 import "./TierList/TierListDetection.css";
-import { PLACEHOLDER_COLORS } from '../constants';
+import { stablePlaceholderColor } from '../utils/vinylGenerator';
 import SpotifyPlayer from "./SpotifyPlayer";
 import TierListActions from "./TierList/TierListActions";
 import TierListControls from "./TierList/TierListControls";
@@ -185,7 +185,7 @@ const TierList = ({
               ...entry,
               content: {
                 ...entryContent,
-                placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+                placeholderColor: stablePlaceholderColor(entryContent.id || entryContent.name)
               }
             };
           }
@@ -377,7 +377,7 @@ const TierList = ({
     songs.forEach(song => {
       const songWithColor = {
         ...song,
-        placeholderColor: song.placeholderColor || PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+        placeholderColor: song.placeholderColor || stablePlaceholderColor(song.id || song.name)
       };
       if (song?.dragId) {
         incomingByDragId.set(song.dragId, songWithColor);
@@ -593,7 +593,7 @@ const TierList = ({
               ...song,
               content: {
                 ...songContent,
-                placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+                placeholderColor: stablePlaceholderColor(songContent.id || songContent.name)
               }
             };
           }

@@ -6,7 +6,7 @@ import {
 } from '../utils/backendApi';
 import './RecommendationGenerator.css';
 import { makeVinylFallback } from '../utils/imageFallback';
-import { VinylSvg, randomPlaceholderColor } from '../utils/vinylGenerator';
+import { VinylSvg, stablePlaceholderColor } from '../utils/vinylGenerator';
 
 // Constants for recommendation configuration
 const MAX_RECOMMENDATIONS_TUNETIER = 50; // Maximum recommendations for TuneTier users
@@ -598,7 +598,7 @@ const RecommendationGenerator = ({ tierState, tierOrder, onPlayTrack, onAddToTie
           spotifyData: spotifyDataFromCache,
           sources: rec.sources && Array.isArray(rec.sources) ? [...rec.sources] : [rec.source],
           recommendationCount: rec.recommendationCount || 1,
-          placeholderColor: randomPlaceholderColor()
+          placeholderColor: stablePlaceholderColor(key)
         });
       }
     });

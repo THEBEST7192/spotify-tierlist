@@ -9,6 +9,20 @@ export const randomPlaceholderColor = (exclude = []) => {
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
+// Deterministic placeholder color for a given key (song id, tierlist id, ...)
+// The same item always gets the same vinyl color across renders and pages
+export const stablePlaceholderColor = (key, exclude = []) => {
+  const pool = exclude.length
+    ? PLACEHOLDER_COLORS.filter(c => !exclude.includes(c))
+    : PLACEHOLDER_COLORS;
+  let hash = 0;
+  const str = String(key ?? '');
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return pool[hash % pool.length];
+};
+
 // Vinyl record as a React component for inline rendering
 export const VinylSvg = ({ color = '#1DB954', className, width, height }) => (
   <svg

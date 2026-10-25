@@ -5,7 +5,7 @@ import PlaylistSelector from "../components/PlaylistSelector";
 import TierList from "../components/TierList";
 import { PLACEHOLDER_COLORS } from '../constants';
 import { getTierlist } from "../utils/backendApi";
-import { VinylSvg } from '../utils/vinylGenerator';
+import { VinylSvg, stablePlaceholderColor } from '../utils/vinylGenerator';
 
 import "./Home.css";
 
@@ -177,7 +177,6 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser, server
 
   useEffect(() => {
     let i = 0;
-
     const interval = setInterval(() => {
       setLoadingColor(PLACEHOLDER_COLORS[i % PLACEHOLDER_COLORS.length]);
       setDotCount(i % 4);
@@ -225,7 +224,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser, server
         Unranked: tracks.map(track => ({ 
           content: {
             ...track,
-            placeholderColor: PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+            placeholderColor: stablePlaceholderColor(track.id)
           }, 
           id: `track-${track.id}-${Math.random().toString(36).slice(2, 10)}` 
         }))
@@ -289,7 +288,7 @@ const Home = ({ accessToken, setAuthToken, tuneTierUser, setTuneTierUser, server
                 allSongs.push({
                   ...song,
                   dragId: `track-${song.id}-${Math.random().toString(36).slice(2, 10)}`,
-                  placeholderColor: song.placeholderColor || PLACEHOLDER_COLORS[Math.floor(Math.random() * PLACEHOLDER_COLORS.length)]
+                  placeholderColor: song.placeholderColor || stablePlaceholderColor(song.id)
                 });
               }
             });

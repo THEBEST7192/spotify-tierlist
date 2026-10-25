@@ -3,7 +3,7 @@ import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, togg
 import CSVImportSelector from "./CSVImportSelector";
 import TierlistRating from "./TierlistRating";
 import { makeVinylFallback } from "../utils/imageFallback";
-import { vinylDataUri, randomPlaceholderColor } from "../utils/vinylGenerator";
+import { vinylDataUri, stablePlaceholderColor } from "../utils/vinylGenerator";
 import "./PlaylistSelector.css";
 
 const MAX_UPLOAD_BYTES = 100 * 1024; // 100KB
@@ -1103,7 +1103,7 @@ const PlaylistSelector = ({
     }
   }, [editModalPlaylist, editModalContext, isModalBusy, handleDeleteLocalTierlist, handleDeleteOnlineTierlist, handleModalClose]);
 
-  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || vinylDataUri(randomPlaceholderColor(['#1DB954']));
+  const modalPreviewUrl = editImageUrl.trim() || editModalPlaylist?.coverImage || editModalPlaylist?.images?.[0]?.url || vinylDataUri(stablePlaceholderColor(editModalPlaylist?._shortId || editModalPlaylist?._localId || 'modal', ['#1DB954']));
 
   return (
     <>
@@ -1294,22 +1294,22 @@ const PlaylistSelector = ({
           // Skip null playlists
           if (!playlist) return null;
           
+          const playlistKey = playlist._shortId
+            ? `${playlist._shortId}-${playlist.isPublic ? 'public' : 'private'}`
+            : playlist._localId
+            ? `local-${playlist._localId}`
+            : playlist.id || playlist.name || `idx-${index}`;
+
           // Get image URL safely
           const fallbackImage = pickBestSongImageUrl(playlist.images);
           const imageUrl = playlist.coverImage
             || fallbackImage
-            || vinylDataUri(randomPlaceholderColor(['#1DB954']));
-          
+            || vinylDataUri(stablePlaceholderColor(playlistKey, ['#1DB954']));
+
           // Get owner display name safely
-          const ownerName = playlist.owner && playlist.owner.display_name ? 
-                           playlist.owner.display_name : 
+          const ownerName = playlist.owner && playlist.owner.display_name ?
+                           playlist.owner.display_name :
                            'Unknown';
-          
-          const playlistKey = playlist._shortId 
-            ? `${playlist._shortId}-${playlist.isPublic ? 'public' : 'private'}`
-            : playlist._localId 
-            ? `local-${playlist._localId}`
-            : playlist.id || Math.random().toString();
           
           const canEditCover = (searchMode === 'local' && playlist._localId) || (searchMode === 'online' && playlist._shortId && playlist.isOwnerSelf);
           const canDeleteLocal = searchMode === 'local' && playlist._localId;
@@ -1364,7 +1364,7 @@ const PlaylistSelector = ({
                   src={imageUrl}
                   alt={playlist.name || 'Playlist'}
                   className="playlist-cover"
-                  onError={makeVinylFallback(null, ['#1DB954'])}
+                  onError={makeVinylFallback(stablePlaceholderColor(playlistKey, ['#1DB954']))}
                 />
                 {searchMode === 'online' && playlist._shortId && playlist.isPublic && (
                   <TierlistRating shortId={playlist._shortId} tuneTierUser={tuneTierUser} initialRatings={playlist.rating} />
