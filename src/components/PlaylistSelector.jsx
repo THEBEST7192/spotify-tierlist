@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { getPublicTierlists, getUserTierlists, updateTierlist, getTierlist, toggleTierlistPrivacy, deleteTierlist, batchGetUsernames, getTopRatedTierlists } from "../utils/backendApi";
 import CSVImportSelector from "./CSVImportSelector";
 import TierlistRating from "./TierlistRating";
-import { makeVinylFallback } from "../utils/imageFallback";
+import { makeVinylFallback, hasImageFailed } from "../utils/imageFallback";
 import { vinylDataUri, stablePlaceholderColor } from "../utils/vinylGenerator";
 import "./PlaylistSelector.css";
 
@@ -1300,11 +1300,11 @@ const PlaylistSelector = ({
             ? `local-${playlist._localId}`
             : playlist.id || playlist.name || `idx-${index}`;
 
-          // Get image URL safely
-          const fallbackImage = pickBestSongImageUrl(playlist.images);
-          const imageUrl = playlist.coverImage
-            || fallbackImage
-            || vinylDataUri(stablePlaceholderColor(playlistKey, ['#1DB954']));
+          // Get image URL safely and skip external URLs that already failed this session
+          const remoteImage = playlist.coverImage || pickBestSongImageUrl(playlist.images);
+          const imageUrl = (remoteImage && !hasImageFailed(remoteImage))
+            ? remoteImage
+            : vinylDataUri(stablePlaceholderColor(playlistKey, ['#1DB954']));
 
           // Get owner display name safely
           const ownerName = playlist.owner && playlist.owner.display_name ?
